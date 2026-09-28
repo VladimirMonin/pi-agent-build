@@ -14,11 +14,10 @@
     },
     "optional-local-service": {
       "url": "http://127.0.0.1:<PORT>/mcp",
-      "enabled": false
+      "disabled": true
     }
   },
   "settings": {
-    "scriptMode": false,
-    "inheritEnv": true
+    "scriptMode": false
   }
 }

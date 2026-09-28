@@ -23,19 +23,24 @@
       "package": "@upstash/context7-mcp",
       "version": "3.2.2",
       "command": "context7-mcp",
-      "optional": true
+      "optional": true,
+      "probe": "command-version",
+      "probeArguments": ["--version"]
     },
     {
       "package": "@brave/brave-search-mcp-server",
       "version": "2.0.85",
       "command": "brave-search-mcp-server",
-      "optional": true
+      "optional": true,
+      "probe": "command-version",
+      "probeArguments": ["--version"]
     },
     {
       "package": "mcp-server-fetch",
-      "version": "external-python-package",
+      "version": "2025.4.7",
       "command": "mcp-server-fetch",
-      "optional": true
+      "optional": true,
+      "probe": "command-present"
     }
   ],
   "codeProfile": [
@@ -43,17 +48,25 @@
       "package": "@ast-grep/cli",
       "version": "0.45.3",
       "command": "ast-grep.exe",
+      "probe": "direct-version",
+      "probeArguments": ["--version"],
       "windowsSpawnFix": "stage-real-executable"
     },
     {
       "package": "codebase-memory-mcp",
       "version": "0.11.0",
-      "command": "codebase-memory-mcp.exe"
+      "command": "codebase-memory-mcp.exe",
+      "probe": "npm-root-executable-version",
+      "probeArguments": ["--version"],
+      "npmExecutableRelativePath": "codebase-memory-mcp/bin/codebase-memory-mcp.exe"
     },
     {
       "package": "serena-agent",
       "version": "1.7.0",
-      "installer": "uv tool"
+      "command": "serena",
+      "installer": "uv tool",
+      "probe": "direct-version",
+      "probeArguments": ["--version"]
     }
   ]
 }

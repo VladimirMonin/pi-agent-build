@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/pi-agent-build/external-tools-lock.schema.json",
+  "title": "Pi Agent external tools lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "common", "mcp", "codeProfile"],
+  "properties": {
+    "$schema": { "const": "./schemas/external-tools-lock.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "common": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/commonTool" }
+    },
+    "mcp": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/mcpTool" }
+    },
+    "codeProfile": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/codeTool" }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "toolVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.[0-9A-Za-z.-]+|-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "commonTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/toolVersion" },
+        "minimumVersion": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?$"
+        },
+        "required": { "type": "boolean" },
+        "requiredFor": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "oneOf": [
+        { "required": ["version"] },
+        { "required": ["minimumVersion"] }
+      ]
+    },
+    "mcpTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "command", "optional", "probe"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/semver" },
+        "command": { "type": "string", "minLength": 1 },
+        "optional": { "type": "boolean" },
+        "probe": { "enum": ["command-version", "command-present"] },
+        "probeArguments": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "codeTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "probe"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/semver" },
+        "command": { "type": "string", "minLength": 1 },
+        "installer": { "enum": ["uv tool"] },
+        "windowsSpawnFix": { "enum": ["stage-real-executable"] },
+        "probe": { "enum": ["direct-version", "npm-root-executable-version"] },
+        "probeArguments": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "npmExecutableRelativePath": { "type": "string", "minLength": 1 }
+      },
+      "anyOf": [
+        { "required": ["command"] },
+        { "required": ["installer"] }
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "probe": { "const": "npm-root-executable-version" } } },
+          "then": { "required": ["npmExecutableRelativePath"] }
+        }
+      ]
+    }
+  }
+}

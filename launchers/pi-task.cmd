@@ -1,4 +1,5 @@
 @echo off
 setlocal
-set "PI_CODING_AGENT_DIR=%USERPROFILE%\.pi\task"
-call pi %*
+set "PI_CODING_AGENT_DIR=__PI_PROFILE_DIR_WINDOWS__"
+set "PI_AGENT_BUILD_NPM_PREFIX=__NPM_PREFIX_WINDOWS__"
+call "__NPM_PREFIX_WINDOWS__\pi.cmd" %*

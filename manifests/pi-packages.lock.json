@@ -25,10 +25,13 @@
         "version": "2.10.1"
       },
       {
-        "source": "https://github.com/VladimirMonin/pi-polza@v0.2.0",
+        "source": "https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42",
         "package": "pi-polza",
         "version": "0.2.0",
-        "kind": "git-tag"
+        "kind": "git-commit",
+        "commit": "af36ed0e1cce25cc8c6f26461c84be47f0d4ea42",
+        "tagObject": "907b813b4f6114bebececbff5cd2ff78b1c4e7ec",
+        "releaseTag": "v0.2.0"
       },
       {
         "source": "npm:pi-subagents@0.70.1",

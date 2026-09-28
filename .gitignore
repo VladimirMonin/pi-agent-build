@@ -39,6 +39,8 @@ run-history.jsonl
 *.tar.gz
 cache/
 .cache/
+logs/
+.serena/
 outputs/
 artifacts/
 
