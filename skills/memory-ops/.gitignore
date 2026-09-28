@@ -1,0 +1,5 @@
+runtime/
+*.db
+*.db-wal
+*.db-shm
+*.manifest.json
