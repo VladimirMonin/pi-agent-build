@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Pi Trace · {session_name}</title>
+<style>{css}</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="topbar-icon">⚡</span>
+  <span class="topbar-title">Трассировка · pi-agent:</span>
+  <span class="topbar-id" id="copy-id" title="Нажмите, чтобы скопировать">{session_name}</span>
+  <div class="topbar-meta">
+    <span><b>{interaction_count}</b> взаимодействий</span>
+    <span><b>{step_count}</b> обращений к модели</span>
+    <span><b>{tool_count}</b> вызовов инструментов</span>
+    <span><b>{total_cost}</b> общая стоимость</span>
+    <span><b>{total_dur}</b> общее время</span>
+  </div>
+</div>
+<div class="main">
+  <div class="tree-pane">
+    <div class="tree-search"><input type="text" id="tree-search" placeholder="Поиск по узлам (имя / инструмент / запрос)" /></div>
+    <div class="tree-toolbar">
+      <button id="expand-all">▼ Развернуть всё</button>
+      <button id="collapse-all">▶ Свернуть всё</button>
+      <button id="only-errors">❌ Только ошибки</button>
+    </div>
+    <div class="tree-list" id="tree-list"></div>
+    <div class="pane-resizer" id="resizer-dag" title="Потяните, чтобы изменить высоту"></div>
+    <div class="dag-pane" id="dag-pane">
+      <div class="dag-title">Статистика узлов (успешно / всего)</div>
+      <div class="dag-grid" id="dag-grid"></div>
+    </div>
+    <div class="pane-resizer" id="resizer-fail" title="Потяните, чтобы изменить высоту"></div>
+    <div class="fail-pane" id="fail-pane">
+      <div class="fail-title">Анализ ошибок инструментов</div>
+      <div class="fail-list" id="fail-list"></div>
+    </div>
+  </div>
+  <div class="detail-pane" id="detail-pane">
+    <div class="detail-empty">Выберите узел слева, чтобы увидеть подробности</div>
+  </div>
+</div>
+<script>{js}</script>
+</body>
+</html>
