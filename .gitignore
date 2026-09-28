@@ -1,0 +1,56 @@
+# Dependencies and generated files
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Credentials and local overrides
+.env
+.env.*
+!.env.example
+auth.json
+**/auth.json
+config.local.json
+*.secret.json
+secrets/
+*.key
+*.pem
+
+# Pi runtime state
+sessions/
+traces/
+missions/
+memory/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.jsonl
+mcp-cache.json
+models-store.json
+run-history.jsonl
+
+# Archives and caches
+*.7z
+*.zip
+*.tar
+*.tar.gz
+cache/
+.cache/
+outputs/
+artifacts/
+
+# Local test/install roots
+.pi-local/
+.test-home/
+.tmp/
+tmp/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
