@@ -41,4 +41,4 @@ python .\patches\session-search-profile\apply.py `
 
 и выполни `/session-reindex` внутри `pi-task`.
 
-Patcher жёстко проверяет версию и частичное состояние; неизвестная или смешанная структура завершается ошибкой.
+Patcher жёстко проверяет версию и byte-exact state. Pristine store в Git immutable; runtime-backups записываются под `.pi-agent-build-backups/session-search-profile` выбранного профиля. Неизвестная или смешанная структура завершается ошибкой.

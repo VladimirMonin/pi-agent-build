@@ -2,17 +2,21 @@
 
 Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
 
-## Два исправления
+## Три исправления
 
 ### Windows spawn
 
-Stock-пакет запускает дочерний `pi` через `spawn("pi", ..., shell:false)`. На Windows глобальный npm предоставляет `.cmd`-shim, который такой вызов не запускает. Patch использует текущий `process.execPath` и реальный `cli.js` Pi.
+Stock-пакет запускает дочерний `pi` через `spawn("pi", ..., shell:false)`. На Windows глобальный npm предоставляет `.cmd`-shim, который такой вызов не запускает. Patch использует текущий `process.execPath`, `PI_AGENT_BUILD_NPM_PREFIX` от launcher и реальный `cli.js` Pi.
 
 ### Правильное сопоставление реплик
 
 Stock-пакет ведёт два независимых массива user/assistant messages и сопоставляет их по индексу. При tool turns, ошибках или неполных ответах пары смещаются. Patch сохраняет session-local упорядоченный поток `pendingTurns` и строит consolidation input по реальному порядку.
 
 Важно: `pushTurn` обязан находиться внутри `index_default` рядом с pending state. Ранняя версия patch размещала helper в module scope и падала на `agent_end`; простого `node --check` недостаточно.
+
+### Настройки выбранного профиля
+
+Stock-пакет всегда читает `~/.pi/agent/settings.json`. Patch строит путь к `settings.json` из `PI_CODING_AGENT_DIR`, поэтому Task-only запуск использует настройки Task-профиля. Общий `~/.pi/memory/memory.db` не переносится.
 
 ## Использование
 
@@ -30,6 +34,8 @@ python .\patches\memory-windows-runtime\apply.py `
 ```text
 verdict: RUNTIME-SAFE
 ```
+
+Контракт exit code: `0` — canonical patch уже применён; `1` — byte-exact stock или byte-exact previous canonical patch требует применения; `2` — fatal/unknown/marker-shaped drift, автоматическая запись запрещена.
 
 ## Проверки
 

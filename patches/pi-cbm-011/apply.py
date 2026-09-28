@@ -47,13 +47,14 @@ DURABILITY
 ----------
 This edits a file INSIDE the installed npm package. Any `npm install` /
 `pi install` / `pi update` reinstalling pi-cbm WILL OVERWRITE IT. Re-run --apply
-afterwards. On a version change --apply notices the file is stock again and
-refreshes the pristine copy.
+afterwards. The reviewed pristine file in this repository is immutable;
+runtime backups live under the selected Pi profile, and any source/version
+mismatch fails closed.
 
 USAGE
 -----
   python apply-pi-cbm-011-patch.py --check     # report only
-  python apply-pi-cbm-011-patch.py --apply     # patch (stores pristine copy)
+  python apply-pi-cbm-011-patch.py --apply     # patch (profile-local backup)
   python apply-pi-cbm-011-patch.py --restore   # byte-exact undo
 """
 
@@ -373,32 +374,35 @@ def cmd_check() -> int:
         print(f"  client.ts NOT found at {TARGET}")
         return 2
 
-    text = read_raw(TARGET)
-    patched = is_patched(text)
     pristine = pristine_path(ver)
-    print(f"  pristine copy:  {pristine.name} "
-          f"({'present' if pristine.exists() else 'MISSING'})")
-
-    print("\n  --- state ---")
-    print(f"    callTool adapter: {'YES (format + schema translator)' if patched else 'NO (stock)'}")
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
+    expected, problems = build_patched(base)
+    if problems:
+        print(f"  immutable pristine store does not match patch anchors: {problems}")
+        return 2
+    text = read_raw(TARGET)
 
     print("\n  --- verdict ---")
     if cvt is not None and cvt < CBM_MIN_VERSION:
+        if text != base:
+            print("  UNKNOWN STATE: patch is not required but installed source is not immutable stock.")
+            return 2
         print(f"  PATCH NOT REQUIRED: CBM {cv} predates the tree-output default;")
-        print("  this CBM always emits JSON and has no --format flag.")
-        return 0
-    if patched:
-        print("  ALREADY PATCHED. Nothing to do.")
-        print("  Use --restore to return to stock.")
         return 0
     if not cbm_supports_format():
-        print("  PATCH NOT REQUIRED: this CBM build exposes no --format flag,")
-        print("  so its output is already JSON. Upstream likely changed again — re-test.")
+        print("  UNSUPPORTED: CBM 0.11.x does not expose the required --format flag.")
+        return 2
+    if text == expected:
+        print("  ALREADY PATCHED. Nothing to do.")
         return 0
-    print(f"  PATCH REQUIRED: CBM {cv} defaults graph tools to tree output and the")
-    print(f"  wrapper would silently return empty results.")
-    print(f"  would wrap {len(JSON_FORMAT_TOOLS)} tools with format=\"json\"")
-    return 1
+    if text == base:
+        print(f"  PATCH REQUIRED: CBM {cv} defaults graph tools to tree output.")
+        return 1
+    print("  UNKNOWN STATE: installed file differs from immutable stock and canonical patch.")
+    return 2
 
 
 def cmd_apply() -> int:
@@ -430,35 +434,33 @@ def cmd_apply() -> int:
 
     text = read_raw(TARGET)
     pristine = pristine_path(ver)
-
-    if is_patched(text) and pristine.exists():
-        base = read_raw(pristine)
-        print(f"  rebuilding from pristine copy: {pristine.name}")
-    else:
-        STORE.mkdir(parents=True, exist_ok=True)
-        write_raw(pristine, text)
-        print(f"  pristine copy stored: {pristine}")
-        base = text
-
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
     new_text, problems = build_patched(base)
     if problems:
-        print("\n  REFUSING TO PATCH — anchors not found:")
+        print("\n  REFUSING TO PATCH — immutable store anchors not found:")
         for p in problems:
             print(f"    - {p}")
-        print("  The package layout changed. Inspect the file before patching.")
+        return 2
+    if text == new_text:
+        print("  file already in canonical patched state (idempotent)")
+        return 0
+    if text != base:
+        print("  REFUSING: installed file differs from immutable stock and canonical patch")
         return 2
 
-    if new_text == text:
-        print("  file already in patched state (idempotent)")
-        return 0
-
-    ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
-    backup = BACKUP_ROOT / f"pi-cbm-client.ts.bak-{ts}"
+    backup = BACKUP_ROOT / f"pi-cbm-client.ts.stock-{ts}"
     shutil.copy2(TARGET, backup)
-    print(f"  backup: {backup}")
+    print(f"  runtime backup: {backup}")
 
     write_raw(TARGET, new_text)
+    if read_raw(TARGET) != new_text:
+        print("  post-write verification failed")
+        return 2
     print("\n  patched:")
     for t in JSON_FORMAT_TOOLS:
         print(f"    {t}")
@@ -473,25 +475,37 @@ def cmd_restore() -> int:
         print(f"  client.ts NOT found at {TARGET}")
         return 2
     ver = installed_version()
+    if ver != AUTHORED_AGAINST:
+        print(f"  unsupported package version: {ver}")
+        return 2
     pristine = pristine_path(ver)
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
+    expected, problems = build_patched(base)
+    if problems:
+        print(f"  immutable pristine store does not match patch anchors: {problems}")
+        return 2
     text = read_raw(TARGET)
-
-    if not is_patched(text):
+    if text == base:
         print("  file is already stock — nothing to restore")
         return 0
-    if not pristine.exists():
-        print(f"  no pristine copy for version {ver}: {pristine}")
+    if text != expected:
+        print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
 
-    ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
     backup = BACKUP_ROOT / f"pi-cbm-client.ts.patched-{ts}"
     shutil.copy2(TARGET, backup)
     print(f"  backup of patched state: {backup}")
 
     shutil.copy2(pristine, TARGET)
-    print(f"  restored from pristine copy: {pristine.name}")
-    print("  restart Pi (or /reload) so the extension reloads")
+    if read_raw(TARGET) != base:
+        print("  post-restore verification failed")
+        return 2
+    print(f"  restored from immutable pristine: {pristine.name}")
     return 0
 
 

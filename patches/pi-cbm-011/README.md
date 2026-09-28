@@ -46,3 +46,5 @@ python .\patches\pi-cbm-011\apply.py `
 Stock `pi-cbm 1.2.1` после отката остаётся несовместимым с CBM 0.11. Функциональный rollback требует CBM 0.8.1, отключения wrapper или новой совместимой версии.
 
 На Windows launcher обязан задавать `CODEBASE_MEMORY_MCP_BIN` на настоящий `.exe`, а не npm shim.
+
+Pristine store в Git immutable. Apply принимает только точный stock/canonical body, пишет backup под `.pi-agent-build-backups/pi-cbm-011` выбранного профиля и отказывается перезаписывать неизвестное состояние.

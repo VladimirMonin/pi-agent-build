@@ -32,24 +32,22 @@ bridge, not Serena, not .serena/project.yml.
 
 HOW RESTORE STAYS EXACT
 -----------------------
-Rather than reversing the text surgery (fragile: an off-by-one in marker
-handling silently duplicates or drops a block), --apply first stores a
-PRISTINE copy of the stock file, keyed by package version, and --restore
-copies that back byte for byte. --apply always rebuilds from the pristine
-copy, so it is idempotent no matter how many times it runs.
+The repository contains an immutable, reviewed pristine file for the exact
+supported package version. Apply accepts only that byte-exact stock body (or
+the canonical patched body), writes runtime backups under the selected Pi
+profile, and never writes into this Git checkout. Restore copies the immutable
+stock file back byte for byte.
 
 DURABILITY
 ----------
 This patch edits the file INSIDE the installed npm package. Any
 `npm install` / `pi install` / `pi update` that reinstalls @bacnh85/pi-serena
-WILL OVERWRITE IT. Re-run `--apply` afterwards. When the package version
-changes, --apply notices the file is stock again and refreshes the pristine
-copy for the new revision.
+WILL OVERWRITE IT. Re-run `--apply` afterwards. Any package version or installed-body mismatch fails closed until re-audited.
 
 USAGE
 -----
   python apply-serena-tools-patch.py --check     # report only, changes nothing
-  python apply-serena-tools-patch.py --apply     # patch (stores pristine copy)
+  python apply-serena-tools-patch.py --apply     # patch (profile-local backup)
   python apply-serena-tools-patch.py --restore   # byte-exact undo
 """
 
@@ -226,55 +224,36 @@ def cmd_check() -> int:
         print(f"  package NOT installed at {PKG_DIR}")
         return 2
     print(f"  package:          {PKG_NAME} {ver}")
+    if ver != AUTHORED_AGAINST:
+        print(f"  UNSUPPORTED: expected exactly {AUTHORED_AGAINST}, found {ver}")
+        return 2
     if not TARGET.exists():
         print(f"  index.ts NOT found at {TARGET}")
         return 2
     print(f"  serena-agent:     {serena_version() or 'unknown'}")
 
+    pristine = pristine_path(ver)
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
+    expected, done, skipped = emit_patched_from(base)
+    if skipped or len(done) != len(PATCHED_TOOLS):
+        print(f"  immutable pristine store does not match patch anchors: {skipped}")
+        return 2
+
     text = read_raw(TARGET)
     active = count_registrations(text)
-    names = registered_names(text)
     print(f"  active registerTool blocks: {active}")
-    print(f"  registered serena_* names:  {len(names)}")
-
-    pristine = pristine_path(ver)
-    print(f"  pristine copy:    {pristine.name} "
-          f"({'present' if pristine.exists() else 'MISSING'})")
-
-    if ver != AUTHORED_AGAINST:
-        print(f"\n  NOTE: authored against {AUTHORED_AGAINST}, installed {ver}.")
-        print("  Blocks are matched by content, not by version string.")
-
-    print("\n  --- per-tool state ---")
-    needs_patch, already = [], []
-    for tool, reason in PATCHED_TOOLS.items():
-        has_block = bool(find_blocks(text, tool))
-        patched = is_patched(text, tool)
-        if patched:
-            state = "PATCHED (disabled)"
-            already.append(tool)
-        elif has_block:
-            state = "ACTIVE -> patch needed"
-            needs_patch.append(tool)
-        else:
-            state = "not registered by this revision"
-        print(f"    {tool:38} {state}")
-        if not has_block and not patched:
-            print(f"      known reason: {reason}")
-
-    print("\n  --- verdict ---")
-    if needs_patch:
-        print(f"  PATCH REQUIRED for: {', '.join(needs_patch)}")
-        print(f"  would leave {active - len(needs_patch)} active registerTool blocks")
-        return 1
-    if already:
-        print(f"  ALREADY PATCHED ({len(already)} disabled), "
-              f"{active} active blocks. Nothing to do.")
-        print("  Use --restore to return to stock.")
+    print(f"  immutable pristine: {pristine.name}")
+    if text == expected:
+        print("  ALREADY PATCHED. Nothing to do.")
         return 0
-    print("  PATCH NOT REQUIRED: neither dead tool is registered by this revision.")
-    print("  Upstream likely fixed it — this patch can be dropped.")
-    return 0
+    if text == base:
+        print(f"  PATCH REQUIRED for: {', '.join(PATCHED_TOOLS)}")
+        return 1
+    print("  UNKNOWN STATE: installed file differs from both immutable stock and canonical patch.")
+    return 2
 
 
 def cmd_apply() -> int:
@@ -284,47 +263,34 @@ def cmd_apply() -> int:
         return 2
     ver = installed_version()
     print(f"  package: {PKG_NAME} {ver}")
+    if ver != AUTHORED_AGAINST:
+        print(f"  REFUSING: patch supports exactly {AUTHORED_AGAINST}")
+        return 2
+    pristine = pristine_path(ver)
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
+    new_text, done, skipped = emit_patched_from(base)
+    if skipped or len(done) != len(PATCHED_TOOLS):
+        print(f"  immutable pristine store does not match patch anchors: {skipped}")
+        return 2
 
     text = read_raw(TARGET)
-    patched_now = any(is_patched(text, t) for t in PATCHED_TOOLS)
-    pristine = pristine_path(ver)
-
-    if patched_now and pristine.exists():
-        base = read_raw(pristine)
-        print(f"  rebuilding from pristine copy: {pristine.name}")
-    else:
-        # Stock file (fresh install or after an npm update): capture it first.
-        if count_registrations(text) < len(PATCHED_TOOLS) + 1:
-            print("  refusing to patch: file does not look like a stock extension")
-            return 2
-        STORE.mkdir(parents=True, exist_ok=True)
-        write_raw(pristine, text)
-        print(f"  pristine copy stored: {pristine}")
-        base = text
-
-    before = count_registrations(base)
-    new_text, done, skipped = emit_patched_from(base)
-    for t in done:
-        print(f"  {t:38} disabled")
-    for t in skipped:
-        print(f"  {t:38} no registration block found, skipped")
-
-    if not done:
-        print("  nothing to do")
+    if text == new_text:
+        print("  file already in canonical patched state (idempotent)")
         return 0
+    if text != base:
+        print("  REFUSING: installed file differs from immutable stock and canonical patch")
+        return 2
 
-    if new_text == text:
-        print("  file already in patched state (idempotent)")
-        return 0
-
-    backup = make_backup("bak")
-    print(f"  backup: {backup}")
+    backup = make_backup("stock")
+    print(f"  runtime backup: {backup}")
     write_raw(TARGET, new_text)
-
-    after = count_registrations(read_raw(TARGET))
-    print(f"\n  active registerTool blocks: {before} -> {after}")
-    if after != before - len(done):
-        print("  WARNING: disabled count does not match active-block delta — inspect the file")
+    if read_raw(TARGET) != new_text:
+        print("  post-write verification failed")
+        return 2
+    print(f"  active registerTool blocks: {count_registrations(base)} -> {count_registrations(new_text)}")
     print("  restart Pi (or /reload) so the extension reloads")
     return 0
 
@@ -335,28 +301,32 @@ def cmd_restore() -> int:
         print(f"  index.ts NOT found at {TARGET}")
         return 2
     ver = installed_version()
-    pristine = pristine_path(ver)
-    text = read_raw(TARGET)
-
-    if any(is_patched(text, t) for t in PATCHED_TOOLS) and not pristine.exists():
-        print(f"  no pristine copy for version {ver} — cannot restore byte-exactly")
+    if ver != AUTHORED_AGAINST:
+        print(f"  unsupported package version: {ver}")
         return 2
-
-    if not any(is_patched(text, t) for t in PATCHED_TOOLS):
+    pristine = pristine_path(ver)
+    if not pristine.exists():
+        print(f"  immutable pristine store missing: {pristine}")
+        return 2
+    base = read_raw(pristine)
+    expected, done, skipped = emit_patched_from(base)
+    if skipped or len(done) != len(PATCHED_TOOLS):
+        print("  immutable pristine store does not match patch anchors")
+        return 2
+    text = read_raw(TARGET)
+    if text == base:
         print("  file is already stock — nothing to restore")
         return 0
-
-    if not pristine.exists():
-        print(f"  pristine copy missing: {pristine}")
+    if text != expected:
+        print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
-
     backup = make_backup("patched")
     print(f"  backup of patched state: {backup}")
     shutil.copy2(pristine, TARGET)
-    print(f"  restored from pristine copy: {pristine.name}")
-    after = count_registrations(read_raw(TARGET))
-    print(f"  active registerTool blocks: {after}")
-    print("  restart Pi (or /reload) so the extension reloads")
+    if read_raw(TARGET) != base:
+        print("  post-restore verification failed")
+        return 2
+    print(f"  restored from immutable pristine: {pristine.name}")
     return 0
 
 

@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Make pi-session-search 1.4.3 respect PI_CODING_AGENT_DIR.
 
-Usage:
-  python apply.py --agent-dir <USER_HOME>/.pi/task --check
-  python apply.py --agent-dir <USER_HOME>/.pi/task --apply
-  python apply.py --agent-dir <USER_HOME>/.pi/task --restore
+The repository store is immutable. Apply and restore accept only byte-exact
+stock/canonical states and keep runtime backups under the selected profile.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import pathlib
 import shutil
@@ -24,6 +23,7 @@ REL_FILES = (
     pathlib.Path("src/parser.ts"),
     pathlib.Path("dist/index.js"),
 )
+BACKUP_ROOT = pathlib.Path()
 
 CONFIG_OLD = '''function globalConfigDir(): string {
   return join(homedir(), ".pi", "session-search");
@@ -106,24 +106,22 @@ def package_root(agent_dir: pathlib.Path) -> pathlib.Path:
     return agent_dir / "npm" / "node_modules" / "pi-session-search"
 
 
+def configure_paths(agent_dir: pathlib.Path) -> None:
+    global BACKUP_ROOT
+    BACKUP_ROOT = agent_dir / ".pi-agent-build-backups" / "session-search-profile"
+
+
 def assert_version(root: pathlib.Path) -> None:
-    package = json.loads((root / "package.json").read_text(encoding="utf-8"))
+    package_file = root / "package.json"
+    if not package_file.is_file():
+        raise RuntimeError(f"package.json missing: {package_file}")
+    package = json.loads(package_file.read_text(encoding="utf-8"))
     actual = package.get("version")
     if actual != VERSION:
         raise RuntimeError(f"unsupported pi-session-search {actual}; expected exactly {VERSION}")
-
-
-def save_pristine(root: pathlib.Path) -> None:
-    STORE.mkdir(parents=True, exist_ok=True)
-    for rel in REL_FILES:
-        src, dst = root / rel, STORE / rel
-        if not dst.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
-
-
-def state(root: pathlib.Path) -> list[bool]:
-    return [MARKER in (root / rel).read_text(encoding="utf-8") for rel in REL_FILES]
+    missing = [str(rel) for rel in REL_FILES if not (root / rel).is_file()]
+    if missing:
+        raise RuntimeError(f"installed files missing: {missing}")
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -133,34 +131,78 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def apply(root: pathlib.Path) -> None:
-    current = state(root)
-    if all(current):
-        print("ALREADY PATCHED")
-        return
-    if any(current):
-        raise RuntimeError(f"partial patch state: {current}")
-    save_pristine(root)
-    c = (STORE / REL_FILES[0]).read_text(encoding="utf-8")
-    p = (STORE / REL_FILES[1]).read_text(encoding="utf-8")
-    d = (STORE / REL_FILES[2]).read_text(encoding="utf-8")
+def read_files(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
+    return {rel: (root / rel).read_bytes() for rel in REL_FILES}
+
+
+def canonical_files() -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
+    missing = [str(rel) for rel in REL_FILES if not (STORE / rel).is_file()]
+    if missing:
+        raise RuntimeError(f"immutable pristine files missing: {missing}")
+    stock = read_files(STORE)
+    c = stock[REL_FILES[0]].decode("utf-8")
+    p = stock[REL_FILES[1]].decode("utf-8")
+    d = stock[REL_FILES[2]].decode("utf-8")
     c = replace_once(c, CONFIG_OLD, CONFIG_NEW, "src/config.ts")
     p = replace_once(p, PARSER_OLD, PARSER_NEW, "src/parser.ts")
     d = replace_once(d, DIST_CONFIG_OLD, DIST_CONFIG_NEW, "dist config")
     d = replace_once(d, DIST_PARSER_OLD, DIST_PARSER_NEW, "dist parser")
-    (root / REL_FILES[0]).write_text(c, encoding="utf-8", newline="")
-    (root / REL_FILES[1]).write_text(p, encoding="utf-8", newline="")
-    (root / REL_FILES[2]).write_text(d, encoding="utf-8", newline="")
+    canonical = {
+        REL_FILES[0]: c.encode("utf-8"),
+        REL_FILES[1]: p.encode("utf-8"),
+        REL_FILES[2]: d.encode("utf-8"),
+    }
+    return stock, canonical
+
+
+def classify(root: pathlib.Path) -> tuple[str, dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
+    stock, canonical = canonical_files()
+    current = read_files(root)
+    if current == canonical:
+        return "patched", stock, canonical
+    if current == stock:
+        return "stock", stock, canonical
+    return "unknown", stock, canonical
+
+
+def runtime_backup(root: pathlib.Path, label: str) -> pathlib.Path:
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    target = BACKUP_ROOT / f"{label}-{stamp}"
+    for rel in REL_FILES:
+        dst = target / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / rel, dst)
+    return target
+
+
+def apply(root: pathlib.Path) -> None:
+    status, _stock, canonical = classify(root)
+    if status == "patched":
+        print("ALREADY PATCHED")
+        return
+    if status != "stock":
+        raise RuntimeError("installed files differ from immutable stock and canonical patch")
+    print(f"runtime backup: {runtime_backup(root, 'stock')}")
+    for rel, body in canonical.items():
+        (root / rel).write_bytes(body)
     subprocess.run(["node", "--check", str(root / REL_FILES[2])], check=True)
+    if read_files(root) != canonical:
+        raise RuntimeError("post-write verification failed")
     print("PATCH APPLIED")
 
 
 def restore(root: pathlib.Path) -> None:
-    missing = [str(rel) for rel in REL_FILES if not (STORE / rel).exists()]
-    if missing:
-        raise RuntimeError(f"pristine files missing: {missing}")
-    for rel in REL_FILES:
-        shutil.copy2(STORE / rel, root / rel)
+    status, stock, _canonical = classify(root)
+    if status == "stock":
+        print("ALREADY STOCK")
+        return
+    if status != "patched":
+        raise RuntimeError("installed files are neither immutable stock nor canonical patch")
+    print(f"runtime backup: {runtime_backup(root, 'patched')}")
+    for rel, body in stock.items():
+        (root / rel).write_bytes(body)
+    if read_files(root) != stock:
+        raise RuntimeError("post-restore verification failed")
     print("RESTORED BYTE-EXACT")
 
 
@@ -172,17 +214,19 @@ def main() -> int:
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--restore", action="store_true")
     args = ap.parse_args()
-    root = package_root(pathlib.Path(args.agent_dir).expanduser().resolve())
+    agent_dir = pathlib.Path(args.agent_dir).expanduser().resolve()
+    configure_paths(agent_dir)
+    root = package_root(agent_dir)
     if not root.is_dir():
         print(f"ERROR: package not found: {root}", file=sys.stderr)
         return 2
     try:
         assert_version(root)
         if args.check:
-            current = state(root)
-            print(f"version={VERSION} files={current}")
-            print("ALREADY PATCHED" if all(current) else "PATCH REQUIRED" if not any(current) else "PARTIAL PATCH")
-            return 0 if all(current) or not any(current) else 2
+            status, _stock, _canonical = classify(root)
+            print(f"version={VERSION} state={status}")
+            print("ALREADY PATCHED" if status == "patched" else "PATCH REQUIRED" if status == "stock" else "UNKNOWN STATE")
+            return 0 if status == "patched" else 1 if status == "stock" else 2
         if args.apply:
             apply(root)
         else:

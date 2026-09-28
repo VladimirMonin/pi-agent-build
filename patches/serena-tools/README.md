@@ -27,7 +27,7 @@ python .\patches\serena-tools\apply.py `
 Ожидаемый verdict:
 
 ```text
-ALREADY PATCHED (2 disabled), 18 active blocks
+ALREADY PATCHED
 ```
 
 Откат:
@@ -39,4 +39,4 @@ python .\patches\serena-tools\apply.py `
 
 Откат возвращает stock tool surface, но не делает отсутствующие backend capabilities рабочими.
 
-Patcher хранит pristine-файл рядом с собой, а runtime-backups — под профилем `.pi-agent-build-backups/serena-tools`. После обновления wrapper/Serena/Pyright требуется повторный capability audit.
+Pristine-файл в Git immutable; apply его не создаёт и не меняет. Runtime-backups находятся под профилем `.pi-agent-build-backups/serena-tools`. Любое расхождение с точным stock/canonical state завершается отказом. После обновления wrapper/Serena/Pyright требуется повторный capability audit.

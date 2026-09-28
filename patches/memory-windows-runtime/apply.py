@@ -2,12 +2,13 @@
 """Patch @samfp/pi-memory 1.5.0 for Windows spawn and ordered turns.
 
 The canonical result is always rebuilt in memory from the pristine 1.5.0
-backup. This makes migration from the historical marker-present-but-broken
-patch safe and keeps repeated application byte-idempotent.
+backup. Only exact known byte states are writable; marker-shaped or otherwise
+modified files must be restored by reinstalling the package.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import os
 import pathlib
@@ -20,7 +21,15 @@ EXPECTED_STOCK_SHA256 = "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021
 
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
 FIXED_SCOPE_MARKER = "// pi-memory ordered turns: session-local lexical state"
+PROFILE_SETTINGS_MARKER = "// pi-memory profile settings: PI_CODING_AGENT_DIR"
 LEGACY_GLOBAL = "globalThis.__piMemoryTurns"
+
+SETTINGS_FROM = 'var GLOBAL_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");'
+SETTINGS_TO = '''// pi-memory profile settings: PI_CODING_AGENT_DIR
+var GLOBAL_SETTINGS_PATH = join(
+  process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent"),
+  "settings.json"
+);'''
 
 # Windows spawn: npm's pi.cmd shim cannot be spawned with shell:false.
 P1_FROM = """      const execPromise = pi.exec("pi", [
@@ -46,13 +55,19 @@ P1_TAIL_TO = """          injectorConfig.consolidationModel ?? DEFAULT_CONSOLIDA
         // Запускаем тот же CLI напрямую через node: shell не нужен, а prompt
         // передаётся аргументом массива — без кавычек и экранирования.
         if (process.platform === "win32") {
-          const root = join(process.env.APPDATA || homedir(), "npm");
+          const root = process.env.PI_AGENT_BUILD_NPM_PREFIX?.trim() || join(process.env.APPDATA || homedir(), "npm");
           const cli = join(root, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
           if (existsSync(cli)) return [process.execPath, [cli, ...args], { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
           return [join(root, "pi.cmd"), args, { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
         }
         return ["pi", args, { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
       })());"""
+
+# Canonical body shipped before profile-local settings/custom npm-prefix support.
+P1_TAIL_TO_PREVIOUS = P1_TAIL_TO.replace(
+    'const root = process.env.PI_AGENT_BUILD_NPM_PREFIX?.trim() || join(process.env.APPDATA || homedir(), "npm");',
+    'const root = join(process.env.APPDATA || homedir(), "npm");',
+)
 
 # Ordered turns: state and helper must share index_default's lexical scope.
 P2_STATE_FROM = """function index_default(pi) {
@@ -199,8 +214,21 @@ P2_INPUT_TO = """      userMessages: pendingUserMessages,
       turns: pendingTurns.slice(),"""
 
 CANONICAL_REPLACEMENTS = [
+    (SETTINGS_FROM, SETTINGS_TO),
     (P1_FROM, P1_TO),
     (P1_TAIL_FROM, P1_TAIL_TO),
+    (P2_STATE_FROM, P2_STATE_TO),
+    (P2_REPLAY_FROM, P2_REPLAY_TO),
+    (P2_AGENT_END_FROM, P2_AGENT_END_TO),
+    (P2_RESET_START_FROM, P2_RESET_START_TO),
+    (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
+    (P2_PAIRS_FROM, P2_PAIRS_TO),
+    (P2_INPUT_FROM, P2_INPUT_TO),
+]
+
+PREVIOUS_CANONICAL_REPLACEMENTS = [
+    (P1_FROM, P1_TO),
+    (P1_TAIL_FROM, P1_TAIL_TO_PREVIOUS),
     (P2_STATE_FROM, P2_STATE_TO),
     (P2_REPLAY_FROM, P2_REPLAY_TO),
     (P2_AGENT_END_FROM, P2_AGENT_END_TO),
@@ -219,16 +247,16 @@ def short(data: bytes) -> str:
     return digest(data)[:12]
 
 
-def build_canonical(stock: bytes) -> bytes:
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS) -> bytes:
     text = stock.decode("utf-8")
-    for old, new in CANONICAL_REPLACEMENTS:
+    for old, new in replacements:
         count = text.count(old)
         if count != 1:
             anchor = old.strip().splitlines()[0][:70]
             raise RuntimeError(f"stock anchor count {count}, expected 1: {anchor}")
         text = text.replace(old, new, 1)
     result = text.encode("utf-8")
-    if not is_runtime_safe(result.decode("utf-8")):
+    if replacements is CANONICAL_REPLACEMENTS and not is_runtime_safe(result.decode("utf-8")):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
     return result
 
@@ -240,6 +268,8 @@ def is_runtime_safe(text: str) -> bool:
     return (
         WIN_MARKER in text
         and FIXED_SCOPE_MARKER in text
+        and PROFILE_SETTINGS_MARKER in text
+        and "process.env.PI_CODING_AGENT_DIR?.trim()" in text
         and index_pos >= 0
         and index_pos < helper_pos < first_handler
         and "let pendingTurns = [];" in text
@@ -249,26 +279,26 @@ def is_runtime_safe(text: str) -> bool:
     )
 
 
-def is_legacy_broken(text: str) -> bool:
-    normalized = text.replace("\r\n", "\n")
-    return (
-        WIN_MARKER in normalized
-        and "function pushTurn(role, text) {" in normalized
-        and LEGACY_GLOBAL in normalized
-        and "\n}\nfunction pushTurn(role, text) {" in normalized
-        and not is_runtime_safe(normalized)
-    )
-
-
-def classify(target: bytes, stock: bytes, canonical: bytes) -> str:
+def classify(target: bytes, stock: bytes, canonical: bytes, previous: bytes) -> str:
     if target == stock:
         return "stock-pristine"
     text = target.decode("utf-8")
-    if target == canonical or is_runtime_safe(text):
+    if target == canonical:
         return "runtime-safe"
-    if is_legacy_broken(text):
-        return "legacy-broken"
+    if target == previous:
+        return "legacy-canonical"
+    if is_runtime_safe(text):
+        return "noncanonical-drift"
     return "unknown"
+
+
+def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) -> pathlib.Path:
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    root = agent_dir / ".pi-agent-build-backups" / "memory-windows-runtime"
+    root.mkdir(parents=True, exist_ok=True)
+    destination = root / f"index.js.{label}-{stamp}"
+    shutil.copy2(target, destination)
+    return destination
 
 
 def main() -> int:
@@ -287,24 +317,25 @@ def main() -> int:
 
     if not target.exists():
         print(f"НЕ НАЙДЕН: {target}")
-        return 1
+        return 2
     if not BACKUP.exists():
         print(f"НЕ НАЙДЕН pristine backup: {BACKUP}")
-        return 1
+        return 2
 
     stock = BACKUP.read_bytes()
     if digest(stock) != EXPECTED_STOCK_SHA256:
         print(f"ОТКАЗ: pristine backup изменён: {digest(stock)}")
-        return 1
+        return 2
     try:
         canonical = build_canonical(stock)
+        previous = build_canonical(stock, PREVIOUS_CANONICAL_REPLACEMENTS)
     except RuntimeError as exc:
         print(f"ОТКАЗ: {exc}")
-        return 1
+        return 2
 
     current = target.read_bytes()
     try:
-        state = classify(current, stock, canonical)
+        state = classify(current, stock, canonical, previous)
     except UnicodeDecodeError:
         state = "unknown"
 
@@ -315,17 +346,31 @@ def main() -> int:
     print(f"состояние: {state}")
     if state == "runtime-safe":
         print("verdict: RUNTIME-SAFE — pushTurn shares lexical scope with pending arrays.")
-    elif state == "legacy-broken":
-        print("verdict: RUNTIME-BROKEN — marker present, but pushTurn is outside lexical scope.")
+    elif state == "legacy-canonical":
+        print("verdict: PATCH REQUIRED — previous canonical patch lacks profile-local settings.")
     elif state == "stock-pristine":
         print("verdict: PATCH REQUIRED — pristine 1.5.0.")
+    elif state == "noncanonical-drift":
+        print("verdict: UNKNOWN — markers match, but bytes differ from canonical patch.")
     else:
         print("verdict: UNKNOWN — refusing to overwrite an unrecognized dist.")
 
     if args.check:
-        return 0 if state != "unknown" else 1
+        if state == "runtime-safe":
+            return 0
+        if state in {"stock-pristine", "legacy-canonical"}:
+            return 1
+        return 2
 
     if args.restore:
+        if state in {"unknown", "noncanonical-drift"}:
+            print("ОТКАЗ: unknown/noncanonical state не перезаписан; восстановите пакет штатным reinstall.")
+            return 2
+        if state == "stock-pristine":
+            print("изменений нет: pristine stock уже установлен.")
+            return 0
+        backup = runtime_backup(agent_dir, target, "before-restore")
+        print(f"runtime backup: {backup}")
         target.write_bytes(stock)
         print(f"восстановлено из pristine backup -> {target}")
         print(f"sha: {short(target.read_bytes())}")
@@ -336,17 +381,19 @@ def main() -> int:
             print("изменений нет: canonical patch уже применён.")
             return 0
         print("ОТКАЗ: runtime-safe, но не canonical; ручные изменения не перезаписаны.")
-        return 1
-    if state not in {"stock-pristine", "legacy-broken"}:
-        print("ОТКАЗ: применим только к pristine stock или известному legacy-broken patch.")
-        return 1
+        return 2
+    if state not in {"stock-pristine", "legacy-canonical"}:
+        print("ОТКАЗ: применим только к pristine stock или точному previous canonical patch.")
+        return 2
 
+    backup = runtime_backup(agent_dir, target, "before-apply")
+    print(f"runtime backup: {backup}")
     target.write_bytes(canonical)
     written = target.read_bytes()
     if written != canonical or not is_runtime_safe(written.decode("utf-8")):
         print("ОШИБКА: post-write verification failed.")
-        return 1
-    action = "мигрирован legacy-broken patch" if state == "legacy-broken" else "применён patch к stock"
+        return 2
+    action = "обновлён previous canonical patch" if state == "legacy-canonical" else "применён patch к stock"
     print(f"{action} -> {target}")
     print(f"sha: {short(written)}")
     print("verdict: RUNTIME-SAFE")

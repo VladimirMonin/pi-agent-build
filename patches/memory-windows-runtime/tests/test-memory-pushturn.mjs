@@ -24,6 +24,9 @@ if (!src.includes("// pi-memory ordered turns: session-local lexical state")) {
 if (!src.includes("let pendingTurns = [];")) problems.push("session-local pendingTurns missing");
 if (!src.includes("pendingTurns.push({ role, text });")) problems.push("pushTurn does not append ordered turns");
 if (!src.includes("turns: pendingTurns.slice(),")) problems.push("consolidation input does not copy pendingTurns");
+if (!src.includes("// pi-memory profile settings: PI_CODING_AGENT_DIR")) problems.push("profile settings marker missing");
+if (!src.includes("process.env.PI_CODING_AGENT_DIR?.trim()")) problems.push("settings.json does not follow PI_CODING_AGENT_DIR");
+if (!src.includes("process.env.PI_AGENT_BUILD_NPM_PREFIX?.trim()")) problems.push("custom npm prefix is ignored by Windows consolidation spawn");
 if (src.includes("globalThis.__piMemoryTurns")) problems.push("process-global turn state remains");
 if ((src.match(/pendingTurns = \[\];/g) ?? []).length < 3) problems.push("turn state is not reset at both session boundaries");
 if (!src.includes("if (text) pushTurn(msg.role, text);")) problems.push("handlers do not call pushTurn");
