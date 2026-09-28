@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "fetch": {
+      "command": "mcp-server-fetch"
+    },
+    "brave-search": {
+      "command": "brave-search-mcp-server",
+      "env": {
+        "BRAVE_API_KEY": "PASTE_BRAVE_API_KEY_HERE"
+      }
+    },
+    "optional-local-service": {
+      "url": "http://127.0.0.1:<PORT>/mcp",
+      "enabled": false
+    }
+  },
+  "settings": {
+    "scriptMode": false,
+    "inheritEnv": true
+  }
+}

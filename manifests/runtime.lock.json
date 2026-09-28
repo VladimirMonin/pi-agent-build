@@ -1,0 +1,21 @@
+{
+  "$schema": "./schemas/runtime-lock.schema.json",
+  "schemaVersion": 1,
+  "platform": {
+    "os": "windows",
+    "architecture": "x64"
+  },
+  "runtime": {
+    "node": "25.8.1",
+    "npm": "11.11.0",
+    "pi": {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.87.0"
+    }
+  },
+  "compatibility": {
+    "minimumNode": "24.0.0",
+    "reason": "pi-session-search 1.4.3 requires Node 24 or newer"
+  },
+  "releaseTagFormat": "pi-v<pi-version>-build.<number>"
+}

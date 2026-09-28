@@ -1,0 +1,29 @@
+{
+  "providers": {
+    "polza-memory": {
+      "name": "Polza AI — служебная модель памяти",
+      "baseUrl": "https://polza.ai/api/v1",
+      "api": "openai-completions",
+      "apiKey": "$POLZA_API_KEY",
+      "models": [
+        {
+          "id": "deepseek/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash — консолидация памяти",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    }
+  }
+}

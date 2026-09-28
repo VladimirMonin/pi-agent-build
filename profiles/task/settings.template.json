@@ -1,0 +1,30 @@
+{
+  "lastChangelogVersion": "0.87.0",
+  "theme": "dark",
+  "defaultProvider": "ollama-cloud",
+  "defaultModel": "deepseek-v4.1-flash",
+  "hideThinkingBlock": false,
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "cacheWarming": "streaming",
+  "packages": [
+    "npm:pi-ollama-cloud@0.12.1",
+    "npm:pi-trace-extension@0.1.16",
+    "npm:pi-context-inspector@1.1.1",
+    "npm:@juicesharp/rpiv-todo@2.10.1",
+    "https://github.com/VladimirMonin/pi-polza@v0.2.0",
+    "npm:pi-subagents@0.70.1",
+    "npm:pi-intercom@0.13.0",
+    {
+      "source": "npm:pi-background-tasks@2.6.2",
+      "extensions": []
+    },
+    "npm:pi-session-search@1.4.3",
+    "npm:@samfp/pi-memory@1.5.0",
+    "npm:pi-mcp-adapter@2.36.0"
+  ],
+  "memory": {
+    "consolidationModel": "polza-memory/deepseek/deepseek-v4.1-flash"
+  }
+}

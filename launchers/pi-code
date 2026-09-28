@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+user_home="${USERPROFILE:-$HOME}"
+user_home="${user_home//\\//}"
+npm_prefix="$(npm prefix -g | tr '\\' '/')"
+export PI_CODING_AGENT_DIR="$user_home/.pi/agent"
+export PI_CBM_MAX_CONCURRENT_INDEXES=1
+export PI_CBM_AUTO_REFRESH_INTERVAL_MS=300000
+export CODEBASE_MEMORY_MCP_BIN="$npm_prefix/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp.exe"
+exec pi "$@"

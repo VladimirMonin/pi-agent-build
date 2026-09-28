@@ -1,0 +1,59 @@
+{
+  "$schema": "./schemas/external-tools-lock.schema.json",
+  "schemaVersion": 1,
+  "common": [
+    {
+      "name": "git",
+      "version": "2.54.0.windows.1",
+      "required": true
+    },
+    {
+      "name": "python",
+      "minimumVersion": "3.8",
+      "requiredFor": ["trace renderer", "patch scripts"]
+    },
+    {
+      "name": "uv",
+      "version": "0.9.27",
+      "requiredFor": ["serena-agent"]
+    }
+  ],
+  "mcp": [
+    {
+      "package": "@upstash/context7-mcp",
+      "version": "3.2.2",
+      "command": "context7-mcp",
+      "optional": true
+    },
+    {
+      "package": "@brave/brave-search-mcp-server",
+      "version": "2.0.85",
+      "command": "brave-search-mcp-server",
+      "optional": true
+    },
+    {
+      "package": "mcp-server-fetch",
+      "version": "external-python-package",
+      "command": "mcp-server-fetch",
+      "optional": true
+    }
+  ],
+  "codeProfile": [
+    {
+      "package": "@ast-grep/cli",
+      "version": "0.45.3",
+      "command": "ast-grep.exe",
+      "windowsSpawnFix": "stage-real-executable"
+    },
+    {
+      "package": "codebase-memory-mcp",
+      "version": "0.11.0",
+      "command": "codebase-memory-mcp.exe"
+    },
+    {
+      "package": "serena-agent",
+      "version": "1.7.0",
+      "installer": "uv tool"
+    }
+  ]
+}

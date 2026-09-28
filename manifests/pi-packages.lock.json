@@ -1,0 +1,93 @@
+{
+  "$schema": "./schemas/pi-packages-lock.schema.json",
+  "schemaVersion": 1,
+  "profiles": {
+    "common": [
+      {
+        "source": "npm:pi-ollama-cloud@0.12.1",
+        "package": "pi-ollama-cloud",
+        "version": "0.12.1"
+      },
+      {
+        "source": "npm:pi-trace-extension@0.1.16",
+        "package": "pi-trace-extension",
+        "version": "0.1.16",
+        "patch": "trace-ru-windows-profile"
+      },
+      {
+        "source": "npm:pi-context-inspector@1.1.1",
+        "package": "pi-context-inspector",
+        "version": "1.1.1"
+      },
+      {
+        "source": "npm:@juicesharp/rpiv-todo@2.10.1",
+        "package": "@juicesharp/rpiv-todo",
+        "version": "2.10.1"
+      },
+      {
+        "source": "https://github.com/VladimirMonin/pi-polza@v0.2.0",
+        "package": "pi-polza",
+        "version": "0.2.0",
+        "kind": "git-tag"
+      },
+      {
+        "source": "npm:pi-subagents@0.70.1",
+        "package": "pi-subagents",
+        "version": "0.70.1"
+      },
+      {
+        "source": "npm:pi-intercom@0.13.0",
+        "package": "pi-intercom",
+        "version": "0.13.0"
+      },
+      {
+        "source": "npm:pi-background-tasks@2.6.2",
+        "package": "pi-background-tasks",
+        "version": "2.6.2",
+        "enabledExtensions": [],
+        "state": "installed-disabled",
+        "reason": "2.6.2 does not support Pi 0.87 system-role conversation blocks"
+      },
+      {
+        "source": "npm:pi-session-search@1.4.3",
+        "package": "pi-session-search",
+        "version": "1.4.3",
+        "taskProfilePatch": "session-search-profile"
+      },
+      {
+        "source": "npm:@samfp/pi-memory@1.5.0",
+        "package": "@samfp/pi-memory",
+        "version": "1.5.0",
+        "patch": "memory-windows-runtime"
+      },
+      {
+        "source": "npm:pi-mcp-adapter@2.36.0",
+        "package": "pi-mcp-adapter",
+        "version": "2.36.0",
+        "compatibilityNote": "Upstream peer metadata predates Pi 0.87; verify with a real MCP tool call"
+      }
+    ],
+    "codeOnly": [
+      {
+        "source": "npm:@nicknisi/pi-ast-grep@0.2.0",
+        "package": "@nicknisi/pi-ast-grep",
+        "version": "0.2.0",
+        "external": "@ast-grep/cli@0.45.3"
+      },
+      {
+        "source": "npm:@bacnh85/pi-serena@0.9.16",
+        "package": "@bacnh85/pi-serena",
+        "version": "0.9.16",
+        "external": "serena-agent@1.7.0",
+        "patch": "serena-tools"
+      },
+      {
+        "source": "npm:pi-cbm@1.2.1",
+        "package": "pi-cbm",
+        "version": "1.2.1",
+        "external": "codebase-memory-mcp@0.11.0",
+        "patch": "pi-cbm-011"
+      }
+    ]
+  }
+}
