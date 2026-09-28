@@ -19,3 +19,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Third-party carve-out
+---------------------
+
+This license covers original Pi Agent Build scripts, documentation,
+configuration templates, tests, and locally authored modifications. It does
+not replace or relicense third-party source, exact upstream copies, quoted
+source excerpts, generated derivatives, installed dependencies, external
+tools, or optional MCP servers. Those materials remain under their respective
+terms. See THIRD_PARTY.md, THIRD_PARTY_NOTICES.md, and the NOTICE.md and
+LICENSE.upstream.txt files inside the affected patch directories.

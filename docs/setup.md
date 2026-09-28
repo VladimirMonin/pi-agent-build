@@ -1,0 +1,282 @@
+# Установка сборки
+
+Сборка рассчитана на Windows x64 и повторяет закреплённые **верхнеуровневые** версии Pi `0.87.0`, двух профилей и компонентов из `manifests/*.lock.json`. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+
+## До установки
+
+Целевая среда — Windows x64 с Windows PowerShell 5.1 (`powershell.exe`) или совместимым запуском scripts. Требования разделены по роли:
+
+- installer проверяет exact Node.js `25.8.1`, npm `11.11.0` и Git for Windows `2.54.0.windows.1`; поддерживаемый минимум Node — `24.0.0` из-за `pi-session-search`, но automatic install gate требует именно manifest version;
+- Python `3.8+` нужен patchers и Trace renderer;
+- Python package `jsonschema` нужен для обязательной schema validation в `scripts/verify.ps1`;
+- `uv 0.9.27` нужен при установке Code (Serena) и для рекомендуемой установки optional Python MCP server;
+- `serena-agent==1.7.0` требует Python `>=3.11,<3.15`, а `mcp-server-fetch==2025.4.7` — Python `>=3.10`; `uv tool` может использовать managed interpreter, отличный от `python` для patchers.
+
+Проверка:
+
+```bash
+node --version
+npm --version
+git --version
+python --version
+uv --version
+python -c "import jsonschema; print(jsonschema.__version__)"
+```
+
+Все Pi-пакеты исполняются с правами текущего пользователя. Перед обновлением сверяйте источники и версии с [`pi-packages.lock.json`](../manifests/pi-packages.lock.json), а не устанавливайте `latest`.
+
+## Автоматизированная установка
+
+PowerShell installer сначала работает как dry-run plan. По `-Apply` он проверяет runtime prerequisites, устанавливает Pi и profile packages, ставит внешние tools выбранного профиля, создаёт отсутствующие profile configs/навык и применяет patches, но **не запускает интерактивную/model Pi-сессию и не пишет credentials**. Profile packages устанавливаются штатной командой `pi install <source>` с профильным `PI_CODING_AGENT_DIR`, а не прямым `npm install --prefix`; это сохраняет package metadata/filter semantics Pi. Git-пакет передаётся как immutable object id:
+
+```powershell
+$RepoRoot = '<REPO_ROOT>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install.ps1" -Profile Both
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install.ps1" -Profile Both -Apply
+```
+
+Installer запускает `npm`, `pi` и `uv` с allowlisted process environment, а не наследует весь текущий environment: provider/API credentials не должны попадать в package lifecycle children. Это защита от случайной утечки, не sandbox; устанавливаемые packages и их lifecycle scripts всё равно выполняются с правами пользователя.
+
+По умолчанию существующие profile configs сохраняются без полного replace. Для `settings.json` installer после штатных `pi install` выполняет целевой merge: сохраняет неизвестные пользовательские поля и дополнительные пакеты, но приводит 14/11 пакетов сборки к exact sources, восстанавливает отключающий filter `pi-background-tasks` и задаёт `memory.consolidationModel`. В существующий `models.json` добавляется только отсутствующий provider `polza-memory`; другие providers сохраняются. `ollama-cloud.json` и существующий `skills/memory-ops/` остаются без изменений. Перед merge создаются приватные runtime backups. Флаг `-ReplaceProfileConfigs` явно разрешает полную замену всех четырёх компонентов шаблонами с backup.
+
+Launchers устанавливаются отдельным plan/apply:
+
+```powershell
+$RepoRoot = '<REPO_ROOT>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install-launchers.ps1" -Profile Both -Shell Both
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install-launchers.ps1" -Profile Both -Shell Both -Apply
+```
+
+После этого всё равно нужны локальные provider configs, `/login` и проверки из разделов 5 и 8. Далее приведён ручной эквивалент, полезный для аудита и точечного восстановления.
+
+## 1. Pi Agent
+
+```bash
+npm install -g --no-audit --no-fund npm@11.11.0
+npm install -g --no-audit --no-fund @earendil-works/pi-coding-agent@0.87.0
+pi --version
+```
+
+Ожидается `0.87.0`.
+
+## 2. Каталоги профилей
+
+`PI_CODING_AGENT_DIR` задаётся только процессу. Не используйте `setx`: глобальная переменная лишит launchers возможности переключать профиль.
+
+Создайте каталоги, но пока не подменяйте `settings.json`: сначала `pi install` должен штатно записать package entries и скачать payloads.
+
+```bash
+export REPO_ROOT="<REPO_ROOT>"
+user_home="${USERPROFILE:-$HOME}"
+user_home="${user_home//\\//}"
+mkdir -p "$user_home/.pi/agent" "$user_home/.pi/task"
+```
+
+Команды следующих разделов выполняйте в той же Git Bash-сессии: в ней остаются `REPO_ROOT` и нормализованный `user_home`. Для аргументов native Windows programs используйте форму `C:/...`, а не MSYS `/c/...`; именно поэтому примеры строят путь из `USERPROFILE`.
+
+Если профиль уже существует, заранее сделайте приватную резервную копию `settings.json`. `auth.json`, сессии и другие runtime-файлы не копируют в репозиторий.
+
+## 3. Пакеты Pi
+
+Функция ниже устанавливает 11 общих пакетов в выбранный профиль. Источники и версии совпадают с manifest.
+
+```bash
+install_common() {
+  profile="$1"
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-ollama-cloud@0.12.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-trace-extension@0.1.16
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-context-inspector@1.1.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.10.1
+  PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.70.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.13.0
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-session-search@1.4.3
+  PI_CODING_AGENT_DIR="$profile" pi install npm:@samfp/pi-memory@1.5.0
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-mcp-adapter@2.36.0
+}
+
+install_common "$user_home/.pi/agent"
+install_common "$user_home/.pi/task"
+```
+
+Три code-only пакета:
+
+```bash
+PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:@nicknisi/pi-ast-grep@0.2.0
+PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:@bacnh85/pi-serena@0.9.16
+PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:pi-cbm@1.2.1
+```
+
+Теперь приведите settings к декларативным шаблонам:
+
+- в **совершенно новых** профилях скопируйте соответствующий `settings.template.json` поверх созданного `settings.json`;
+- в существующих профилях не заменяйте файл целиком: вручную перенесите package sources, defaults, `memory` и object filter background-tasks, сохранив остальные пользовательские поля.
+
+```bash
+# Только для новых пустых профилей
+cp "$REPO_ROOT/profiles/code/settings.template.json" "$user_home/.pi/agent/settings.json"
+cp "$REPO_ROOT/profiles/task/settings.template.json" "$user_home/.pi/task/settings.json"
+```
+
+`pi-background-tasks` должен остаться установленным, но отключённым записью
+
+```json
+{"source":"npm:pi-background-tasks@2.6.2","extensions":[]}
+```
+
+После любого `pi install` и после посещения `pi config` заново проверьте эту запись: пустой массив означает «не загружать extension», а потерянный filter снова включает несовместимый package.
+
+Проверьте состав отдельно:
+
+```bash
+PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi list
+PI_CODING_AGENT_DIR="$user_home/.pi/task" pi list
+```
+
+В Code должно быть 14 пакетов, в Task — 11; background-tasks показывается как `(filtered)`.
+
+## 4. Внешние инструменты Code
+
+```bash
+npm install -g @ast-grep/cli@0.45.3
+npm install -g codebase-memory-mcp@0.11.0
+uv tool install --prerelease=allow "serena-agent==1.7.0"
+```
+
+На Windows npm создаёт shell-shims, а `@nicknisi/pi-ast-grep` запускает процесс с `shell:false`. Поэтому положите реальный бинарник рядом с npm-shims:
+
+```bash
+npm_prefix="$(npm prefix -g | tr '\\' '/')"
+cp "$npm_prefix/node_modules/@ast-grep/cli/ast-grep.exe" "$npm_prefix/ast-grep.exe"
+ast-grep.exe --version
+serena --version
+"$npm_prefix/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp.exe" --version
+```
+
+Ожидаются `0.45.3`, `1.7.0` и `0.11.0`.
+
+### Опциональные MCP servers
+
+Они не нужны для запуска Pi или `pi-mcp-adapter` и `install.ps1` их не устанавливает. Если нужны локальные executables из manifest, установите выбранные точные версии вручную. Для Fetch manifest закрепляет `2025.4.7`, но verifier проверяет наличие команды, не запуская server ради `--version`; установленную версию подтверждайте через `uv tool list` или metadata Python-пакета:
+
+```bash
+npm install -g @upstash/context7-mcp@3.2.2
+npm install -g @brave/brave-search-mcp-server@2.0.85
+uv tool install "mcp-server-fetch==2025.4.7"
+```
+
+Fetch `2025.4.7` требует Python `>=3.10`. Пример [`mcp.example.json`](../config/mcp.example.json) использует Context7 по remote URL, поэтому локальный `context7-mcp` нужен только если вы осознанно замените URL на command. Установка server binary не добавляет его в config автоматически и не подтверждает API/network access.
+
+## 5. Конфигурация без публикации секретов
+
+### Ollama Cloud
+
+Скопируйте [`ollama-cloud.example.json`](../config/ollama-cloud.example.json) в `ollama-cloud.json` каждого профиля. Вход выполните внутри каждого профиля через `/login`; ключ сохранит Pi в локальном `auth.json`.
+
+### Polza и служебная память
+
+1. Скопируйте [`models.polza-memory.example.json`](../config/models.polza-memory.example.json) в `models.json` каждого профиля. Если файл уже есть, объедините объект `providers`, не заменяйте весь файл.
+2. Перед запуском экспортируйте `POLZA_API_KEY` из локального secret store или текущей shell-сессии. Не записывайте значение в launcher или Git.
+3. В `settings.json` оставьте `memory.consolidationModel` равным `polza-memory/deepseek/deepseek-v4.1-flash`.
+4. Для semantic session search создайте локальный config из [`session-search.polza.example.json`](../config/session-search.polza.example.json): Code — `~/.pi/session-search/config.json`, Task после профильного patch — `<TASK_PROFILE_DIR>/session-search/config.json`. Поле `apiKey` хранит реальное значение и поэтому этот файл нельзя публиковать.
+
+Почему одновременно нужны `pi-polza` и статический `polza-memory`, описано в [Polza memory](polza-memory.md).
+
+### MCP
+
+[`mcp.example.json`](../config/mcp.example.json) — только пример. Копируйте лишь нужные серверы в `~/.config/mcp/mcp.json` или профильный `<PI_CODING_AGENT_DIR>/mcp.json`. Не оставляйте placeholder вместо реального Brave key. MCP-команды имеют права локального пользователя; включайте approval для destructive tools.
+
+## 6. Локальные исправления
+
+Запускайте из корня репозитория. Сначала `--check`, затем `--apply` только для ожидаемых версий.
+
+```bash
+python patches/trace-ru-windows-profile/apply.py --agent-dir "$user_home/.pi/agent" --check
+python patches/trace-ru-windows-profile/apply.py --agent-dir "$user_home/.pi/agent" --apply
+python patches/trace-ru-windows-profile/apply.py --agent-dir "$user_home/.pi/task" --apply
+
+python patches/memory-windows-runtime/apply.py --agent-dir "$user_home/.pi/agent" --check
+python patches/memory-windows-runtime/apply.py --agent-dir "$user_home/.pi/agent"
+python patches/memory-windows-runtime/apply.py --agent-dir "$user_home/.pi/task"
+
+python patches/session-search-profile/apply.py --agent-dir "$user_home/.pi/task" --apply
+python patches/serena-tools/apply.py --agent-dir "$user_home/.pi/agent" --apply
+python patches/pi-cbm-011/apply.py --agent-dir "$user_home/.pi/agent" --apply
+```
+
+`memory-windows-runtime/apply.py` применяет patch без флага `--apply`; это особенность его CLI. Подробности и откат: [`docs/fixes/`](fixes/).
+
+## 7. Launchers
+
+Файлы в `launchers/` — шаблоны с tokens и не предназначены для прямого копирования. Рендерите их только через `install-launchers.ps1`; script подставляет exact profile root и npm prefix, делает backup существующих launchers и ставит executable bit POSIX-файлам при наличии `chmod`.
+
+Default Windows target — `$HOME\bin`, Pi root — `$HOME\.pi`, npm prefix — `%APPDATA%\npm`. Для custom locations передайте их явно и в plan, и в apply:
+
+```powershell
+$RepoRoot = '<REPO_ROOT>'
+$TargetDir = '<USER_BIN_DIR>'
+$PiRoot = '<PI_ROOT>'
+$NpmPrefix = '<NPM_GLOBAL_PREFIX>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install-launchers.ps1" `
+  -Profile Both -Shell Both -TargetDir $TargetDir -PiRoot $PiRoot -NpmPrefix $NpmPrefix
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install-launchers.ps1" `
+  -Profile Both -Shell Both -TargetDir $TargetDir -PiRoot $PiRoot -NpmPrefix $NpmPrefix -Apply
+```
+
+- Git Bash: `pi-code` и `pi-task`.
+- CMD/PowerShell: `pi-code.cmd` и `pi-task.cmd`.
+- оба launcher задают `PI_AGENT_BUILD_NPM_PREFIX` и запускают `pi` именно из этого prefix;
+- `pi-code` также задаёт путь к реальному CBM executable и ограничивает фоновые индексаторы.
+
+## 8. Проверка
+
+Без модельного запроса:
+
+```bash
+pi-code --version
+pi-task --version
+pi-code --list-models
+pi-task --list-models
+pi-code list
+pi-task list
+```
+
+В интерактивных сессиях:
+
+- оба профиля: `/context`, `/todos`, `/trace`, `session_search`, `memory_stats`, `mcp({ search: "..." })`;
+- Code: `ast_search`, `serena_status`, `/cbm status`;
+- `/polza-model-info` и `/polza-balance` после `/login`;
+- `/trace all` должен создать профильный dashboard с русским UI.
+
+Runtime-тест memory выполняет реальный модельный вызов и может расходовать квоту. Pi-memory передаёт consolidation prompt дочернему Pi через command-line argument `-p`; текст может быть виден локальным process monitors, администраторам и telemetry, поэтому не используйте в smoke реальные секреты/приватный диалог:
+
+```bash
+node patches/memory-windows-runtime/tests/test-memory-runtime-scope.mjs code
+node patches/memory-windows-runtime/tests/test-memory-runtime-scope.mjs task
+```
+
+Финальные repository/profile gates:
+
+```powershell
+$RepoRoot = '<REPO_ROOT>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\verify.ps1" -Profile Both
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\safety-check.ps1" -Scope Both
+```
+
+Семантика `verify.ps1`:
+
+- `-RepositoryOnly` проверяет обязательные repository paths, JSON schemas и согласованность двух profile templates с manifests; установленный runtime/profile при этом не проверяется;
+- `-ExternalOnly` после тех же repository gates запускает только probes внешних Code/MCP tools и не требует установленного Pi profile/runtime; это режим диагностики executable resolution;
+- обычный запуск дополнительно проверяет exact Node/npm/Git/Pi/top-level package versions, минимум Python, состояние patches и direct-spawn внешних executables;
+- обязательные Code tools отсутствуют/имеют неверную версию — failure; отсутствующие optional MCP commands — warning; найденный optional command с безопасным version probe, но неверной версией — failure;
+- `-SkipExternalChecks` пропускает только probes внешних Code/MCP executables, а не runtime/packages/patches; `-SkipPatchChecks` отдельно пропускает installed patch checks;
+- `failures > 0` даёт ненулевой exit; warnings сами по себе не доказывают полноту установки и не делают exit ненулевым.
+
+Для `mcp-server-fetch` manifest не задаёт безопасный version probe: verifier проверяет только разрешение command и намеренно **не запускает** fetch server. Поэтому найденный executable ещё не подтверждает версию `2025.4.7`. Эта verification также не выполняет MCP handshake, provider login, network/API request, model call, session-search quality check или non-empty CBM query. Manual read-only smokes выше обязательны для заявлений о functional compatibility. Safety scan не заменяет ручной просмотр diff и никогда не должен печатать найденный secret целиком.
+
+## Обновление и откат
+
+Автоматического `scripts/update.ps1` в репозитории нет. Обновление — сопровождаемое изменение manifest/template/patch docs с отдельным review. Обновление установленного пакета перезаписывает локальные правки. Порядок всегда один: backup `settings.json` → установить явно выбранную exact version/source → проверить package filter → patch `--check` → apply при необходимости → runtime smoke.
+
+Для полного удаления используйте `PI_CODING_AGENT_DIR=<profile> pi remove <тот же source>`, затем удаляйте только документированные cache/data каталоги компонента. Не удаляйте весь профиль, пока не выполнен [аудит и перенос состояния](state-migration.md).
