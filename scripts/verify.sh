@@ -152,6 +152,9 @@ def src(item):
 actual = [src(i) for i in settings.get("packages", [])]
 if expected != actual:
     problems.append(f"{profile} template package list differs from pi-packages.lock.json")
+names = [e["package"] for e in entries]
+if names.count("pi-goal-x") != 1 or names.count("pi-intercom") != 1 or names.index("pi-goal-x") >= names.index("pi-intercom"):
+    problems.append(f"{profile} manifest must load pi-goal-x before pi-intercom")
 for p in problems:
     print(p)
 raise SystemExit(1 if problems else 0)
@@ -279,7 +282,25 @@ test_installed_profile() {
   settings="$profile_root/settings.json"
   test_required_path "$settings" "$name settings"
   if [ -f "$settings" ]; then
-    if json_get "$settings" 'd' >/dev/null 2>&1; then pass "$name settings JSON"; else fail "$name settings JSON invalid"; fi
+    if json_get "$settings" 'd' >/dev/null 2>&1; then
+      pass "$name settings JSON"
+      if "$PYTHON" - "$settings" "$PACKAGES_MANIFEST" <<'PY' >/dev/null 2>&1
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    settings = json.load(fh)
+with open(sys.argv[2], encoding="utf-8") as fh:
+    manifest = json.load(fh)
+def source(item):
+    return item if isinstance(item, str) else item.get("source", "")
+sources = [source(item) for item in settings.get("packages", [])]
+goal = [i for i, value in enumerate(sources) if value.split("@", 1)[0] == "npm:pi-goal-x"]
+intercom = [i for i, value in enumerate(sources) if value.split("@", 1)[0] == "npm:pi-intercom"]
+expected = [entry["source"] for entry in manifest["profiles"]["common"] if entry["package"] == "pi-goal-x"]
+raise SystemExit(0 if len(goal) == len(intercom) == len(expected) == 1 and sources[goal[0]] == expected[0] and goal[0] < intercom[0] else 1)
+PY
+      then pass "$name installed goal-x/intercom order"
+      else fail "$name installed settings must load pinned pi-goal-x before pi-intercom"; fi
+    else fail "$name settings JSON invalid"; fi
   fi
   while IFS="$IFS_US" read -r source pkg ver _patch _taskpatch kind commit _tag releaseTag; do
     [ -n "$source" ] || continue

@@ -7,7 +7,7 @@ param(
 
     [string]$PiRoot = (Join-Path $HOME '.pi'),
 
-    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent),
+    [string]$RepoRoot = '',
 
     [switch]$SkipPackageInstall,
 
@@ -19,6 +19,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $RepoRoot) { $RepoRoot = Split-Path $PSScriptRoot -Parent }
 
 function Assert-PinnedPackageEntry {
     param([psobject]$Entry)

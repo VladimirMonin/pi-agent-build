@@ -14,12 +14,13 @@ param(
 
     [string]$NpmPrefix = $(if ($env:APPDATA) { Join-Path $env:APPDATA 'npm' } else { Join-Path $HOME '.npm-global' }),
 
-    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent)
+    [string]$RepoRoot = ''
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $RepoRoot) { $RepoRoot = Split-Path $PSScriptRoot -Parent }
 
 function Convert-ToPosixPath {
     param([string]$Path)

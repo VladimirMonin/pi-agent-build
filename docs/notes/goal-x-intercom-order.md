@@ -56,7 +56,7 @@ Extension error (.../pi-goal-x/extensions/goal.ts): This extension ctx is stale 
 
 ## Решение в сборке
 
-`pi-goal-x` размещён в `manifests/pi-packages.lock.json` и обоих `settings.template.json` **перед** `pi-intercom`. Это не патч: порядок закреплён декларативно, а `verify.sh` сверяет список пакетов шаблона с манифестом, включая порядок.
+`pi-goal-x` размещён в `manifests/pi-packages.lock.json` и обоих `settings.template.json` **перед** `pi-intercom`. Это не патч: порядок закреплён декларативно. `verify.ps1` и `verify.sh` проверяют его отдельно в манифесте, шаблонах и уже установленных `settings.json` обоих профилей. Обычный installer для существующего профиля сохраняет прочие пользовательские поля, но ставит пакеты сборки в порядке шаблона.
 
 ## Что проверить при обновлении
 

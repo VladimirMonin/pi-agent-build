@@ -8,12 +8,13 @@ param(
 
     [string]$PiRoot = (Join-Path $HOME '.pi'),
 
-    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent)
+    [string]$RepoRoot = ''
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $RepoRoot) { $RepoRoot = Split-Path $PSScriptRoot -Parent }
 
 function Get-PythonInvocation {
     $python = Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1

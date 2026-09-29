@@ -277,13 +277,49 @@ try {
         $root = New-TestRoot
         $piRoot = Join-Path $root 'pi-home'
         $result = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\install.ps1') @(
-            '-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot
+            '-Profile', 'Code', '-PiRoot', $piRoot
         )
         Assert-Equal 0 $result.ExitCode 'install plan exit code'
         Assert-True (-not (Test-Path -LiteralPath $piRoot)) 'plan created the Pi root'
         Assert-True ($result.Output -match 'PLAN') 'plan marker missing'
         Assert-True ($result.Output -match '@earendil-works/pi-coding-agent@0\.87\.0') 'Pi exact version missing from plan'
         Assert-True ($result.Output -match 'pi-cbm@1\.2\.1') 'Code package exact version missing from plan'
+    }
+
+    Test-Case 'PowerShell entrypoints resolve repository root after parameter binding' {
+        $root = New-TestRoot
+        $piRoot = Join-Path $root 'pi-home'
+        $verify = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-RepositoryOnly', '-PiRoot', $piRoot)
+        Assert-Equal 0 $verify.ExitCode 'repository verification without -RepoRoot'
+        $launchers = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\install-launchers.ps1') @('-Profile', 'Task', '-TargetDir', (Join-Path $root 'bin'), '-PiRoot', $piRoot)
+        Assert-Equal 0 $launchers.ExitCode 'launcher plan without -RepoRoot'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $root 'bin'))) 'launcher plan wrote files'
+    }
+
+    Test-Case 'manifest and installed settings enforce goal-x before intercom' {
+        $fixture = Copy-RepositoryFixture
+        $manifestPath = Join-Path $fixture 'manifests\pi-packages.lock.json'
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $common = @($manifest.profiles.common)
+        $goal = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-goal-x' })
+        $intercom = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-intercom' })
+        Assert-True ($goal -ge 0 -and $intercom -gt $goal) 'fixture order changed unexpectedly'
+        $temp = $common[$goal]; $common[$goal] = $common[$intercom]; $common[$intercom] = $temp
+        $manifest.profiles.common = $common
+        [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 100))
+        $reversed = Invoke-PowerShellFile (Join-Path $fixture 'scripts\verify.ps1') @('-RepositoryOnly', '-RepoRoot', $fixture)
+        Assert-True ($reversed.Output -match 'manifest must load pi-goal-x before pi-intercom') 'reversed manifest was not rejected'
+
+        $piRoot = Join-Path (New-TestRoot) 'pi-home'
+        $profile = Join-Path $piRoot 'agent'
+        New-Item -ItemType Directory -Path $profile -Force | Out-Null
+        $settingsPath = Join-Path $profile 'settings.json'
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.13.0","npm:pi-goal-x@0.31.9"]}')
+        $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
+        Assert-True ($bad.Output -match 'installed settings must load pinned pi-goal-x before pi-intercom') 'reversed installed order was not rejected'
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.31.9","npm:pi-intercom@0.13.0"]}')
+        $good = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
+        Assert-True ($good.Output -match 'PASS Code installed goal-x/intercom order') 'correct installed order was not accepted'
     }
 
     Test-Case 'install preserves profile configs unless replacement is explicit' {

@@ -5,7 +5,7 @@ param(
 
     [string]$PiRoot = (Join-Path $HOME '.pi'),
 
-    [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent),
+    [string]$RepoRoot = '',
 
     [switch]$RepositoryOnly,
 
@@ -19,6 +19,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $RepoRoot) { $RepoRoot = Split-Path $PSScriptRoot -Parent }
 
 $script:Failures = 0
 $script:Warnings = 0
@@ -55,6 +56,12 @@ function Compare-ProfileTemplate {
     if (($expected -join "`n") -ne ($actual -join "`n")) {
         Fail "$ProfileName template package list differs from pi-packages.lock.json"
     } else { Pass "$ProfileName template package list and exact versions" }
+    $goal = @($expectedEntries | Where-Object { $_.package -eq 'pi-goal-x' })
+    $intercom = @($expectedEntries | Where-Object { $_.package -eq 'pi-intercom' })
+    if ($goal.Count -ne 1 -or $intercom.Count -ne 1 -or
+        [array]::IndexOf($expected, [string]$goal[0].source) -ge [array]::IndexOf($expected, [string]$intercom[0].source)) {
+        Fail "$ProfileName manifest must load pi-goal-x before pi-intercom"
+    } else { Pass "$ProfileName manifest goal-x/intercom order" }
 }
 
 function Validate-ManifestSchema {
@@ -193,7 +200,16 @@ function Test-InstalledProfile {
     $profileRoot = Join-Path $Root $Selected.Directory
     $settingsPath = Join-Path $profileRoot 'settings.json'
     if (-not (Test-RequiredPath -Path $settingsPath -Label "$($Selected.Name) settings")) { return }
-    try { [void](Read-JsonFile $settingsPath); Pass "$($Selected.Name) settings JSON" } catch { Fail $_.Exception.Message }
+    try { $settings = Read-JsonFile $settingsPath; Pass "$($Selected.Name) settings JSON" } catch { Fail $_.Exception.Message; return }
+    $goalEntries = @($PackageManifest.profiles.common | Where-Object { $_.package -eq 'pi-goal-x' })
+    $packageItems = if ($settings.PSObject.Properties.Name -contains 'packages' -and $null -ne $settings.packages) { @($settings.packages) } else { @() }
+    $sources = @($packageItems | ForEach-Object { Get-EntrySource $_ })
+    $goalPositions = @($sources | ForEach-Object -Begin { $idx = 0 } -Process { if ($_ -match '^npm:pi-goal-x(?:@|$)') { $idx }; $idx++ })
+    $intercomPositions = @($sources | ForEach-Object -Begin { $idx = 0 } -Process { if ($_ -match '^npm:pi-intercom(?:@|$)') { $idx }; $idx++ })
+    if ($goalEntries.Count -ne 1 -or $goalPositions.Count -ne 1 -or $intercomPositions.Count -ne 1 -or
+        $sources[$goalPositions[0]] -ne [string]$goalEntries[0].source -or $goalPositions[0] -ge $intercomPositions[0]) {
+        Fail "$($Selected.Name) installed settings must load pinned pi-goal-x before pi-intercom"
+    } else { Pass "$($Selected.Name) installed goal-x/intercom order" }
     $entries = @($PackageManifest.profiles.common)
     if ($Selected.Name -eq 'Code') { $entries += @($PackageManifest.profiles.codeOnly) }
     foreach ($entry in $entries) {
