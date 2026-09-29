@@ -327,6 +327,19 @@ try {
         Invoke-CheckedCommand -Command $powerShellExe -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'apply-patches.ps1'), '-Profile', $Profile, '-Mode', 'Apply', '-PiRoot', $PiRoot, '-RepoRoot', $RepoRoot) -SanitizeEnvironment
     }
 
+
+    # The pi-memory patch selects a local multilingual embedder. The plugin loads
+    # it lazily with a 30s timeout; on a cold cache a slow download exceeds that
+    # and the plugin silently degrades to FTS-only. Pre-download it here so the
+    # first semantic search works. Network speed varies, so this is best-effort:
+    # a failure only warns and never aborts the install.
+    if (-not $SkipPatches -and -not $SkipPackageInstall) {
+        foreach ($selected in (Get-SelectedProfiles -Profile $Profile)) {
+            $profileRoot = Join-Path $PiRoot $selected.Directory
+            $warmStatus = Warm-MemoryEmbedder -ProfileRoot $profileRoot
+            Write-Host "$warmStatus $profileRoot memory embedder"
+        }
+    }
     Write-Host 'Installation complete. Pi was not started. No credentials were written.'
     exit 0
 } catch {

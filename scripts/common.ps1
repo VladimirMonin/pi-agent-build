@@ -251,3 +251,34 @@ function Get-VersionFromText {
     }
     return $null
 }
+
+# Warm-MemoryEmbedder <ProfileRoot> [TimeoutMs] [Retries]
+# Pre-downloads the pi-memory local embedding model into the profile's
+# @xenova/transformers cache. The plugin loads the model lazily with a 30s
+# timeout; a cold download on a slow link can exceed it and the plugin then
+# silently falls back to FTS-only search. Network speed varies, so this uses a
+# generous timeout with bounded retries and never fails the whole install.
+# Returns: warmed | already-cached | skipped | failed
+function Warm-MemoryEmbedder {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProfileRoot,
+        [int]$TimeoutMs = 600000,
+        [int]$Retries = 3
+    )
+    $dist = Join-Path $ProfileRoot 'npm\node_modules\@samfp\pi-memory\dist\index.js'
+    if (-not (Test-Path -LiteralPath $dist -PathType Leaf)) { return 'skipped' }
+    if (-not (Get-Command 'node' -ErrorAction SilentlyContinue)) {
+        Write-Warning 'node not found; skipping memory embedder warm-up'
+        return 'skipped'
+    }
+    $helper = Join-Path $PSScriptRoot 'warm-memory-embedder.mjs'
+    if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+        Write-Warning "warm-up helper missing: $helper"
+        return 'skipped'
+    }
+    $result = Get-CommandOutput -Command 'node' -Arguments @($helper, $ProfileRoot, '--timeout-ms', [string]$TimeoutMs, '--retries', [string]$Retries)
+    if ($result.Output) { Write-Host $result.Output }
+    if ($result.ExitCode -eq 0) { return 'warmed' }
+    Write-Warning "memory embedder warm-up failed (exit $($result.ExitCode)); semantic memory search stays FTS-only until the model downloads"
+    return 'failed'
+}

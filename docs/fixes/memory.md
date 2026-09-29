@@ -31,7 +31,17 @@ Patch меняет `dist/index.js`; memory DB и сами settings не прео
 
 `@samfp/pi-memory` использует **два независимых** механизма: консолидацию фактов внешней LLM (`polza-memory/deepseek/deepseek-v4.1-flash`) и **локальный** embedder для семантического поиска по фактам. Поля для смены embedder в конфиге нет — модель зашита в `dist/index.js`, поэтому её меняет patch.
 
-Мультиязычная MiniLM сохраняет **384 измерения** и mean pooling, поэтому старые векторы и `SEMANTIC_THRESHOLD = 0.25` остаются валидными: reindex не нужен. Модель скачивается один раз (~120 МБ) в кэш `@xenova/transformers` и работает offline, без API-ключа. Это **не** тот embedder, что использует `pi-session-search` (там Polza `qwen/qwen3-embedding-8b`, 1024d) — см. [Polza memory](../polza-memory.md).
+Мультиязычная MiniLM сохраняет **384 измерения** и mean pooling, поэтому старые векторы и `SEMANTIC_THRESHOLD = 0.25` остаются валидными: reindex не нужен. Модель скачивается один раз (~130 МБ) в кэш `@xenova/transformers` и работает offline, без API-ключа. Это **не** тот embedder, что использует `pi-session-search` (там Polza `qwen/qwen3-embedding-8b`, 1024d) — см. [Polza memory](../polza-memory.md).
+
+### Прогрев кэша embedder'а
+
+Плагин загружает модель лениво с жёстким таймаутом 30 с. На холодном кэше скачивание по медленному каналу может его превысить, и тогда плагин молча откатывается на FTS-only поиск. Скорость сети разная, поэтому модель нужно скачать заранее:
+
+```bash
+node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"
+```
+
+У каждого профиля **свой** кэш `@xenova/transformers`, поэтому прогрев делается для обоих. Helper читает id модели из пропатченного `dist`, использует таймаут 10 минут с 3 повторами и не валит установку при сбое. `scripts/install.sh --apply` вызывает его автоматически после patches; `scripts/verify.sh` сообщает `WARN`, если кэш отсутствует.
 
 ## Tools/команды
 
@@ -67,6 +77,12 @@ node patches/memory-windows-runtime/tests/test-memory-runtime-scope.mjs task
 ```
 
 Дополнительно выполните `memory_stats` и осознанный `/memory-consolidate`; отсутствие visible error само по себе не доказывает запись.
+
+Убедитесь, что кэш модели прогрет (иначе первый семантический поиск уйдёт в FTS-only):
+
+```bash
+node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"
+```
 
 ## Удаление/откат
 

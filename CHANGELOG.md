@@ -17,6 +17,7 @@
 - `THIRD_PARTY_NOTICES.md` и patch-local notices/licenses с точным file-level происхождением, опубликованными npm `gitHead` и SHA-256 vendored/modified upstream source.
 - Ручная установка optional MCP servers `@upstash/context7-mcp@3.2.2`, `@brave/brave-search-mcp-server@2.0.85` и `mcp-server-fetch==2025.4.7`.
 - Русскоязычный локальный embedder памяти: patch `memory-windows-runtime` заменяет англоязычную `Xenova/all-MiniLM-L6-v2` на мультиязычную `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа) и добавляет структурный тест `test-memory-embedder.mjs`.
+- Прогрев кэша embedder'а памяти: `scripts/warm-memory-embedder.mjs` скачивает модель заранее (таймаут 10 мин, 3 повтора); installer вызывает его автоматически, verifier сообщает WARN при отсутствии кэша. Учитывает разную скорость сети и 30-секундный таймаут ленивой загрузки плагина.
 
 ### Изменено
 

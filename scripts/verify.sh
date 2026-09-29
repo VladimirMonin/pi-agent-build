@@ -354,6 +354,26 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
     test_installed_profile "$name" "$dir"
   done < <(selected_profiles "$PROFILE")
 
+  # memory embedder cache: the pi-memory patch selects a local multilingual
+  # model. If it is not cached, the plugin still works but the first semantic
+  # search falls back to FTS-only until the model downloads. Network speed
+  # varies, so a missing cache is a WARN (run the warm-up helper), not a FAIL.
+  if [ "$SKIP_PATCH_CHECKS" != "1" ]; then
+    while IFS=$'\t' read -r name dir; do
+      profile_root="$PI_ROOT/$dir"
+      dist="$profile_root/npm/node_modules/@samfp/pi-memory/dist/index.js"
+      [ -f "$dist" ] || continue
+      model="$(sed -n 's/^var MODEL = "\(.*\)";$/\1/p' "$dist" | head -n1)" || true
+      [ -n "$model" ] || continue
+      cache="$profile_root/npm/node_modules/@xenova/transformers/.cache/$model"
+      if [ -d "$cache" ]; then
+        pass "$name memory embedder cached ($model)"
+      else
+        warn "$name memory embedder not cached ($model); run scripts/warm-memory-embedder.mjs $profile_root"
+      fi
+    done < <(selected_profiles "$PROFILE")
+  fi
+
   if [ "$SKIP_PATCH_CHECKS" != "1" ]; then
     set +e
     "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Check --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" >/dev/null 2>&1

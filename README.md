@@ -47,7 +47,7 @@ config/             безопасные примеры MCP/provider/memory conf
 patches/            version-guarded исправления, tests и upstream notices
 skills/             собственные переносимые Pi-навыки
 docs/components/    документация 14 установленных Pi-пакетов
-scripts/            install, launcher install, patch orchestration, verify, safety scan
+scripts/            install, launcher install, patch orchestration, verify, safety scan, memory embedder warm-up
 instructions/       постоянные правила сопровождения репозитория
 ```
 

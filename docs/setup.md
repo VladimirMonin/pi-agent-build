@@ -187,6 +187,17 @@ Fetch `2025.4.7` требует Python `>=3.10`. Пример [`mcp.example.json
 
 Почему одновременно нужны `pi-polza` и статический `polza-memory`, описано в [Polza memory](polza-memory.md).
 
+### Прогрев локального embedder'а памяти
+
+Patch `memory-windows-runtime` подключает локальную мультиязычную модель встраивания для семантического поиска по фактам памяти. Плагин загружает её лениво с жёстким таймаутом 30 с; на холодном кэше скачивание по медленному каналу может его превысить, и тогда плагин молча откатывается на FTS-only поиск. Скорость сети разная, поэтому модель нужно скачать заранее:
+
+```bash
+node scripts/warm-memory-embedder.mjs "$user_home/.pi/agent"
+node scripts/warm-memory-embedder.mjs "$user_home/.pi/task"
+```
+
+Helper читает id модели из пропатченного `dist`, качает её в кэш `@xenova/transformers` активного профиля (у каждого профиля свой кэш, ~130 МБ) и использует щедрый таймаут с повторами. `scripts/install.sh --apply` вызывает его автоматически после применения patches; сбой прогрева только предупреждает и не прерывает установку. `scripts/verify.sh` показывает `PASS`/`WARN` по наличию кэша (WARN, а не FAIL — сеть не должна валить проверку).
+
 ### MCP
 
 [`mcp.example.json`](../config/mcp.example.json) — только пример. Копируйте лишь нужные серверы в `~/.config/mcp/mcp.json` или профильный `<PI_CODING_AGENT_DIR>/mcp.json`. Не оставляйте placeholder вместо реального Brave key. MCP-команды имеют права локального пользователя; включайте approval для destructive tools.

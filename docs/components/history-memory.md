@@ -63,6 +63,8 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 Семантический поиск по фактам работает на **локальном** embedder'е `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа), который ставит patch вместо англоязычного stock `all-MiniLM-L6-v2`. Это отдельный механизм от Polza-консолидации и от embedder'а `pi-session-search`.
 
+Плагин грузит модель лениво с таймаутом 30 с; на холодном кэше медленное скачивание может его превысить и поиск молча уйдёт в FTS-only. Прогрейте кэш заранее (у каждого профиля свой, ~130 МБ): `node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"`.
+
 ### Команды, tools и skills
 
 - tools: `memory_search`, `memory_remember`, `memory_forget`, `memory_lessons`, `memory_stats`;
@@ -71,7 +73,7 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 ### Риски
 
-Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. `perTurnInjection` ухудшает prefix-cache stability и по умолчанию не нужен. Embedder памяти локальный и офлайн — факты не покидают машину на этом шаге, но модель (~120 МБ) скачивается с HuggingFace при первом использовании.
+Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. `perTurnInjection` ухудшает prefix-cache stability и по умолчанию не нужен. Embedder памяти локальный и офлайн — факты не покидают машину на этом шаге, но модель (~130 МБ) скачивается с HuggingFace при первом использовании. Если кэш не прогрет, первый семантический поиск молча откатывается на FTS-only.
 
 ### Проверка
 
