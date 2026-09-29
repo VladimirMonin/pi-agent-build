@@ -32,8 +32,7 @@
       "version": "2.0.85",
       "command": "brave-search-mcp-server",
       "optional": true,
-      "probe": "command-version",
-      "probeArguments": ["--version"]
+      "probe": "npm-package-version"
     },
     {
       "package": "mcp-server-fetch",

@@ -695,7 +695,11 @@ try {
         $cbmExe = Join-Path $tools.Prefix 'node_modules\codebase-memory-mcp\bin\codebase-memory-mcp.exe'
         New-VersionExecutable -Path $cbmExe -Version '0.11.0'
         [IO.File]::WriteAllText((Join-Path $tools.Bin 'context7-mcp.cmd'), "@echo 3.2.2`r`n")
-        [IO.File]::WriteAllText((Join-Path $tools.Bin 'brave-search-mcp-server.cmd'), "@echo 2.0.85`r`n")
+        $braveMeta = Join-Path $tools.Prefix 'node_modules\@brave\brave-search-mcp-server\package.json'
+        New-Item -ItemType Directory -Path (Split-Path $braveMeta -Parent) -Force | Out-Null
+        [IO.File]::WriteAllText($braveMeta, '{"version":"2.0.85"}')
+        $braveMarker = Join-Path $root 'brave-was-executed.txt'
+        [IO.File]::WriteAllText((Join-Path $tools.Bin 'brave-search-mcp-server.cmd'), "@echo called>`"$braveMarker`"`r`n@exit /b 9`r`n")
         $fetchMarker = Join-Path $root 'fetch-was-executed.txt'
         [IO.File]::WriteAllText((Join-Path $tools.Bin 'mcp-server-fetch.cmd'), "@echo called>`"$fetchMarker`"`r`n@exit /b 9`r`n")
         $oldPath = $env:PATH
@@ -705,6 +709,8 @@ try {
         } finally { $env:PATH = $oldPath }
         Assert-Equal 0 $ok.ExitCode "external probes failed: $($ok.Output)"
         Assert-True (-not (Test-Path -LiteralPath $fetchMarker)) 'fetch was executed even though it has no version probe'
+        Assert-True (-not (Test-Path -LiteralPath $braveMarker)) 'Brave server was executed instead of reading npm metadata'
+        Assert-True ($ok.Output -match 'brave-search-mcp-server.*2\.0\.85') 'Brave package version was not checked'
         Assert-True ($ok.Output -match 'codebase-memory-mcp.*0\.11\.0') 'CBM real executable under npm root was not checked'
 
         $missingRepo = Copy-RepositoryFixture
@@ -725,6 +731,16 @@ try {
             $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-ExternalOnly', '-RepoRoot', $RepoRoot)
         } finally { $env:PATH = $oldPath }
         Assert-True ($bad.ExitCode -ne 0) 'installed optional MCP with wrong version was not rejected'
+
+        [IO.File]::WriteAllText((Join-Path $tools.Bin 'context7-mcp.cmd'), "@echo 3.2.2`r`n")
+        [IO.File]::WriteAllText($braveMeta, '{"version":"0.0.0"}')
+        try {
+            $env:PATH = "$($tools.Bin);$oldPath"
+            $badBrave = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Task', '-ExternalOnly', '-RepoRoot', $RepoRoot)
+        } finally { $env:PATH = $oldPath }
+        Assert-True ($badBrave.ExitCode -ne 0) 'wrong Brave npm metadata version was not rejected'
+        Assert-True ($badBrave.Output -match 'brave-search-mcp-server expected 2\.0\.85') 'Brave version failure was not reported'
+        Assert-True (-not (Test-Path -LiteralPath $braveMarker)) 'Brave server was started by a failing probe'
     }
 
     Test-Case 'repository-only verification performs no profile writes' {

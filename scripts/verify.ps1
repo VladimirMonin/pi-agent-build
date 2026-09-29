@@ -102,6 +102,23 @@ function Test-ExactToolVersion {
     } else { Pass "$Label $actual" }
 }
 
+function Test-NpmPackageVersion {
+    param([string]$Command, [string]$PackageName, [string]$Expected, [string]$Label, [bool]$Required = $true)
+    if (-not (Get-Command $Command -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+        if ($Required) { Fail "$Label command not found: $Command" } else { Warn "$Label not installed (optional)" }
+        return
+    }
+    $root = Get-CommandOutput -Command 'npm' -Arguments @('root', '--global')
+    if (-not $root.Found -or $root.ExitCode -ne 0) { Fail "$Label cannot resolve npm global root"; return }
+    $relative = $PackageName.Replace('/', [IO.Path]::DirectorySeparatorChar)
+    $packageJson = Join-Path (Join-Path $root.Output.Trim() $relative) 'package.json'
+    try {
+        $metadata = Read-JsonFile $packageJson
+        if ([string]$metadata.version -ne $Expected) { Fail "$Label expected $Expected, found $($metadata.version)" }
+        else { Pass "$Label $Expected (npm metadata; server not started)" }
+    } catch { Fail "$Label package metadata unavailable: $($_.Exception.Message)" }
+}
+
 function Test-MinimumToolVersion {
     param([string]$Command, [string[]]$Arguments, [string]$Minimum, [string]$Label)
     $result = Get-CommandOutput -Command $Command -Arguments $Arguments
@@ -189,6 +206,8 @@ function Test-ExternalTools {
             Test-CommandPresent -Command ([string]$tool.command) -Label ([string]$tool.package) -Required $required
         } elseif ($kind -eq 'command-version') {
             Test-ExactToolVersion -Command ([string]$tool.command) -Arguments @($tool.probeArguments) -Expected ([string]$tool.version) -Label ([string]$tool.package) -Required $required
+        } elseif ($kind -eq 'npm-package-version') {
+            Test-NpmPackageVersion -Command ([string]$tool.command) -PackageName ([string]$tool.package) -Expected ([string]$tool.version) -Label ([string]$tool.package) -Required $required
         } else {
             Fail "unsupported MCP probe '$kind' for $($tool.package)"
         }

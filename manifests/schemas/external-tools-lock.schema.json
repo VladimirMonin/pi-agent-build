@@ -67,7 +67,7 @@
         "version": { "$ref": "#/$defs/semver" },
         "command": { "type": "string", "minLength": 1 },
         "optional": { "type": "boolean" },
-        "probe": { "enum": ["command-version", "command-present"] },
+        "probe": { "enum": ["command-version", "command-present", "npm-package-version"] },
         "probeArguments": {
           "type": "array",
           "items": { "type": "string" }

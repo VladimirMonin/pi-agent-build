@@ -260,6 +260,20 @@ PY
         else [ "$req" = "1" ] && fail "$pkg command not found: $command" || warn "$pkg not installed (optional)"; fi
         ;;
       command-version) test_exact_tool_version "$command" "$ver" "$pkg" "$req" ;;
+      npm-package-version)
+        if ! command_exists "$command"; then
+          [ "$req" = "1" ] && fail "$pkg command not found: $command" || warn "$pkg not installed (optional)"
+        else
+          local root meta actual
+          root="$(npm root --global 2>/dev/null || true)"
+          meta="$root/$pkg/package.json"
+          if [ ! -f "$meta" ]; then fail "$pkg package metadata unavailable: $meta"
+          else
+            actual="$(json_get "$meta" 'd.get("version")')"
+            [ "$actual" = "$ver" ] && pass "$pkg $ver (npm metadata; server not started)" || fail "$pkg expected $ver, found $actual"
+          fi
+        fi
+        ;;
       *) fail "unsupported MCP probe '$probe' for $pkg" ;;
     esac
   done < <("$PYTHON" - "$EXTERNAL_MANIFEST" <<'PY'

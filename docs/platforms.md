@@ -79,6 +79,7 @@ scripts/install-launchers.sh --profile Both --apply
 scripts/verify.sh --profile Both
 scripts/safety-check.sh --scope Both
 bash tests/scripts/goal-order-posix.sh  # синтетическая проверка порядка goal-x/intercom
+bash tests/scripts/mcp-probes-posix.sh # Brave без запуска сервера и без ключа
 ```
 
 Проверка синтаксиса Bash и синтетический тест verifier'а возможны и в Git Bash на Windows, но **не заменяют запуск установки и Pi на macOS**. Перед объявлением macOS-совместимости повторите plan/apply/verify и headless-создание тестовой цели на реальном Mac.

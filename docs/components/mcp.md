@@ -51,7 +51,7 @@ MCP server commands исполняются локально с правами п
 3. Выполните один read-only вызов и проверьте result.
 4. После disable/enable выполните `/reload` и подтвердите tool surface.
 
-Repository verification трактует отсутствие optional command как warning. Для Context7/Brave безопасный version probe проверяет найденный executable и неверная версия является failure. Для `mcp-server-fetch` probe намеренно отсутствует: verifier проверяет только command resolution и не запускает server, поэтому не подтверждает exact installed version. Ни один probe не подтверждает MCP handshake, сеть, авторизацию, права API или корректность ответа; functional criterion остаётся реальный read-only tool call из пункта 3.
+Repository verification трактует отсутствие optional command как warning. Context7 поддерживает `--version`; для Brave `--version` **не работает без API key** и пытается запустить server, поэтому verifier проверяет наличие команды и exact версию в глобальном npm `package.json`, не запускает сервер и не запрашивает ключ. Неверная версия установленного пакета является failure. Для `mcp-server-fetch` verifier проверяет только command resolution и не запускает server, поэтому не подтверждает exact installed version. Ни один probe не подтверждает MCP handshake, сеть, авторизацию, права API или корректность ответа; functional criterion остаётся реальный read-only tool call из пункта 3.
 
 ### Удаление/откат
 
