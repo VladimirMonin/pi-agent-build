@@ -61,6 +61,8 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 По умолчанию БД `~/.pi/memory/memory.db` общая для обоих профилей. Project `pi-memory.localPath` изолирует БД. Stock package жёстко читает user-global settings из `~/.pi/agent/settings.json`; применяемый в сборке patch переключает этот путь на `<PI_CODING_AGENT_DIR>/settings.json`, поэтому Task получает собственный global config. Служебная модель — `polza-memory/deepseek/deepseek-v4.1-flash`.
 
+Семантический поиск по фактам работает на **локальном** embedder'е `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа), который ставит patch вместо англоязычного stock `all-MiniLM-L6-v2`. Это отдельный механизм от Polza-консолидации и от embedder'а `pi-session-search`.
+
 ### Команды, tools и skills
 
 - tools: `memory_search`, `memory_remember`, `memory_forget`, `memory_lessons`, `memory_stats`;
@@ -69,11 +71,11 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 ### Риски
 
-Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. `perTurnInjection` ухудшает prefix-cache stability и по умолчанию не нужен.
+Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. `perTurnInjection` ухудшает prefix-cache stability и по умолчанию не нужен. Embedder памяти локальный и офлайн — факты не покидают машину на этом шаге, но модель (~120 МБ) скачивается с HuggingFace при первом использовании.
 
 ### Проверка
 
-Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. Runtime-scope test делает реальный model call. Подробности: [memory fix](../fixes/memory.md).
+Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. Runtime-scope test делает реальный model call. Структурные тесты `test-memory-pushturn.mjs` и `test-memory-embedder.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 

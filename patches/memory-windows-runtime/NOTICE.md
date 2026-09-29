@@ -17,6 +17,7 @@ License evidence: the versioned tarball contains `package/LICENSE`, reproduced b
 | `tests/test-memory-pushturn.mjs` | Project-authored test under the root MIT license | — |
 | `tests/test-memory-runtime-scope.mjs` | Project-authored test under the root MIT license | — |
 | `tests/test-memory-settings-path.mjs` | Project-authored profile-settings regression test under the root MIT license | — |
+| `tests/test-memory-embedder.mjs` | Project-authored multilingual-embedder regression test under the root MIT license | — |
 
 `__pycache__/` is generated runtime output, is not source, and must not be distributed as part of the patch source bundle.
 

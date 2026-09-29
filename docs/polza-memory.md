@@ -7,6 +7,8 @@
 
 Это не третий plugin. `polza-memory` — запись в штатном `models.json` Pi.
 
+> **Embedder памяти — не Polza.** Семантический поиск по фактам внутри `pi-memory` считает **локальная** модель `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа), которую ставит patch `memory-windows-runtime`. Polza в `pi-memory` отвечает только за консолидацию фактов. Подробнее: [memory fix](fixes/memory.md).
+
 ## Почему нужен статический provider
 
 pi-memory `1.5.0` запускает дочерний Pi так:

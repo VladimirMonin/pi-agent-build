@@ -22,7 +22,16 @@ EXPECTED_STOCK_SHA256 = "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
 FIXED_SCOPE_MARKER = "// pi-memory ordered turns: session-local lexical state"
 PROFILE_SETTINGS_MARKER = "// pi-memory profile settings: PI_CODING_AGENT_DIR"
+EMBEDDER_MARKER = "// pi-memory multilingual embedder: Russian-capable, 384d"
 LEGACY_GLOBAL = "globalThis.__piMemoryTurns"
+
+# Multilingual embedder: stock ships the English-only all-MiniLM-L6-v2, which
+# separates Russian paraphrases from unrelated text poorly. The multilingual
+# MiniLM keeps the same 384 dimensions and mean pooling, so no reindex or
+# threshold change is required.
+MODEL_FROM = 'var MODEL = "Xenova/all-MiniLM-L6-v2";'
+MODEL_TO = '''// pi-memory multilingual embedder: Russian-capable, 384d
+var MODEL = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";'''
 
 SETTINGS_FROM = 'var GLOBAL_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");'
 SETTINGS_TO = '''// pi-memory profile settings: PI_CODING_AGENT_DIR
@@ -224,9 +233,25 @@ CANONICAL_REPLACEMENTS = [
     (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
     (P2_PAIRS_FROM, P2_PAIRS_TO),
     (P2_INPUT_FROM, P2_INPUT_TO),
+    (MODEL_FROM, MODEL_TO),
 ]
 
+# Canonical body shipped before the multilingual embedder fix (settings + turns).
 PREVIOUS_CANONICAL_REPLACEMENTS = [
+    (SETTINGS_FROM, SETTINGS_TO),
+    (P1_FROM, P1_TO),
+    (P1_TAIL_FROM, P1_TAIL_TO),
+    (P2_STATE_FROM, P2_STATE_TO),
+    (P2_REPLAY_FROM, P2_REPLAY_TO),
+    (P2_AGENT_END_FROM, P2_AGENT_END_TO),
+    (P2_RESET_START_FROM, P2_RESET_START_TO),
+    (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
+    (P2_PAIRS_FROM, P2_PAIRS_TO),
+    (P2_INPUT_FROM, P2_INPUT_TO),
+]
+
+# Older canonical body that also lacked profile-local settings.
+LEGACY_CANONICAL_REPLACEMENTS = [
     (P1_FROM, P1_TO),
     (P1_TAIL_FROM, P1_TAIL_TO_PREVIOUS),
     (P2_STATE_FROM, P2_STATE_TO),
@@ -269,6 +294,8 @@ def is_runtime_safe(text: str) -> bool:
         WIN_MARKER in text
         and FIXED_SCOPE_MARKER in text
         and PROFILE_SETTINGS_MARKER in text
+        and EMBEDDER_MARKER in text
+        and 'var MODEL = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";' in text
         and "process.env.PI_CODING_AGENT_DIR?.trim()" in text
         and index_pos >= 0
         and index_pos < helper_pos < first_handler
@@ -279,13 +306,13 @@ def is_runtime_safe(text: str) -> bool:
     )
 
 
-def classify(target: bytes, stock: bytes, canonical: bytes, previous: bytes) -> str:
+def classify(target: bytes, stock: bytes, canonical: bytes, previous_states: tuple[bytes, ...]) -> str:
     if target == stock:
         return "stock-pristine"
     text = target.decode("utf-8")
     if target == canonical:
         return "runtime-safe"
-    if target == previous:
+    if target in previous_states:
         return "legacy-canonical"
     if is_runtime_safe(text):
         return "noncanonical-drift"
@@ -329,13 +356,14 @@ def main() -> int:
     try:
         canonical = build_canonical(stock)
         previous = build_canonical(stock, PREVIOUS_CANONICAL_REPLACEMENTS)
+        legacy = build_canonical(stock, LEGACY_CANONICAL_REPLACEMENTS)
     except RuntimeError as exc:
         print(f"ОТКАЗ: {exc}")
         return 2
 
     current = target.read_bytes()
     try:
-        state = classify(current, stock, canonical, previous)
+        state = classify(current, stock, canonical, (previous, legacy))
     except UnicodeDecodeError:
         state = "unknown"
 
@@ -347,7 +375,7 @@ def main() -> int:
     if state == "runtime-safe":
         print("verdict: RUNTIME-SAFE — pushTurn shares lexical scope with pending arrays.")
     elif state == "legacy-canonical":
-        print("verdict: PATCH REQUIRED — previous canonical patch lacks profile-local settings.")
+        print("verdict: PATCH REQUIRED — previous canonical patch lacks the multilingual embedder.")
     elif state == "stock-pristine":
         print("verdict: PATCH REQUIRED — pristine 1.5.0.")
     elif state == "noncanonical-drift":

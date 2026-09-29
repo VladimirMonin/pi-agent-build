@@ -1,8 +1,8 @@
-# pi-memory 1.5.0: Windows spawn и порядок реплик
+# pi-memory 1.5.0: Windows spawn, порядок реплик и русский embedder
 
 Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
 
-## Три исправления
+## Четыре исправления
 
 ### Windows spawn
 
@@ -17,6 +17,12 @@ Stock-пакет ведёт два независимых массива user/as
 ### Настройки выбранного профиля
 
 Stock-пакет всегда читает `~/.pi/agent/settings.json`. Patch строит путь к `settings.json` из `PI_CODING_AGENT_DIR`, поэтому Task-only запуск использует настройки Task-профиля. Общий `~/.pi/memory/memory.db` не переносится.
+
+### Русскоязычный локальный embedder
+
+Stock-пакет считает embeddings моделью `Xenova/all-MiniLM-L6-v2` — англоязычной. На русских фактах она даёт плохую разделимость: перефразированный запрос часто ближе к постороннему факту, чем к нужному, а порог `SEMANTIC_THRESHOLD = 0.25` пропускает почти весь шум. Patch заменяет модель на `Xenova/paraphrase-multilingual-MiniLM-L12-v2`.
+
+Модель остаётся локальной (offline, без API-ключа), сохраняет **384 измерения** и mean pooling, поэтому существующие векторы и порог остаются валидными — reindex не требуется. На контрольном наборе (12 русских фактов, 8 перефразированных запросов) точность top-1 выросла с 4/8 до 7/8.
 
 ## Использование
 
@@ -43,7 +49,11 @@ verdict: RUNTIME-SAFE
 node .\patches\memory-windows-runtime\tests\test-memory-pushturn.mjs `
   "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
 node .\patches\memory-windows-runtime\tests\test-memory-pairing.mjs
+node .\patches\memory-windows-runtime\tests\test-memory-embedder.mjs `
+  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
 ```
+
+`test-memory-embedder.mjs` подтверждает выбор мультиязычной модели, 384d, mean pooling, отсутствие сетевых вызовов в `embed()` и неизменность порога.
 
 `test-memory-runtime-scope.mjs` выполняет настоящий одноразовый запрос модели. Он не входит в бесплатную автоматическую проверку и запускается только владельцем осознанно.
 
