@@ -12,9 +12,9 @@
 
 Лицензия и repository подтверждены metadata опубликованного npm package `0.87.0` (`gitHead` `16787ad5b2dc748047f314ca1bfe7708f30f54f3`).
 
-## 14 Pi-пакетов
+## 15 Pi-пакетов
 
-`common` содержит 11 пакетов, `codeOnly` — ещё 3; Code получает ровно 14, Task — 11.
+`common` содержит 12 пакетов, `codeOnly` — ещё 3; Code получает ровно 15, Task — 12.
 
 | № | Компонент | Версия | Лицензия | Источник |
 |---:|---|---:|---|---|
@@ -29,9 +29,10 @@
 | 9 | `pi-session-search` | 1.4.3 | MIT | <https://github.com/samfoy/pi-session-search> |
 | 10 | `@samfp/pi-memory` | 1.5.0 | MIT | <https://github.com/samfoy/pi-memory> |
 | 11 | `pi-mcp-adapter` | 2.36.0 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
-| 12 | `@nicknisi/pi-ast-grep` | 0.2.0 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
-| 13 | `@bacnh85/pi-serena` | 0.9.16 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
-| 14 | `pi-cbm` | 1.2.1 | MIT | <https://github.com/alexykn/pi-cbm> |
+| 12 | `pi-goal-x` | 0.31.9 | MIT | <https://github.com/tmonk/pi-goal-x> |
+| 13 | `@nicknisi/pi-ast-grep` | 0.2.0 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
+| 14 | `@bacnh85/pi-serena` | 0.9.16 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
+| 15 | `pi-cbm` | 1.2.1 | MIT | <https://github.com/alexykn/pi-cbm> |
 
 ¹ npm metadata `pi-ollama-cloud@0.12.1` не содержит поля `license`, но опубликованный tarball содержит MIT License; repository metadata указывает commit `81ba9009b68534e14ef6d16027765c8a14007ebe`.
 

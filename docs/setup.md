@@ -41,7 +41,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 
 Installer запускает `npm`, `pi` и `uv` с allowlisted process environment, а не наследует весь текущий environment: provider/API credentials не должны попадать в package lifecycle children. Это защита от случайной утечки, не sandbox; устанавливаемые packages и их lifecycle scripts всё равно выполняются с правами пользователя.
 
-По умолчанию существующие profile configs сохраняются без полного replace. Для `settings.json` installer после штатных `pi install` выполняет целевой merge: сохраняет неизвестные пользовательские поля и дополнительные пакеты, но приводит 14/11 пакетов сборки к exact sources, восстанавливает отключающий filter `pi-background-tasks` и задаёт `memory.consolidationModel`. В существующий `models.json` добавляется только отсутствующий provider `polza-memory`; другие providers сохраняются. `ollama-cloud.json` и существующий `skills/memory-ops/` остаются без изменений. Перед merge создаются приватные runtime backups. Флаг `-ReplaceProfileConfigs` явно разрешает полную замену всех четырёх компонентов шаблонами с backup.
+По умолчанию существующие profile configs сохраняются без полного replace. Для `settings.json` installer после штатных `pi install` выполняет целевой merge: сохраняет неизвестные пользовательские поля и дополнительные пакеты, но приводит 15/12 пакетов сборки к exact sources, восстанавливает отключающий filter `pi-background-tasks` и задаёт `memory.consolidationModel`. В существующий `models.json` добавляется только отсутствующий provider `polza-memory`; другие providers сохраняются. `ollama-cloud.json` и существующий `skills/memory-ops/` остаются без изменений. Перед merge создаются приватные runtime backups. Флаг `-ReplaceProfileConfigs` явно разрешает полную замену всех четырёх компонентов шаблонами с backup.
 
 Launchers устанавливаются отдельным plan/apply:
 
@@ -82,7 +82,7 @@ mkdir -p "$user_home/.pi/agent" "$user_home/.pi/task"
 
 ## 3. Пакеты Pi
 
-Функция ниже устанавливает 11 общих пакетов в выбранный профиль. Источники и версии совпадают с manifest.
+Функция ниже устанавливает 12 общих пакетов в выбранный профиль. Источники и версии совпадают с manifest.
 
 ```bash
 install_common() {
@@ -93,6 +93,7 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.10.1
   PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.70.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-goal-x@0.31.9
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.13.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-session-search@1.4.3
@@ -138,7 +139,7 @@ PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi list
 PI_CODING_AGENT_DIR="$user_home/.pi/task" pi list
 ```
 
-В Code должно быть 14 пакетов, в Task — 11; background-tasks показывается как `(filtered)`.
+В Code должно быть 15 пакетов, в Task — 12; background-tasks показывается как `(filtered)`.
 
 ## 4. Внешние инструменты Code
 

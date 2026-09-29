@@ -46,3 +46,51 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 ```
 
 Удалите optional config отдельно. Исторические todo tool calls останутся в session files.
+
+## `pi-goal-x` 0.31.9
+
+### Назначение
+
+Добавляет `/goal` и `/sisyphus`: агент обсуждает цель, предлагает objective и план задач, затем продолжает работу автономно, пока цель активна. Состояние (objective, задачи, прогресс, evidence) сохраняется между сессиями в файлах проекта, а не только в conversation branch. Опциональный независимый completion auditor проверяет результат перед закрытием цели.
+
+### Установка
+
+```bash
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
+  pi install npm:pi-goal-x@0.31.9
+```
+
+### Конфигурация и данные
+
+Настройки слоёные: `environment > <cwd>/.pi/pi-goal-x-settings.json > ${PI_CODING_AGENT_DIR:-~/.pi/agent}/pi-goal-x-settings.json > defaults`. Файлы разрежённые (sparse), неизвестные ключи сообщаются в diagnostics. Ключевые настройки: `strictExecutionContract`, `maxAutonomousRuns`, `subtaskDepth`, `stallTimeoutMinutes`, `objectiveMaxChars`, `auditorProjectResources`, `goalsRoot`, `disabled`, `hideUnfocusedBanner`.
+
+Состояние цели — project-local: `<cwd>/.pi/goals/` (`active_goal_*.md`, `goal_events.jsonl`, `.goals-pool-snapshot.json`), архив — `<cwd>/.pi/goals/archived/`. Это не общий с `~/.pi` state: цели привязаны к рабочему каталогу, а не к профилю.
+
+### Команды, tools и skills
+
+- tools: `create_goal`, `get_goal`, `update_goal`, плюс `set_goal_tasks`/`update_goal_task` (при включённых задачах) и transient drafting tools `goal_question`, `goal_questionnaire`, `propose_goal_draft`;
+- команды: `/goal`, `/sisyphus`, `/goal-direct`, `/sisyphus-direct`, `/goal-list`, `/goal-status`, `/goal-focus`, `/goal-unfocus`, `/goal-tweak`, `/goal-pause`, `/goal-resume`, `/goal-clear`, `/goal-cancel`, `/goal-settings`, `/goal-recovery`, `/goal-refresh`;
+- dashboard над редактором: `Ctrl+Shift+T` разворачивает дерево задач, `Ctrl+Shift+A` переключает аудитора, `Esc` во время работы ставит цель на паузу;
+- отдельных skills нет.
+
+### Риски
+
+- **порядок загрузки:** `pi-goal-x` должен грузиться раньше `pi-intercom` (так закреплено в манифесте и шаблонах). При обратном порядке в headless-режиме (`pi -p`) `turn_end` печатает ошибки boundary и stale ctx; на работу цели это не влияет, но засоряет stderr. Подробности — [notes/goal-x-intercom-order.md](../notes/goal-x-intercom-order.md);
+- peer range `@earendil-works/pi-* >=0.83.0 <0.88.0`: при апгрейде Pi за пределы диапазона пакет перестанет соответствовать заявленной совместимости;
+- автономное продолжение расходует токены без явного подтверждения каждого шага — ограничивайте `maxAutonomousRuns`;
+- auditor по умолчанию изолирован от project resources (`auditorProjectResources: false`); включение расширяет его поверхность;
+- состояние пишется в рабочий каталог (`.pi/goals/`), поэтому попадает под project-local файлы и не должно коммититься;
+- в делегированных subagent-сессиях (`PI_SUBAGENT_CHILD=1` / `PI_SUBAGENT_DEPTH>0`) расширение намеренно не наследует владение родительской целью.
+
+### Проверка
+
+В новой TUI-сессии `/goal-status` должен сообщить об отсутствии цели. Создайте цель через `/goal-direct <objective>`, убедитесь, что появился `<cwd>/.pi/goals/active_goal_*.md`, затем `/goal-pause` и `/goal-clear`.
+
+### Удаление/откат
+
+```bash
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
+  pi remove npm:pi-goal-x
+```
+
+Project-local `.pi/goals/` удаляется отдельно.

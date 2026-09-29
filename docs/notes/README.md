@@ -8,5 +8,6 @@
 |---|---|
 | [session-id в консолидации памяти](memory-session-id.md) | почему lessons получали `session:unknown` и как это исправлено |
 | [Рост файлов трассировки](trace-growth.md) | почему `events.jsonl` раздувается и что с этим делать |
+| [Порядок `pi-goal-x` и `pi-intercom`](goal-x-intercom-order.md) | почему в headless-режиме `turn_end` падает и как порядок загрузки это лечит |
 
 Заметки не заменяют компонентную документацию: назначение, установка и удаление пакетов описаны в [`docs/components/`](../components/README.md).

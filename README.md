@@ -1,6 +1,6 @@
 # Pi Agent Build
 
-Переносимое, version-pinned описание Pi Agent для Windows x64 и POSIX (macOS/Linux): два профиля, 14 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
+Переносимое, version-pinned описание Pi Agent для Windows x64 и POSIX (macOS/Linux): два профиля, 15 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
@@ -8,21 +8,21 @@
 
 ## Граница повторяемости
 
-Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `0.87.0`, Node.js/npm, 14 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
+Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `0.87.0`, Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
 
 Это даёт повторяемую установку заявленных top-level versions, но **не bit-for-bit reproducibility**. Репозиторий пока не содержит переносимых transitive lockfiles/полного dependency graph, integrity hashes всех скачиваемых artifacts, lock Python dependencies или идентичного образа ОС. Повторная установка может получить иной transitive dependency tree даже при тех же верхнеуровневых версиях. Для release artifact нужно отдельно зафиксировать transitive locks/hashes и затем проверить итоговый bundle.
 
 ## Что описывает сборка
 
-- профили `pi-code` и `pi-task` с 14 и 11 Pi-пакетами соответственно;
+- профили `pi-code` и `pi-task` с 15 и 12 Pi-пакетами соответственно;
 - нативный провайдер [pi-polza](https://github.com/VladimirMonin/pi-polza);
-- Trace, Context Inspector, Todo, subagents/intercom, MCP, session search и SQLite memory;
+- Trace, Context Inspector, Todo, subagents/intercom, MCP, session search, SQLite memory и Goal-X (`/goal`);
 - Code-профиль с ast-grep, Serena и Codebase Memory;
 - русификацию Trace и Windows/profile-aware исправления;
 - Polza embeddings для поиска истории и служебную модель консолидации memory;
 - навык обслуживания памяти Pi.
 
-Точный перечень 14 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
+Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
 
 ## Безопасность
 

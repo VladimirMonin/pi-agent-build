@@ -345,7 +345,7 @@ try {
         Assert-Equal 0 $result.ExitCode "fake lifecycle install failed: $($result.Output)"
         $installedSettings = Get-Content -LiteralPath $existingSettings -Raw | ConvertFrom-Json
         Assert-Equal 'byte-exact' ([string]$installedSettings.keep) 'custom settings field was not preserved'
-        Assert-Equal 14 @($installedSettings.packages).Count 'build package list was not merged into preserved settings'
+        Assert-Equal 15 @($installedSettings.packages).Count 'build package list was not merged into preserved settings'
         Assert-Equal 'polza-memory/deepseek/deepseek-v4.1-flash' ([string]$installedSettings.memory.consolidationModel) 'memory model was not merged'
         $background = @($installedSettings.packages | Where-Object { $_ -isnot [string] -and $_.source -match 'pi-background-tasks' })
         Assert-Equal 1 $background.Count 'background-tasks filter missing after merge'
@@ -355,7 +355,7 @@ try {
         Assert-True ($null -ne $installedModels.providers.'polza-memory') 'polza-memory provider was not merged'
         $records = @([IO.File]::ReadAllLines($tools.Log) | ForEach-Object { $_ | ConvertFrom-Json })
         $piCalls = @($records | Where-Object { $_.tool -eq 'pi' })
-        Assert-Equal 14 $piCalls.Count 'not every profile package was installed through pi install'
+        Assert-Equal 15 $piCalls.Count 'not every profile package was installed through pi install'
         foreach ($call in $piCalls) {
             Assert-Equal 'install' ([string]$call.args[0]) 'Pi lifecycle command was not install'
             Assert-Equal '' ([string]$call.secret) 'secret leaked into Pi install child'
