@@ -19,6 +19,7 @@
 - Русскоязычный локальный embedder памяти: patch `memory-windows-runtime` заменяет англоязычную `Xenova/all-MiniLM-L6-v2` на мультиязычную `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа) и добавляет структурный тест `test-memory-embedder.mjs`.
 - Прогрев кэша embedder'а памяти: `scripts/warm-memory-embedder.mjs` скачивает модель заранее (таймаут 10 мин, 3 повтора); installer вызывает его автоматически, verifier сообщает WARN при отсутствии кэша. Учитывает разную скорость сети и 30-секундный таймаут ленивой загрузки плагина.
 - Исправление session id в консолидации памяти: patch `memory-windows-runtime` читает id через `sessionManager.getSessionId()`, так как `ExtensionContext` не содержит полей `sessionId`/`session` и stock-выражение всегда давало `session:unknown`. Добавлен структурный тест `test-memory-sessionid.mjs`.
+- Раздел `docs/notes/` с заметками о поведении upstream-компонентов: `session:unknown` в консолидации памяти и квадратичный рост файлов трассировки `pi-trace-extension` (до 144 МБ на длинной сессии).
 
 ### Изменено
 

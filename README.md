@@ -47,6 +47,7 @@ config/             безопасные примеры MCP/provider/memory conf
 patches/            version-guarded исправления, tests и upstream notices
 skills/             собственные переносимые Pi-навыки
 docs/components/    документация 14 установленных Pi-пакетов
+docs/notes/         заметки о поведении upstream-компонентов и его причинах
 scripts/            install, launcher install, patch orchestration, verify, safety scan, memory embedder warm-up
 instructions/       постоянные правила сопровождения репозитория
 ```
@@ -61,6 +62,7 @@ instructions/       постоянные правила сопровождени
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
 - Компоненты: [`docs/components/README.md`](docs/components/README.md)
+- Заметки о поведении компонентов: [`docs/notes/README.md`](docs/notes/README.md)
 - POSIX (macOS/Linux) установка: [`docs/setup.md`](docs/setup.md#posix-macoslinux) и [`docs/platforms.md`](docs/platforms.md)
 
 ## Документация для агентов
