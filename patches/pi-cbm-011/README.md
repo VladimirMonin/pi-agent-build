@@ -47,4 +47,4 @@ Stock `pi-cbm 1.2.1` после отката остаётся несовмест
 
 На Windows launcher обязан задавать `CODEBASE_MEMORY_MCP_BIN` на настоящий `.exe`, а не npm shim.
 
-Pristine store в Git immutable. Apply принимает только точный stock/canonical body, пишет backup под `.pi-agent-build-backups/pi-cbm-011` выбранного профиля и отказывается перезаписывать неизвестное состояние.
+Pristine store в Git immutable. Apply принимает только точный stock/canonical body и **байтово точный LF-only вариант canonical** (редактор мог нормализовать CRLF исходника); произвольный drift по-прежнему запрещён. Для `--check`, `--apply` и `--restore` эти два canonical-состояния равноправны; `--apply` не переписывает уже установленный LF-only вариант. При изменении stock создаётся backup под `.pi-agent-build-backups/pi-cbm-011` выбранного профиля.

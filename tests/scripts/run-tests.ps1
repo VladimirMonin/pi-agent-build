@@ -650,7 +650,19 @@ try {
         $cbm = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
         Assert-Equal 0 $cbm.ExitCode "CBM apply failed: $($cbm.Output)"
         Assert-True (Test-Path -LiteralPath (Join-Path $cbmAgent '.pi-agent-build-backups\pi-cbm-011')) 'CBM runtime backup missing'
-        [IO.File]::WriteAllText((Join-Path $cbmPkg 'src\cbm\client.ts'), 'unknown CBM source')
+        $cbmTarget = Join-Path $cbmPkg 'src\cbm\client.ts'
+        $normalized = [IO.File]::ReadAllText($cbmTarget).Replace("`r`n", "`n")
+        [IO.File]::WriteAllText($cbmTarget, $normalized, (New-Object Text.UTF8Encoding($false)))
+        $normalizedHash = (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash
+        $normalizedCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 0 $normalizedCheck.ExitCode 'exact LF-normalized CBM canonical was not accepted'
+        $normalizedApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 0 $normalizedApply.ExitCode 'LF-normalized CBM apply should be idempotent'
+        Assert-Equal $normalizedHash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'idempotent CBM apply rewrote normalized bytes'
+        $normalizedRestore = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--restore') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 0 $normalizedRestore.ExitCode 'LF-normalized CBM restore should accept exact known state'
+        Assert-Equal (Get-FileHash -LiteralPath $storeFiles[1] -Algorithm SHA256).Hash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'CBM restore did not recover immutable stock'
+        [IO.File]::WriteAllText($cbmTarget, 'unknown CBM source')
         $cbmDrift = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
         Assert-Equal 2 $cbmDrift.ExitCode 'CBM apply did not refuse unknown source'
 

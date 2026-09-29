@@ -395,7 +395,9 @@ def cmd_check() -> int:
     if not cbm_supports_format():
         print("  UNSUPPORTED: CBM 0.11.x does not expose the required --format flag.")
         return 2
-    if text == expected:
+    # An editor may normalize the mixed-CRLF/LF canonical output to LF-only.
+    # Accept that one exact, derivable byte state; never accept arbitrary drift.
+    if text in (expected, expected.replace("\r\n", "\n")):
         print("  ALREADY PATCHED. Nothing to do.")
         return 0
     if text == base:
@@ -444,7 +446,7 @@ def cmd_apply() -> int:
         for p in problems:
             print(f"    - {p}")
         return 2
-    if text == new_text:
+    if text in (new_text, new_text.replace("\r\n", "\n")):
         print("  file already in canonical patched state (idempotent)")
         return 0
     if text != base:
@@ -491,7 +493,7 @@ def cmd_restore() -> int:
     if text == base:
         print("  file is already stock — nothing to restore")
         return 0
-    if text != expected:
+    if text not in (expected, expected.replace("\r\n", "\n")):
         print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
 
