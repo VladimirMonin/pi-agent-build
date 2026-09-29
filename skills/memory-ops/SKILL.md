@@ -67,6 +67,7 @@ metadata:
 | Новая/обновлённая запись ➕✏️ | [07-new-entry](instructions/07-new-entry.md) | короткий итог |
 | Drift консолидации 🧬 | [08-drift](instructions/08-drift.md) | [audit](reports/report-audit.md) |
 | Массовое применение 🧱 | [09-bulk-apply](instructions/09-bulk-apply.md) | [completion](reports/report-completion.md) |
+| Бирки и бюджет 🏷️ | [10-tags-budget](instructions/10-tags-budget.md) | [completion](reports/report-completion.md) |
 
 ## Перед любой операцией
 
@@ -86,6 +87,12 @@ metadata:
 - `apply-facts.mjs` — применение merge-блоков фактов.
 - `apply-lessons.mjs` — применение merge-блоков уроков с token coverage.
 - `patch-entries.mjs` — точечные сокращения и переименования.
+
+Проверка реального инжектора и открытый дефект версии 1.5.0 описаны отдельно:
+в репозиторном `docs/fixes/memory-injection.md`. Публичный
+`inject-probe.mjs` выполняет лишь структурную оценку, не выдавай её за
+результат настоящей инъекции. Не устанавливай поверх репозиторного patcher
+параллельный локальный patcher, не сверив байты и оба профиля.
 
 ## Журналы
 

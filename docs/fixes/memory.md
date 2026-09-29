@@ -2,7 +2,13 @@
 
 ## Назначение
 
-Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`:
+Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`.
+**Отдельный дефект инъекции** (бирки Windows, чужие факты и обрезание блока)
+описан в [memory-injection.md](memory-injection.md). Исправление инъекции пока
+**не входит** в переносимый patcher: см. статус перед установкой поверх
+локально изменённого bundle.
+
+Текущий patch:
 
 - заменяет жёсткий `~/.pi/agent/settings.json` на `<PI_CODING_AGENT_DIR>/settings.json`, чтобы Task использовал свой блок `memory`/`pi-memory`;
 - на Windows заменяет запуск npm `.cmd` через `spawn(shell:false)` на прямой запуск Pi CLI текущим Node, устраняя `ENOENT`;
