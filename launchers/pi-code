@@ -1,8 +1,28 @@
 #!/usr/bin/env bash
+# pi-code — Code profile launcher (POSIX: macOS/Linux and Git Bash on Windows).
+# Rendered by scripts/install-launchers.sh (POSIX) or install-launchers.ps1.
 set -euo pipefail
 export PI_CODING_AGENT_DIR='__PI_PROFILE_DIR_POSIX__'
 export PI_AGENT_BUILD_NPM_PREFIX='__NPM_PREFIX_POSIX__'
 export PI_CBM_MAX_CONCURRENT_INDEXES=1
 export PI_CBM_AUTO_REFRESH_INTERVAL_MS=300000
-export CODEBASE_MEMORY_MCP_BIN="$PI_AGENT_BUILD_NPM_PREFIX/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp.exe"
+# Resolve the real Codebase Memory executable. On Windows npm installs a
+# shell shim plus a sibling .exe; on macOS/Linux the npm shim is directly
+# spawnable. Prefer an explicit override, then PATH, then the package tree.
+if [ -z "${CODEBASE_MEMORY_MCP_BIN:-}" ]; then
+  for candidate in \
+    "$(command -v codebase-memory-mcp 2>/dev/null || true)" \
+    "$PI_AGENT_BUILD_NPM_PREFIX/bin/codebase-memory-mcp" \
+    "$PI_AGENT_BUILD_NPM_PREFIX/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp.exe" \
+    "$PI_AGENT_BUILD_NPM_PREFIX/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      export CODEBASE_MEMORY_MCP_BIN="$candidate"
+      break
+    fi
+  done
+fi
+# npm global prefix layout differs: POSIX keeps the CLI in <prefix>/bin.
+if [ -x "$PI_AGENT_BUILD_NPM_PREFIX/bin/pi" ]; then
+  exec "$PI_AGENT_BUILD_NPM_PREFIX/bin/pi" "$@"
+fi
 exec "$PI_AGENT_BUILD_NPM_PREFIX/pi" "$@"

@@ -1,14 +1,16 @@
 # Установка сборки
 
-Сборка рассчитана на Windows x64 и повторяет закреплённые **верхнеуровневые** версии Pi `0.87.0`, двух профилей и компонентов из `manifests/*.lock.json`. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Сборка рассчитана на Windows x64 и POSIX (macOS/Linux) и повторяет закреплённые **верхнеуровневые** версии Pi `0.87.0`, двух профилей и компонентов из `manifests/*.lock.json`. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+
+Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
 
 ## До установки
 
-Целевая среда — Windows x64 с Windows PowerShell 5.1 (`powershell.exe`) или совместимым запуском scripts. Требования разделены по роли:
+Требования разделены по роли:
 
 - installer проверяет exact Node.js `25.8.1`, npm `11.11.0` и Git for Windows `2.54.0.windows.1`; поддерживаемый минимум Node — `24.0.0` из-за `pi-session-search`, но automatic install gate требует именно manifest version;
 - Python `3.8+` нужен patchers и Trace renderer;
-- Python package `jsonschema` нужен для обязательной schema validation в `scripts/verify.ps1`;
+- Python package `jsonschema` нужен для обязательной schema validation в `scripts/verify.ps1`/`verify.sh`;
 - `uv 0.9.27` нужен при установке Code (Serena) и для рекомендуемой установки optional Python MCP server;
 - `serena-agent==1.7.0` требует Python `>=3.11,<3.15`, а `mcp-server-fetch==2025.4.7` — Python `>=3.10`; `uv tool` может использовать managed interpreter, отличный от `python` для patchers.
 
@@ -25,9 +27,11 @@ python -c "import jsonschema; print(jsonschema.__version__)"
 
 Все Pi-пакеты исполняются с правами текущего пользователя. Перед обновлением сверяйте источники и версии с [`pi-packages.lock.json`](../manifests/pi-packages.lock.json), а не устанавливайте `latest`.
 
+> На macOS/Linux точные Windows-версии Node/npm/Git из manifest обычно недоступны. `verify.sh` сообщает о расхождении как WARN; жёсткие требования — Node `>= 24.0.0`, Python `>= 3.8` и `jsonschema`. Флаг `--strict-runtime` включает проверку exact Windows-версий.
+
 ## Автоматизированная установка
 
-PowerShell installer сначала работает как dry-run plan. По `-Apply` он проверяет runtime prerequisites, устанавливает Pi и profile packages, ставит внешние tools выбранного профиля, создаёт отсутствующие profile configs/навык и применяет patches, но **не запускает интерактивную/model Pi-сессию и не пишет credentials**. Profile packages устанавливаются штатной командой `pi install <source>` с профильным `PI_CODING_AGENT_DIR`, а не прямым `npm install --prefix`; это сохраняет package metadata/filter semantics Pi. Git-пакет передаётся как immutable object id:
+Installer сначала работает как dry-run plan. По `-Apply` (PowerShell) или `--apply` (POSIX) он проверяет runtime prerequisites, устанавливает Pi и profile packages, ставит внешние tools выбранного профиля, создаёт отсутствующие profile configs/навык и применяет patches, но **не запускает интерактивную/model Pi-сессию и не пишет credentials**. Profile packages устанавливаются штатной командой `pi install <source>` с профильным `PI_CODING_AGENT_DIR`, а не прямым `npm install --prefix`; это сохраняет package metadata/filter semantics Pi. Git-пакет передаётся как immutable object id:
 
 ```powershell
 $RepoRoot = '<REPO_ROOT>'

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
+# pi-task — Task profile launcher (POSIX: macOS/Linux and Git Bash on Windows).
+# Rendered by scripts/install-launchers.sh (POSIX) or install-launchers.ps1.
 set -euo pipefail
 export PI_CODING_AGENT_DIR='__PI_PROFILE_DIR_POSIX__'
 export PI_AGENT_BUILD_NPM_PREFIX='__NPM_PREFIX_POSIX__'
+# npm global prefix layout differs: POSIX keeps the CLI in <prefix>/bin.
+if [ -x "$PI_AGENT_BUILD_NPM_PREFIX/bin/pi" ]; then
+  exec "$PI_AGENT_BUILD_NPM_PREFIX/bin/pi" "$@"
+fi
 exec "$PI_AGENT_BUILD_NPM_PREFIX/pi" "$@"

@@ -1,6 +1,6 @@
 # Pi Agent Build
 
-Переносимое, version-pinned описание Pi Agent для Windows x64: два профиля, 14 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
+Переносимое, version-pinned описание Pi Agent для Windows x64 и POSIX (macOS/Linux): два профиля, 14 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
@@ -36,7 +36,7 @@ node_modules/       установленные зависимости
 личные пути         имена пользователей и рабочие каталоги
 ```
 
-Публичные шаблоны используют placeholders. Секреты вводятся локально после установки. Перед публикацией запускайте `scripts/safety-check.ps1`, но не считайте автоматический scan заменой ручному просмотру diff.
+Публичные шаблоны используют placeholders. Секреты вводятся локально после установки. Перед публикацией запускайте `scripts/safety-check.ps1` (Windows) или `scripts/safety-check.sh` (POSIX), но не считайте автоматический scan заменой ручному просмотру diff.
 
 ## Структура
 
@@ -51,7 +51,9 @@ scripts/            install, launcher install, patch orchestration, verify, safe
 instructions/       постоянные правила сопровождения репозитория
 ```
 
-`update.ps1` сейчас отсутствует: обновление выполняется только как осознанное изменение manifests/templates/patches с повторной установкой и проверкой. Не используйте `latest` и не предполагайте наличие автоматического update workflow.
+Скрипты существуют в двух вариантах: `.ps1` для Windows x64 и `.sh` для POSIX (macOS/Linux). Оба набора читают одни и те же manifests и применяют одни и те же patchers.
+
+`update.ps1`/`update.sh` сейчас отсутствуют: обновление выполняется только как осознанное изменение manifests/templates/patches с повторной установкой и проверкой. Не используйте `latest` и не предполагайте наличие автоматического update workflow.
 
 ## Начало работы
 
@@ -59,6 +61,7 @@ instructions/       постоянные правила сопровождени
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
 - Компоненты: [`docs/components/README.md`](docs/components/README.md)
+- POSIX (macOS/Linux) установка: [`docs/setup.md`](docs/setup.md#posix-macoslinux) и [`docs/platforms.md`](docs/platforms.md)
 
 ## Документация для агентов
 
