@@ -20,7 +20,7 @@
 - Прогрев кэша embedder'а памяти: `scripts/warm-memory-embedder.mjs` скачивает модель заранее (таймаут 10 мин, 3 повтора); installer вызывает его автоматически, verifier сообщает WARN при отсутствии кэша. Учитывает разную скорость сети и 30-секундный таймаут ленивой загрузки плагина.
 - Пакет `pi-goal-x@0.31.9` (MIT) в оба профиля: команды `/goal`, `/sisyphus` и автономное продолжение работы с персистентным состоянием в `<cwd>/.pi/goals/`. Собран против Pi 0.87.0, но peer range `>=0.83.0 <0.88.0` требует повторной проверки после апгрейда Pi. В манифесте и шаблонах размещён перед `pi-intercom`: обратный порядок в headless-режиме ломает `turn_end` boundary ([заметка](docs/notes/goal-x-intercom-order.md)).
 - Исправление session id в консолидации памяти: patch `memory-windows-runtime` читает id через `sessionManager.getSessionId()`, так как `ExtensionContext` не содержит полей `sessionId`/`session` и stock-выражение всегда давало `session:unknown`. Добавлен структурный тест `test-memory-sessionid.mjs`.
-- Раздел `docs/notes/` с заметками о поведении upstream-компонентов: `session:unknown` в консолидации памяти и квадратичный рост файлов трассировки `pi-trace-extension` (до 144 МБ на длинной сессии).
+- Раздел `docs/notes/` с заметками о поведении upstream-компонентов: `session:unknown` в консолидации памяти, квадратичный рост файлов трассировки `pi-trace-extension` (до 144 МБ на длинной сессии) и порядок загрузки `pi-goal-x` относительно `pi-intercom` (полная матрица проверок в [`docs/notes/goal-x-intercom-order.md`](docs/notes/goal-x-intercom-order.md)).
 
 ### Изменено
 

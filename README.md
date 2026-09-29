@@ -24,6 +24,12 @@
 
 Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
 
+## Известное ограничение: порядок `pi-goal-x` и `pi-intercom`
+
+`pi-goal-x` должен загружаться **раньше** `pi-intercom` — так закреплено в манифесте и обоих шаблонах профилей. При обратном порядке headless-прогоны (`pi -p`, `--mode json`, `--mode rpc`) печатают в stderr ошибку `turn_end` boundary и ошибку stale `ctx` при создании цели.
+
+Ошибка **не фатальна** (цель создаётся, exit code 0) и **не проявляется** в интерактивном TUI, но засоряет вывод и вводит в заблуждение при автоматизированных прогонах. Полная матрица проверок, подтверждённые условия и механизм — в [`docs/notes/goal-x-intercom-order.md`](docs/notes/goal-x-intercom-order.md).
+
 ## Безопасность
 
 Репозиторий принципиально не содержит:
@@ -46,7 +52,7 @@ profiles/           шаблоны профилей Code и Task
 config/             безопасные примеры MCP/provider/memory config
 patches/            version-guarded исправления, tests и upstream notices
 skills/             собственные переносимые Pi-навыки
-docs/components/    документация 14 установленных Pi-пакетов
+docs/components/    документация 15 установленных Pi-пакетов
 docs/notes/         заметки о поведении upstream-компонентов и его причинах
 scripts/            install, launcher install, patch orchestration, verify, safety scan, memory embedder warm-up
 instructions/       постоянные правила сопровождения репозитория
