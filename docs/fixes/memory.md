@@ -1,12 +1,9 @@
-# Memory: профильные settings, Windows spawn, порядок реплик, русский embedder и session id
+# Memory: профильные settings, Windows spawn, порядок реплик и scoped-инъекция
 
 ## Назначение
 
 Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`.
-**Отдельный дефект инъекции** (бирки Windows, чужие факты и обрезание блока)
-описан в [memory-injection.md](memory-injection.md). Исправление инъекции пока
-**не входит** в переносимый patcher: см. статус перед установкой поверх
-локально изменённого bundle.
+Дефект инъекции (бирки Windows, чужие факты и обрезание блока) и приватные alias описаны в [memory-injection.md](memory-injection.md). Его обобщённое исправление теперь входит в этот же version-guarded patcher; upstream 1.5.0 остаётся дефектным.
 
 Текущий patch:
 
@@ -15,7 +12,8 @@ Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`
 - хранит ordered `pendingTurns` в session-local lexical scope и строит пары User/Assistant по реальному порядку, а не по двум рассинхронизированным массивам;
 - заменяет англоязычную модель встраивания `Xenova/all-MiniLM-L6-v2` на мультиязычную `Xenova/paraphrase-multilingual-MiniLM-L12-v2`, чтобы семантический поиск фактов работал на русском;
 - читает id сессии через `ctx.sessionManager.getSessionId()`, потому что `ExtensionContext` не содержит полей `sessionId`/`session` и stock-выражение всегда давало `session:unknown`;
-- исправляет старую ошибочную patch-версию, где `pushTurn` оказался module-scope и падал на `agent_end` с `pending*Messages is not defined`.
+- исправляет старую ошибочную patch-версию, где `pushTurn` оказался module-scope и падал на `agent_end` с `pending*Messages is not defined`;
+- фильтрует каждый источник project-фактов, ставит местные уроки в начало и не обрезает текст отдельных записей внутри лимита 8000 символов.
 
 ## Применение
 
@@ -28,11 +26,11 @@ python patches/memory-windows-runtime/apply.py \
   --agent-dir "<PROFILE_DIR>"
 ```
 
-Примените к обоим профилям. Patcher пересобирает canonical output из vendored pristine `1.5.0`, принимает для записи только byte-exact stock или byte-exact previous canonical patch и не перезаписывает marker-shaped/unknown/custom build. Для неизвестного состояния сначала выполните штатный reinstall пакета.
+Примените к обоим профилям. Patcher пересобирает canonical output из vendored pristine `1.5.0`, принимает только byte-exact stock/previous canonical patch или **один точно сверенный локальный injector v1** с приватными alias. Неизвестные bundle не перезаписываются; полный installer отказывает **до** `pi install`. Для unknown сначала сохраните файл и разберите происхождение; штатный reinstall допустим лишь после отдельного согласования потери локальных правок.
 
 ## Конфигурация и данные
 
-Patch меняет `dist/index.js`; memory DB и сами settings не преобразует. При заданном `PI_CODING_AGENT_DIR` user-global config читается из `settings.json` активного профиля, без переменной сохраняется stock fallback `~/.pi/agent/settings.json`. На Windows путь к global Pi CLI строится от `PI_AGENT_BUILD_NPM_PREFIX`, который задают rendered launchers; fallback — `%APPDATA%\npm`. Служебный child по-прежнему запускается с `--no-extensions --no-tools --no-session`; static `polza-memory` описан отдельно.
+Patch меняет `dist/index.js`; memory DB и сами settings не преобразует. Если один проект открыт из разных каталогов, добавьте `memory.factProjectAliases` **в приватные profile settings** (см. memory-injection.md), а не публикуйте пути в manifest. При заданном `PI_CODING_AGENT_DIR` user-global config читается из `settings.json` активного профиля, без переменной сохраняется stock fallback `~/.pi/agent/settings.json`. На Windows путь к global Pi CLI строится от `PI_AGENT_BUILD_NPM_PREFIX`, который задают rendered launchers; fallback — `%APPDATA%\npm`. Служебный child по-прежнему запускается с `--no-extensions --no-tools --no-session`; static `polza-memory` описан отдельно.
 
 ### Embedder памяти
 
@@ -81,6 +79,8 @@ node patches/memory-windows-runtime/tests/test-memory-pushturn.mjs \
 node patches/memory-windows-runtime/tests/test-memory-embedder.mjs \
   "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
 node patches/memory-windows-runtime/tests/test-memory-sessionid.mjs \
+  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
+node patches/memory-windows-runtime/tests/test-memory-injection.mjs \
   "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
 ```
 

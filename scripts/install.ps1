@@ -13,6 +13,8 @@ param(
 
     [switch]$SkipPatches,
 
+    [switch]$SyncSettingsOnly,
+
     [switch]$ReplaceProfileConfigs
 )
 
@@ -229,11 +231,65 @@ try {
     }
     Write-Host 'credentials: not read, copied, requested, or written'
     Write-Host "existing profile configs: $(if ($ReplaceProfileConfigs) { 'replace with backup' } else { 'preserve' })"
-    Write-Host 'Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle'
+    if ($SyncSettingsOnly) { Write-Host 'settings-only: verify installed payloads, back up and merge settings; no package/patch/credential writes' }
+    else { Write-Host 'Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle' }
 
     if (-not $Apply) {
         Write-Host 'PLAN complete; no files or packages were changed. Re-run with -Apply.'
         exit 0
+    }
+
+    if ($SyncSettingsOnly) {
+        if ($ReplaceProfileConfigs) { throw 'SyncSettingsOnly preserves existing settings; cannot combine with ReplaceProfileConfigs.' }
+        foreach ($selected in $profiles) {
+            $profileRoot = Join-Path $PiRoot $selected.Directory
+            $destination = Join-Path $profileRoot 'settings.json'
+            if (-not (Test-Path -LiteralPath $destination -PathType Leaf)) { throw "Existing settings missing: $destination" }
+            $expected = @(Get-ProfilePackages -ProfileName $selected.Name -Manifest $packages)
+            foreach ($entry in $expected) { Assert-InstalledProfilePackage -ProfileRoot $profileRoot -Entry $entry }
+            $template = Join-Path $RepoRoot "profiles\$($selected.Template)\settings.template.json"
+            $route = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot, $template)
+            if (-not $route.Found -or $route.ExitCode -ne 0) { throw "$($selected.Name) settings sync refused unavailable memory model: $($route.Output)" }
+        }
+        # Validate BOTH profiles before writing either settings file.
+        foreach ($selected in $profiles) {
+            $profileRoot = Join-Path $PiRoot $selected.Directory
+            $destination = Join-Path $profileRoot 'settings.json'
+            $template = Join-Path $RepoRoot "profiles\$($selected.Template)\settings.template.json"
+            $expected = @(Get-ProfilePackages -ProfileName $selected.Name -Manifest $packages)
+            $backup = Join-Path $profileRoot ".pi-agent-build-backups\install\$(New-BackupStamp)"
+            Merge-PreservedSettings -Destination $destination -Template $template -BuildPackages $expected -BackupDirectory $backup
+            Write-Host "merged $destination (settings only; packages and patches untouched)"
+        }
+        exit 0
+    }
+
+    # Static polza conflicts with the dynamic pi-polza provider. Do not silently
+    # add polza-memory beside it; require an explicit private config migration.
+    if (-not $ReplaceProfileConfigs) {
+        foreach ($selected in $profiles) {
+            $modelsPath = Join-Path (Join-Path $PiRoot $selected.Directory) 'models.json'
+            if (Test-Path -LiteralPath $modelsPath -PathType Leaf) {
+                $modelsConfig = Read-JsonFile $modelsPath
+                if ($modelsConfig.PSObject.Properties['providers'] -and $modelsConfig.providers -and $modelsConfig.providers.PSObject.Properties['polza']) {
+                    throw "$($selected.Name) static polza conflicts with pi-polza; back up models.json and migrate its provider to polza-memory before install"
+                }
+            }
+        }
+    }
+
+    # An install may replace an existing bundle before patch application.
+    # Refuse UNKNOWN/private injector states before any package lifecycle writes.
+    if (-not $SkipPackageInstall) {
+        foreach ($selected in $profiles) {
+            $profileRoot = Join-Path $PiRoot $selected.Directory
+            $dist = Join-Path $profileRoot 'npm\node_modules\@samfp\pi-memory\dist\index.js'
+            if (Test-Path -LiteralPath $dist -PathType Leaf) {
+                $probe = Get-CommandOutput -Command 'python' -Arguments @((Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'), '--check', '--agent-dir', $profileRoot)
+                if (-not $probe.Found -or $probe.ExitCode -gt 1) { throw "Memory preflight refused $($selected.Name) before reinstall: $($probe.Output)" }
+                Write-Host "PASS $($selected.Name) memory preflight (known state; exit $($probe.ExitCode))"
+            }
+        }
     }
 
     if (-not $SkipPackageInstall) {

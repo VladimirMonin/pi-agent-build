@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
-"""Patch @samfp/pi-memory 1.5.0 for Windows spawn and ordered turns.
+"""Patch @samfp/pi-memory 1.5.0 for runtime safety and scoped injection.
 
-The canonical result is always rebuilt in memory from the pristine 1.5.0
-backup. Only exact known byte states are writable; marker-shaped or otherwise
-modified files must be restored by reinstalling the package.
+Rebuild from verified pristine bytes. Only exact known states may be upgraded;
+noncanonical or unknown bundles are never overwritten by a marker-only match.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import hashlib
+import json
 import os
 import pathlib
+import re
 import shutil
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+from injection import apply_injection, is_injection_safe
+
 BACKUP = HERE / "stock-index.js"
 EXPECTED_STOCK_SHA256 = "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58"
+# Exact private v1 bundle identity, accepted solely for one-time, backed-up migration.
+# Its hard-coded local aliases are NOT part of this public source.
+KNOWN_LOCAL_INJECTOR_V1_SHA256 = "15ca149cb8968f32735fe4ed1647c2bc81c19b3b7993507ec7bb31c6da4236bb"
+# Initial scoped v2 canonical, superseded by profile-only (not project-local) aliases.
+KNOWN_SCOPED_V2_INITIAL_SHA256 = "6ee8966d85382a088cf56af8ab98b40b33ee41bd2d22b4f21afaf69681c5881e"
 
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
 FIXED_SCOPE_MARKER = "// pi-memory ordered turns: session-local lexical state"
@@ -297,7 +307,7 @@ def short(data: bytes) -> str:
     return digest(data)[:12]
 
 
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS) -> bytes:
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -305,8 +315,10 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS) -> bytes:
             anchor = old.strip().splitlines()[0][:70]
             raise RuntimeError(f"stock anchor count {count}, expected 1: {anchor}")
         text = text.replace(old, new, 1)
+    if replacements is CANONICAL_REPLACEMENTS and injector:
+        text = apply_injection(text)
     result = text.encode("utf-8")
-    if replacements is CANONICAL_REPLACEMENTS and not is_runtime_safe(result.decode("utf-8")):
+    if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
     return result
 
@@ -330,6 +342,7 @@ def is_runtime_safe(text: str) -> bool:
         and "turns: pendingTurns.slice()," in text
         and text.count("pendingTurns = [];") >= 3
         and LEGACY_GLOBAL not in text
+        and is_injection_safe(text)
     )
 
 
@@ -339,11 +352,31 @@ def classify(target: bytes, stock: bytes, canonical: bytes, previous_states: tup
     text = target.decode("utf-8")
     if target == canonical:
         return "runtime-safe"
+    if digest(target) == KNOWN_LOCAL_INJECTOR_V1_SHA256:
+        return "legacy-local-injector"
+    if digest(target) == KNOWN_SCOPED_V2_INITIAL_SHA256:
+        return "legacy-canonical"
     if target in previous_states:
         return "legacy-canonical"
     if is_runtime_safe(text):
         return "noncanonical-drift"
     return "unknown"
+
+
+def private_aliases_ready(agent_dir: pathlib.Path) -> bool:
+    """Migration from the old hard-coded local injector needs private replacement aliases."""
+    try:
+        settings = json.loads((agent_dir / "settings.json").read_text(encoding="utf-8"))
+        aliases = settings.get("memory", {}).get("factProjectAliases")
+        return isinstance(aliases, list) and bool(aliases) and all(
+            isinstance(a, dict) and isinstance(a.get("path"), str) and a["path"].strip()
+            and (a["path"].startswith("/") or re.match(r"^[A-Za-z]:[/\\]", a["path"]))
+            and isinstance(a.get("scope"), str) and re.fullmatch(r"[a-z0-9_-]+", a["scope"].lower())
+            and ("includeChildren" not in a or isinstance(a["includeChildren"], bool))
+            for a in aliases
+        )
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
 
 
 def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) -> pathlib.Path:
@@ -372,6 +405,14 @@ def main() -> int:
     if not target.exists():
         print(f"НЕ НАЙДЕН: {target}")
         return 2
+    try:
+        metadata = json.loads((target.parent.parent / "package.json").read_text(encoding="utf-8"))
+        if metadata.get("version") != "1.5.0":
+            print(f"ОТКАЗ: expected @samfp/pi-memory 1.5.0, found {metadata.get('version')}")
+            return 2
+    except (OSError, ValueError, AttributeError) as exc:
+        print(f"ОТКАЗ: package metadata unavailable: {exc}")
+        return 2
     if not BACKUP.exists():
         print(f"НЕ НАЙДЕН pristine backup: {BACKUP}")
         return 2
@@ -382,6 +423,7 @@ def main() -> int:
         return 2
     try:
         canonical = build_canonical(stock)
+        previous_injector = build_canonical(stock, injector=False)
         previous = build_canonical(stock, PREVIOUS_CANONICAL_REPLACEMENTS)
         previous_no_embedder = build_canonical(stock, PREVIOUS_CANONICAL_NO_EMBEDDER_REPLACEMENTS)
         legacy = build_canonical(stock, LEGACY_CANONICAL_REPLACEMENTS)
@@ -391,7 +433,7 @@ def main() -> int:
 
     current = target.read_bytes()
     try:
-        state = classify(current, stock, canonical, (previous, previous_no_embedder, legacy))
+        state = classify(current, stock, canonical, (previous_injector, previous, previous_no_embedder, legacy))
     except UnicodeDecodeError:
         state = "unknown"
 
@@ -403,7 +445,11 @@ def main() -> int:
     if state == "runtime-safe":
         print("verdict: RUNTIME-SAFE — pushTurn shares lexical scope with pending arrays.")
     elif state == "legacy-canonical":
-        print("verdict: PATCH REQUIRED — previous canonical patch lacks the session-id fix.")
+        print("verdict: PATCH REQUIRED — previous canonical patch lacks scoped whole-record injection.")
+    elif state == "legacy-local-injector":
+        print("verdict: PATCH REQUIRED — exact local v1 injector requires private alias config before migration.")
+        if not private_aliases_ready(agent_dir):
+            print("ОТКАЗ: add memory.factProjectAliases to the private profile settings.json first.")
     elif state == "stock-pristine":
         print("verdict: PATCH REQUIRED — pristine 1.5.0.")
     elif state == "noncanonical-drift":
@@ -416,6 +462,8 @@ def main() -> int:
             return 0
         if state in {"stock-pristine", "legacy-canonical"}:
             return 1
+        if state == "legacy-local-injector":
+            return 1 if private_aliases_ready(agent_dir) else 2
         return 2
 
     if args.restore:
@@ -438,8 +486,11 @@ def main() -> int:
             return 0
         print("ОТКАЗ: runtime-safe, но не canonical; ручные изменения не перезаписаны.")
         return 2
-    if state not in {"stock-pristine", "legacy-canonical"}:
-        print("ОТКАЗ: применим только к pristine stock или точному previous canonical patch.")
+    if state not in {"stock-pristine", "legacy-canonical", "legacy-local-injector"}:
+        print("ОТКАЗ: применим только к pristine stock или точному known previous patch.")
+        return 2
+    if state == "legacy-local-injector" and not private_aliases_ready(agent_dir):
+        print("ОТКАЗ: private memory.factProjectAliases required to preserve local project mapping.")
         return 2
 
     backup = runtime_backup(agent_dir, target, "before-apply")

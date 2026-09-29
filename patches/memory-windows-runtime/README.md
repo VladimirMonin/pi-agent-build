@@ -1,8 +1,8 @@
-# pi-memory 1.5.0: Windows spawn, порядок реплик, русский embedder и session id
+# pi-memory 1.5.0: runtime и изоляция инъекции памяти
 
 Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
 
-## Пять исправлений
+## Шесть исправлений
 
 ### Windows spawn
 
@@ -30,6 +30,10 @@ Stock-пакет берёт id сессии как `ctx.sessionId ?? ctx.session
 
 Patch читает реальный id через `ctx.sessionManager?.getSessionId?.()` с сохранением прежних fallback'ов. Проверено на живом ExtensionRunner: `getSessionId()` возвращает реальный id, а консолидация записывает `source = session:<id>`. На факты это не влияет (у них `source` всегда `consolidation`), но lessons получают корректную привязку к сессии.
 
+### Scope фактов и целые записи
+
+Stock 1.5.0 пропускает чужие `project.*` факты через embedding hits и соседей и обрезает блок памяти посреди записи. `injection.py` добавляет единую проверку scope для каждого источника фактов, резервирует места для местных уроков и наполняет бюджет 8000 символов **целыми строками**. Избыточные записи пропускаются. Для worktree с общей биркой фактов задайте `memory.factProjectAliases` в **приватных** `settings.json` профилей; пример без личных путей в [документации](../../docs/fixes/memory-injection.md). Записи БД patcher не меняет.
+
 ## Использование
 
 ```powershell
@@ -47,7 +51,7 @@ python .\patches\memory-windows-runtime\apply.py `
 verdict: RUNTIME-SAFE
 ```
 
-Контракт exit code: `0` — canonical patch уже применён; `1` — byte-exact stock или byte-exact previous canonical patch требует применения; `2` — fatal/unknown/marker-shaped drift, автоматическая запись запрещена.
+Контракт exit code: `0` — canonical patch уже применён; `1` — byte-exact stock/предыдущая версия patch или byte-exact локальный injector v1 **с приватными alias** требует применения; `2` — fatal/unknown/marker-shaped drift, неверная версия `package.json` либо отсутствуют alias для переноса локального v1, запись запрещена. Всегда есть backup прежнего bundle перед миграцией. Полный installer проверяет существующий bundle до `pi install`, чтобы не стереть `UNKNOWN`.
 
 ## Проверки
 
@@ -58,6 +62,8 @@ node .\patches\memory-windows-runtime\tests\test-memory-pairing.mjs
 node .\patches\memory-windows-runtime\tests\test-memory-embedder.mjs `
   "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
 node .\patches\memory-windows-runtime\tests\test-memory-sessionid.mjs `
+  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
+node .\patches\memory-windows-runtime\tests\test-memory-injection.mjs `
   "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
 ```
 

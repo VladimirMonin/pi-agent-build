@@ -14,6 +14,7 @@
 #   --repo-root <dir>            default: repository root (parent of scripts/)
 #   --skip-package-install       do not install Pi/packages/external tools
 #   --skip-patches               do not run the patch orchestrator
+#   --sync-settings-only         pin existing settings without package/patch installs
 #   --replace-profile-configs    replace profile configs from templates (with backup)
 #   -h | --help
 #
@@ -31,6 +32,7 @@ PI_ROOT="${HOME}/.pi"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKIP_PACKAGE_INSTALL=0
 SKIP_PATCHES=0
+SYNC_SETTINGS_ONLY=0
 REPLACE_PROFILE_CONFIGS=0
 
 usage() { sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
@@ -43,6 +45,7 @@ while [ $# -gt 0 ]; do
     --repo-root) REPO_ROOT="$2"; shift 2 ;;
     --skip-package-install) SKIP_PACKAGE_INSTALL=1; shift ;;
     --skip-patches) SKIP_PATCHES=1; shift ;;
+    --sync-settings-only) SYNC_SETTINGS_ONLY=1; shift ;;
     --replace-profile-configs) REPLACE_PROFILE_CONFIGS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) err "unknown argument: $1"; usage; exit 2 ;;
@@ -101,11 +104,68 @@ fi
 
 log "credentials: not read, copied, requested, or written"
 log "existing profile configs: $([ "$REPLACE_PROFILE_CONFIGS" = 1 ] && echo 'replace with backup' || echo preserve)"
-log "Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle"
+if [ "$SYNC_SETTINGS_ONLY" = "1" ]; then
+  log 'settings-only: verify installed payloads, back up and merge settings; no package/patch/credential writes'
+else
+  log 'Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle'
+fi
 
 if [ "$APPLY" != "1" ]; then
   log "PLAN complete; no files or packages were changed. Re-run with --apply."
   exit 0
+fi
+
+if [ "$SYNC_SETTINGS_ONLY" = "1" ]; then
+  [ "$REPLACE_PROFILE_CONFIGS" != "1" ] || { err 'settings-only mode preserves configs'; exit 2; }
+  while IFS=$'\t' read -r name dir; do
+    profile_root="$PI_ROOT/$dir"
+    [ -f "$profile_root/settings.json" ] || { err "settings missing: $profile_root/settings.json"; exit 2; }
+    while IFS="$IFS_US" read -r source pkg ver _patch _taskpatch _kind _commit _tag _release; do
+      [ -n "$source" ] && assert_installed_package "$profile_root" "$source" "$pkg" "$ver"
+    done < <(manifest_packages "$PACKAGES_MANIFEST" "$name")
+    template_dir="$([ "$name" = Code ] && echo code || echo task)"
+    if ! node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" \
+      "$REPO_ROOT/profiles/$template_dir/settings.template.json"; then
+      err "$name settings sync refused unavailable memory model"
+      exit 2
+    fi
+  done < <(selected_profiles "$PROFILE")
+  # Validate BOTH profiles before writing either settings file.
+  while IFS=$'\t' read -r name dir; do
+    profile_root="$PI_ROOT/$dir"
+    template_dir="$([ "$name" = Code ] && echo code || echo task)"
+    backup_root="$profile_root/.pi-agent-build-backups/install/$(backup_stamp)"
+    merge_preserved_settings "$profile_root/settings.json" \
+      "$REPO_ROOT/profiles/$template_dir/settings.template.json" "$PACKAGES_MANIFEST" "$name" "$backup_root"
+    log "merged $profile_root/settings.json (settings only; packages and patches untouched)"
+  done < <(selected_profiles "$PROFILE")
+  exit 0
+fi
+
+# Static polza conflicts with dynamic pi-polza; never add polza-memory beside it.
+if [ "$REPLACE_PROFILE_CONFIGS" != "1" ]; then
+  while IFS=$'\t' read -r name dir; do
+    models="$PI_ROOT/$dir/models.json"
+    if [ -f "$models" ] && [ "$(json_get "$models" 'd.get("providers", {}).get("polza") is not None')" = True ]; then
+      err "$name static polza conflicts with pi-polza; back up models.json and migrate its provider to polza-memory before install"
+      exit 2
+    fi
+  done < <(selected_profiles "$PROFILE")
+fi
+
+# Refuse unknown installed memory bundles before pi install could overwrite them.
+if [ "$SKIP_PACKAGE_INSTALL" != "1" ]; then
+  while IFS=$'\t' read -r name dir; do
+    profile_root="$PI_ROOT/$dir"
+    dist="$profile_root/npm/node_modules/@samfp/pi-memory/dist/index.js"
+    [ -f "$dist" ] || continue
+    set +e
+    "$(resolve_python)" "$REPO_ROOT/patches/memory-windows-runtime/apply.py" --check --agent-dir "$profile_root" >/dev/null
+    probe_code=$?
+    set -e
+    [ "$probe_code" -le 1 ] || { err "$name memory preflight refused unknown state before reinstall"; exit 2; }
+    log "PASS $name memory preflight (known state; exit $probe_code)"
+  done < <(selected_profiles "$PROFILE")
 fi
 
 # --------------------------------------------------------------------------- #

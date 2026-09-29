@@ -298,6 +298,12 @@ test_installed_profile() {
   if [ -f "$settings" ]; then
     if json_get "$settings" 'd' >/dev/null 2>&1; then
       pass "$name settings JSON"
+      local memory_route
+      if memory_route="$(node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" 2>&1)"; then
+        pass "$name memory consolidation route (static provider, credential configured)"
+      else
+        fail "$name $memory_route"
+      fi
       if "$PYTHON" - "$settings" "$PACKAGES_MANIFEST" <<'PY' >/dev/null 2>&1
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
@@ -314,6 +320,19 @@ raise SystemExit(0 if len(goal) == len(intercom) == len(expected) == 1 and sourc
 PY
       then pass "$name installed goal-x/intercom order"
       else fail "$name installed settings must load pinned pi-goal-x before pi-intercom"; fi
+      if "$PYTHON" - "$settings" "$PACKAGES_MANIFEST" "$name" <<'PY' >/dev/null 2>&1
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    settings = json.load(fh)
+with open(sys.argv[2], encoding="utf-8") as fh:
+    manifest = json.load(fh)
+entries = manifest["profiles"]["common"] + (manifest["profiles"].get("codeOnly", []) if sys.argv[3] == "Code" else [])
+expected = [e["source"] for e in entries]
+actual = [item if isinstance(item, str) else item.get("source", "") for item in settings.get("packages", [])]
+sys.exit(0 if actual[:len(expected)] == expected else 1)
+PY
+      then pass "$name installed package sources pinned in manifest order"
+      else fail "$name installed package sources differ from pinned manifest; run install.sh --apply --sync-settings-only"; fi
     else fail "$name settings JSON invalid"; fi
   fi
   while IFS="$IFS_US" read -r source pkg ver _patch _taskpatch kind commit _tag releaseTag; do

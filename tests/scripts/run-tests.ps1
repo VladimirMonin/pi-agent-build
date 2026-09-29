@@ -357,6 +357,86 @@ try {
         Assert-True (([System.IO.File]::ReadAllText($backups[-1].FullName)) -match '"local"') 'backup did not preserve prior settings'
     }
 
+    Test-Case 'settings-only sync pins all plugins without reinstalling or losing private aliases' {
+        $root = New-TestRoot
+        $tools = New-FakeInstallToolchain $root
+        $piRoot = Join-Path $root 'pi-root'
+        $installer = Join-Path $RepoRoot 'scripts\install.ps1'
+        $oldPath = $env:PATH
+        $keyName = 'POLZA' + '_API_KEY'
+        $oldPolzaKey = [Environment]::GetEnvironmentVariable($keyName, 'Process')
+        try {
+            $env:PATH = "$($tools.Bin);$oldPath"
+            $first = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SkipPatches', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-Equal 0 $first.ExitCode 'fixture install failed'
+            $settings = Join-Path $piRoot 'task\settings.json'
+            $json = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
+            $json.packages[0] = 'npm:pi-ollama-cloud'
+            $json.packages = @($json.packages) + @('npm:private-extra')
+            $json.memory | Add-Member -MemberType NoteProperty -Name factProjectAliases -Value @(@{ path = 'C:/private'; scope = 'example' })
+            $json | Add-Member -MemberType NoteProperty -Name localPreference -Value 'keep'
+            [IO.File]::WriteAllText($settings, (($json | ConvertTo-Json -Depth 100) + "`n"))
+            $dist = Join-Path $piRoot 'task\npm\node_modules\@samfp\pi-memory\dist\index.js'
+            New-Item -ItemType Directory -Path (Split-Path $dist -Parent) -Force | Out-Null
+            [IO.File]::WriteAllText($dist, 'private-bundle-must-not-be-read-or-replaced')
+            $callsBefore = @([IO.File]::ReadAllLines($tools.Log)).Count
+            [Environment]::SetEnvironmentVariable($keyName, $null, 'Process')
+            $refused = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SyncSettingsOnly', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-True ($refused.ExitCode -ne 0 -and $refused.Output -match 'unresolved credential') 'settings sync accepted unavailable static memory model'
+            Assert-Equal 'npm:pi-ollama-cloud' ([string](Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).packages[0]) 'preflight modified settings'
+            [Environment]::SetEnvironmentVariable($keyName, 'synthetic-test-only', 'Process')
+            $sync = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SyncSettingsOnly', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-Equal 0 $sync.ExitCode "settings-only sync failed: $($sync.Output)"
+            Assert-Equal $callsBefore @([IO.File]::ReadAllLines($tools.Log)).Count 'settings sync ran a package lifecycle'
+            Assert-Equal 'private-bundle-must-not-be-read-or-replaced' ([IO.File]::ReadAllText($dist)) 'settings sync changed private memory bundle'
+            $merged = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
+            $manifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
+            Assert-Equal ([string]$manifest.profiles.common[0].source) ([string]$merged.packages[0]) 'unversioned package not pinned'
+            Assert-Equal 'npm:private-extra' ([string]$merged.packages[-1]) 'private package was lost'
+            Assert-Equal 'example' ([string]$merged.memory.factProjectAliases[0].scope) 'private aliases were lost'
+            Assert-Equal 'keep' ([string]$merged.localPreference) 'private settings were lost'
+        } finally { $env:PATH = $oldPath; [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKey, 'Process') }
+    }
+
+    Test-Case 'installer preflight refuses unknown memory bundle before any install writes' {
+        $root = New-TestRoot
+        $tools = New-FakeInstallToolchain $root
+        $piRoot = Join-Path $root 'pi-root'
+        $profile = Join-Path $piRoot 'agent'
+        $dist = Join-Path $profile 'npm\node_modules\@samfp\pi-memory\dist\index.js'
+        New-Item -ItemType Directory -Path (Split-Path $dist -Parent) -Force | Out-Null
+        [IO.File]::WriteAllText($dist, 'unrecognized private bundle')
+        $settings = Join-Path $profile 'settings.json'
+        [IO.File]::WriteAllText($settings, '{"owner":"untouched"}')
+        $oldPath = $env:PATH
+        try {
+            $env:PATH = "$($tools.Bin);$oldPath"
+            $result = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\install.ps1') @('-Profile', 'Code', '-Apply', '-SkipPatches', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-True ($result.ExitCode -ne 0 -and $result.Output -match 'Memory preflight refused') 'unknown bundle did not fail closed'
+            Assert-Equal '{"owner":"untouched"}' ([IO.File]::ReadAllText($settings)) 'preflight changed settings'
+            Assert-Equal 'unrecognized private bundle' ([IO.File]::ReadAllText($dist)) 'preflight changed bundle'
+            Assert-True (-not (Test-Path -LiteralPath $tools.Log)) 'preflight launched a package lifecycle'
+        } finally { $env:PATH = $oldPath }
+    }
+
+    Test-Case 'installer refuses a conflicting static Polza provider before package writes' {
+        $root = New-TestRoot
+        $tools = New-FakeInstallToolchain $root
+        $piRoot = Join-Path $root 'pi-root'
+        $profile = Join-Path $piRoot 'agent'
+        New-Item -ItemType Directory -Path $profile -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $profile 'settings.json'), '{"owner":"untouched"}')
+        [IO.File]::WriteAllText((Join-Path $profile 'models.json'), '{"providers":{"polza":{"apiKey":"!private-command"}}}')
+        $oldPath = $env:PATH
+        try {
+            $env:PATH = "$($tools.Bin);$oldPath"
+            $result = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\install.ps1') @('-Profile', 'Code', '-Apply', '-SkipPatches', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-True ($result.ExitCode -ne 0 -and $result.Output -match 'static polza conflicts') 'conflicting static provider did not fail closed'
+            Assert-Equal '{"owner":"untouched"}' ([IO.File]::ReadAllText((Join-Path $profile 'settings.json'))) 'conflict preflight changed settings'
+            Assert-True (-not (Test-Path -LiteralPath $tools.Log)) 'conflict preflight launched a package lifecycle'
+        } finally { $env:PATH = $oldPath }
+    }
+
     Test-Case 'installer uses sanitized official Pi lifecycle with npm and Git layouts' {
         $root = New-TestRoot
         $tools = New-FakeInstallToolchain $root
@@ -545,6 +625,10 @@ try {
         [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.0"}')
         Copy-Item -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Destination $dist
         $patcher = Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.1"}')
+        $wrongVersion = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
+        Assert-Equal 2 $wrongVersion.ExitCode 'memory patch must reject a newer package version despite identical dist bytes'
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.0"}')
 
         $stock = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 1 $stock.ExitCode 'stock memory check must mean needs apply'
@@ -553,6 +637,7 @@ try {
         $patched = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 0 $patched.ExitCode 'patched memory check must pass'
         $canonical = [IO.File]::ReadAllText($dist)
+        $canonicalHash = (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash
         Assert-True ($canonical -match 'PI_CODING_AGENT_DIR') 'canonical memory patch ignores PI_CODING_AGENT_DIR for settings'
         Assert-True ($canonical -match 'memory\.db') 'canonical memory patch unexpectedly removed the shared DB default'
         $runtimeBackups = @(Get-ChildItem -LiteralPath (Join-Path $agent '.pi-agent-build-backups\memory-windows-runtime') -Filter 'index.js.before-apply-*' -File)
@@ -567,6 +652,8 @@ try {
         [IO.File]::WriteAllText($dist, $canonical)
         $settingsRegression = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'patches\memory-windows-runtime\tests\test-memory-settings-path.mjs'), $dist)
         Assert-Equal 0 $settingsRegression.ExitCode "Task-only memory settings regression failed: $($settingsRegression.Output)"
+        $injectionRegression = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'patches\memory-windows-runtime\tests\test-memory-injection.mjs'), $dist)
+        Assert-Equal 0 $injectionRegression.ExitCode "scoped memory injection regression failed: $($injectionRegression.Output)"
 
         $previousCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),m.PREVIOUS_CANONICAL_REPLACEMENTS))'
         $makePrevious = Invoke-NativeCapture 'python' @('-c', $previousCode, $patcher, $dist)
@@ -575,6 +662,14 @@ try {
         Assert-Equal 1 $previous.ExitCode 'previous canonical memory patch must require migration'
         $migratePrevious = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
         Assert-Equal 0 $migratePrevious.ExitCode 'previous canonical memory patch did not migrate'
+        $preInjectorCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),injector=False))'
+        $makePreInjector = Invoke-NativeCapture 'python' @('-c', $preInjectorCode, $patcher, $dist)
+        Assert-Equal 0 $makePreInjector.ExitCode 'could not create pre-injector canonical fixture'
+        $preInjector = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
+        Assert-Equal 1 $preInjector.ExitCode 'pre-injector canonical memory patch must require migration'
+        $migratePreInjector = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
+        Assert-Equal 0 $migratePreInjector.ExitCode 'pre-injector canonical memory patch did not migrate'
+        Assert-Equal $canonicalHash (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash 'migration did not reproduce canonical memory bytes'
 
         Copy-Item -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Destination $dist -Force
         $winMarker = @($canonical -split "`r?`n" | Where-Object { $_ -match '^\s*// win32:' })[0].Trim()

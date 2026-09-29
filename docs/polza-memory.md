@@ -17,9 +17,9 @@ pi-memory `1.5.0` запускает дочерний Pi так:
 pi -p <prompt> --print --no-extensions --no-tools --no-session --model <model>
 ```
 
-`--no-extensions` отключает `pi-polza`, поэтому provider `polza` в дочернем процессе не существует. Core Pi всё равно читает `models.json`; отдельное имя `polza-memory` делает служебный маршрут доступным без extensions и не конфликтует с динамическим catalog.
+`--no-extensions` отключает **динамический** provider `pi-polza`. Прежний статический `polza` из `models.json`, если он уже настроен, остаётся доступен дочернему процессу, но конфликтует по имени с динамическим provider в обычной Pi-сессии. Core Pi читает `models.json`; отдельное имя `polza-memory` делает служебный маршрут доступным без extensions и устраняет коллизию.
 
-Дочерний процесс наследует `PI_CODING_AGENT_DIR` и окружение родителя. Поэтому `models.json` нужен в **каждом** профиле, а `POLZA_API_KEY` должен быть доступен процессу до запуска Pi. Credential, сохранённый для plugin provider `polza`, нельзя считать заменой переменной для статического `polza-memory`.
+Дочерний процесс наследует `PI_CODING_AGENT_DIR` и окружение родителя. Поэтому `models.json` нужен в **каждом** профиле. Из примера ниже `POLZA_API_KEY` должен быть доступен до запуска Pi; альтернативно рабочий приватный `apiKey: "!<credential-helper>"` разрешается статическим provider и исполняется при запросе. Credential, сохранённый только для plugin provider `polza`, сам по себе не настраивает статический `polza-memory`.
 
 ## Консолидация memory
 
@@ -48,12 +48,12 @@ credential: $POLZA_API_KEY
 Если прежний `models.json` уже объявляет статический provider `polza`, не оставляйте его рядом с динамическим `pi-polza`: одинаковый provider id делает происхождение model ambiguous. В остановленном Pi:
 
 1. переименуйте **только запись в `models.json`** из `polza` в `polza-memory`;
-2. замените literal credential на `"$POLZA_API_KEY"`;
+2. замените literal credential на `"$POLZA_API_KEY"` **либо сохраните уже проверенный приватный `!`-helper** (не публикуйте его путь/содержимое);
 3. обновите `memory.consolidationModel` на полный id выше;
 4. сохраните plugin `pi-polza` — его dynamic provider по-прежнему называется `polza`;
-5. повторите изменение отдельно в Code и Task, затем проверьте `--list-models`.
+5. повторите изменение отдельно в Code и Task, затем проверьте `--list-models` и короткий ответ дочернего Pi с `--no-extensions --provider polza-memory --model deepseek/deepseek-v4.1-flash`. Перед изменением сохраните byte-for-byte backup `models.json`; не переносите `auth.json` или сам credential.
 
-Stock pi-memory `1.5.0` читает user-global memory settings из `~/.pi/agent/settings.json` даже в Task. В этой сборке `memory-windows-runtime` исправляет путь на `<PI_CODING_AGENT_DIR>/settings.json`; patch должен быть применён отдельно к Code и Task. Project-local `<project>/.pi/settings.json` по-прежнему может переопределить `memory`/`pi-memory`. БД по умолчанию остаётся общей — `~/.pi/memory/memory.db`; profile-aware settings сами по себе не изолируют сохранённые факты.
+Stock pi-memory `1.5.0` читает user-global memory settings из `~/.pi/agent/settings.json` даже в Task. В этой сборке `memory-windows-runtime` исправляет путь на `<PI_CODING_AGENT_DIR>/settings.json`; patch должен быть применён отдельно к Code и Task. Project-local `<project>/.pi/settings.json` может переопределить обычные параметры `memory`/`pi-memory`, **но не приватные `memory.factProjectAliases`**: они читаются только из профиля. БД по умолчанию остаётся общей — `~/.pi/memory/memory.db`; profile-aware settings сами по себе не изолируют сохранённые факты.
 
 ### Проверка
 
@@ -104,7 +104,7 @@ session_search(query="контрольный запрос", limit=3)
 - pi-memory `1.5.0` передаёт полный consolidation prompt дочернему Pi через аргументы `pi -p <prompt>`. На Windows этот текст виден в command line процесса локальным средствам мониторинга, администраторам и software, собирающему process telemetry. Не считайте child process приватным каналом и не запускайте консолидацию над секретами, которые недопустимо раскрывать таким наблюдателям.
 - `cost` в статической model config задан нулями и не отражает фактическое списание. В отличие от `pi-polza`, этот core route не ведёт нативный `cost_rub`.
 - pi-memory молча пропускает consolidation при неверной модели/ключе; ориентируйтесь на `memory_stats` и runtime test, а не на отсутствие ошибки.
-- Запуск без `POLZA_API_KEY` делает static model unavailable.
+- Запуск без `POLZA_API_KEY` делает пример с env credential unavailable; приватный проверенный `!`-helper — альтернативный путь. Простой static-check не исполняет helper: подтвердите маршрут отдельным child Pi smoke.
 - Не запускайте reindex одновременно из многих profile/child процессов; настройте `sync.disableForChild` при активных subagents.
 
 ## Удаление и откат

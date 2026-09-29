@@ -72,6 +72,8 @@ python3 -c "import jsonschema; print(jsonschema.__version__)"
 # plan, затем apply
 scripts/install.sh --profile Both
 scripts/install.sh --profile Both --apply
+# Только привести settings к закреплённым источникам, без reinstall/patch:
+scripts/install.sh --profile Both --apply --sync-settings-only
 scripts/install-launchers.sh --profile Both
 scripts/install-launchers.sh --profile Both --apply
 
@@ -79,7 +81,8 @@ scripts/install-launchers.sh --profile Both --apply
 scripts/verify.sh --profile Both
 scripts/safety-check.sh --scope Both
 bash tests/scripts/goal-order-posix.sh  # синтетическая проверка порядка goal-x/intercom
-bash tests/scripts/mcp-probes-posix.sh # Brave без запуска сервера и без ключа
+bash tests/scripts/mcp-probes-posix.sh    # Brave без запуска сервера и без ключа
+bash tests/scripts/settings-sync-posix.sh # package pins + запрет перезаписи UNKNOWN memory
 ```
 
 Проверка синтаксиса Bash и синтетический тест verifier'а возможны и в Git Bash на Windows, но **не заменяют запуск установки и Pi на macOS**. Перед объявлением macOS-совместимости повторите plan/apply/verify и headless-создание тестовой цели на реальном Mac.
@@ -87,6 +90,6 @@ bash tests/scripts/mcp-probes-posix.sh # Brave без запуска серве�
 ## Известные ограничения POSIX
 
 - `patches/ast-grep-windows/` — Windows-only staging реального `.exe`; на POSIX не применяется и не нужен.
-- `memory-windows-runtime` на POSIX применяется ради **profile-aware settings** и ordered turns; Windows-ветка spawn не активна, но patch остаётся обязательным для независимых memory settings Task.
+- `memory-windows-runtime` на POSIX применяется ради **profile-aware settings**, ordered turns и безопасной scoped-инъекции памяти; Windows-ветка spawn не активна. Для необычных корней проекта/worktree alias задаются в приватном profile settings.
 - Точные Windows-версии Node/npm/Git не воспроизводятся; воспроизводится состав Pi-пакетов и состояние patches.
 - `CODEBASE_MEMORY_MCP_BIN` на POSIX указывает на node-скрипт (`<prefix>/bin/codebase-memory-mcp`), а не на `.exe`.

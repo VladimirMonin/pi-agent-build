@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -27,20 +27,28 @@ const taskDir = mkdtempSync(join(tmpdir(), "pi-memory-task-settings-"));
 const prior = process.env.PI_CODING_AGENT_DIR;
 try {
   writeFileSync(join(taskDir, "settings.json"), JSON.stringify({
-    memory: { consolidationModel: "task-only/model" },
+    memory: { consolidationModel: "task-only/model",
+      factProjectAliases: [{ path: "/example/worktrees", scope: "example", includeChildren: true }] },
+  }));
+  const projectDir = join(taskDir, "project");
+  mkdirSync(join(projectDir, ".pi"), { recursive: true });
+  writeFileSync(join(projectDir, ".pi", "settings.json"), JSON.stringify({
+    memory: { factProjectAliases: [{ path: "/other", scope: "foreign" }], lessonInjection: "selective" }
   }));
   process.env.PI_CODING_AGENT_DIR = taskDir;
-  const result = new Function("join", "homedir", "readFileSync", `
+  const result = new Function("join", "homedir", "readFileSync", "projectDir", `
     ${settingsAssignment}
     ${mergeSource}
     ${readSource}
-    return { path: GLOBAL_SETTINGS_PATH, config: readSettingsConfig() };
-  `)(join, homedir, readFileSync);
+    return { path: GLOBAL_SETTINGS_PATH, config: readSettingsConfig(projectDir) };
+  `)(join, homedir, readFileSync, projectDir);
   if (resolve(result.path) !== resolve(join(taskDir, "settings.json"))) {
     throw new Error(`settings path ignored PI_CODING_AGENT_DIR: ${result.path}`);
   }
-  if (result.config.consolidationModel !== "task-only/model") {
-    throw new Error(`Task-only memory settings were not loaded: ${JSON.stringify(result.config)}`);
+  if (result.config.consolidationModel !== "task-only/model" ||
+      result.config.factProjectAliases?.[0]?.scope !== "example" ||
+      result.config.lessonInjection !== "selective") {
+    throw new Error(`Task-only memory settings and private aliases were not loaded: ${JSON.stringify(result.config)}`);
   }
   if (!src.includes('var DEFAULT_MEMORY_DIR = join(homedir(), ".pi", "memory");')) {
     throw new Error("shared default memory DB path changed unexpectedly");

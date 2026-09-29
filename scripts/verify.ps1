@@ -220,6 +220,9 @@ function Test-InstalledProfile {
     $settingsPath = Join-Path $profileRoot 'settings.json'
     if (-not (Test-RequiredPath -Path $settingsPath -Label "$($Selected.Name) settings")) { return }
     try { $settings = Read-JsonFile $settingsPath; Pass "$($Selected.Name) settings JSON" } catch { Fail $_.Exception.Message; return }
+    $memoryRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot)
+    if (-not $memoryRoute.Found -or $memoryRoute.ExitCode -ne 0) { Fail "$($Selected.Name) $($memoryRoute.Output)" }
+    else { Pass "$($Selected.Name) memory consolidation route (static provider, credential configured)" }
     $goalEntries = @($PackageManifest.profiles.common | Where-Object { $_.package -eq 'pi-goal-x' })
     $packageItems = if ($settings.PSObject.Properties.Name -contains 'packages' -and $null -ne $settings.packages) { @($settings.packages) } else { @() }
     $sources = @($packageItems | ForEach-Object { Get-EntrySource $_ })
@@ -231,6 +234,13 @@ function Test-InstalledProfile {
     } else { Pass "$($Selected.Name) installed goal-x/intercom order" }
     $entries = @($PackageManifest.profiles.common)
     if ($Selected.Name -eq 'Code') { $entries += @($PackageManifest.profiles.codeOnly) }
+    $expectedSources = @($entries | ForEach-Object { [string]$_.source })
+    $sourcesMatch = $sources.Count -ge $expectedSources.Count
+    for ($i = 0; $sourcesMatch -and $i -lt $expectedSources.Count; $i++) {
+        if ($sources[$i] -cne $expectedSources[$i]) { $sourcesMatch = $false }
+    }
+    if ($sourcesMatch) { Pass "$($Selected.Name) installed package sources pinned in manifest order" }
+    else { Fail "$($Selected.Name) installed package sources differ from pinned manifest; run install.ps1 -Apply -SyncSettingsOnly" }
     foreach ($entry in $entries) {
         $source = [string]$entry.source
         if ($source.StartsWith('npm:')) {
