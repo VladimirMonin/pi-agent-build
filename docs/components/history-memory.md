@@ -63,6 +63,8 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 Семантический поиск по фактам работает на **локальном** embedder'е `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа), который ставит patch вместо англоязычного stock `all-MiniLM-L6-v2`. Это отдельный механизм от Polza-консолидации и от embedder'а `pi-session-search`.
 
+Patch также читает id сессии через `sessionManager.getSessionId()`: stock-выражение `ctx.sessionId ?? ctx.session?.id` всегда даёт `undefined` (в `ExtensionContext` нет таких полей), из-за чего консолидированные lessons помечались `session:unknown`.
+
 Плагин грузит модель лениво с таймаутом 30 с; на холодном кэше медленное скачивание может его превысить и поиск молча уйдёт в FTS-only. Прогрейте кэш заранее (у каждого профиля свой, ~130 МБ): `node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"`.
 
 ### Команды, tools и skills
@@ -77,7 +79,7 @@ Memory DB содержит персональные preferences/identity и proj
 
 ### Проверка
 
-Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. Runtime-scope test делает реальный model call. Структурные тесты `test-memory-pushturn.mjs` и `test-memory-embedder.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
+Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. Runtime-scope test делает реальный model call. Структурные тесты `test-memory-pushturn.mjs`, `test-memory-embedder.mjs` и `test-memory-sessionid.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 

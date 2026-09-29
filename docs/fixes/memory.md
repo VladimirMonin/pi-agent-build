@@ -1,4 +1,4 @@
-# Memory: профильные settings, Windows spawn, порядок реплик и русский embedder
+# Memory: профильные settings, Windows spawn, порядок реплик, русский embedder и session id
 
 ## Назначение
 
@@ -8,6 +8,7 @@ Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`
 - на Windows заменяет запуск npm `.cmd` через `spawn(shell:false)` на прямой запуск Pi CLI текущим Node, устраняя `ENOENT`;
 - хранит ordered `pendingTurns` в session-local lexical scope и строит пары User/Assistant по реальному порядку, а не по двум рассинхронизированным массивам;
 - заменяет англоязычную модель встраивания `Xenova/all-MiniLM-L6-v2` на мультиязычную `Xenova/paraphrase-multilingual-MiniLM-L12-v2`, чтобы семантический поиск фактов работал на русском;
+- читает id сессии через `ctx.sessionManager.getSessionId()`, потому что `ExtensionContext` не содержит полей `sessionId`/`session` и stock-выражение всегда давало `session:unknown`;
 - исправляет старую ошибочную patch-версию, где `pushTurn` оказался module-scope и падал на `agent_end` с `pending*Messages is not defined`.
 
 ## Применение
@@ -43,6 +44,12 @@ node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"
 
 У каждого профиля **свой** кэш `@xenova/transformers`, поэтому прогрев делается для обоих. Helper читает id модели из пропатченного `dist`, использует таймаут 10 минут с 3 повторами и не валит установку при сбое. `scripts/install.sh --apply` вызывает его автоматически после patches; `scripts/verify.sh` сообщает `WARN`, если кэш отсутствует.
 
+### Идентификатор сессии в консолидации
+
+Stock-пакет берёт id сессии как `ctx.sessionId ?? ctx.session?.id`. Но `ExtensionContext` (см. `dist/core/extensions/types.d.ts`) не содержит ни поля `sessionId`, ни `session` — только read-only `sessionManager`. Оба обращения дают `undefined`, поэтому каждая консолидированная запись помечается источником `session:unknown`.
+
+Patch читает реальный id через `ctx.sessionManager?.getSessionId?.()`, сохраняя прежние fallback'и на случай отсутствия session manager. На **факты** это не влияет — у них `source` жёстко `consolidation`; корректную привязку получают **lessons**, где `source = session:<id>`. Проверено на живом ExtensionRunner и end-to-end консолидацией: запись получает `source = session:<реальный id>`.
+
 ## Tools/команды
 
 Интерфейс package не меняется: `memory_*` и `/memory-consolidate`. Patch касается lifecycle/consolidation internals.
@@ -66,6 +73,8 @@ python patches/memory-windows-runtime/apply.py \
 node patches/memory-windows-runtime/tests/test-memory-pushturn.mjs \
   "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
 node patches/memory-windows-runtime/tests/test-memory-embedder.mjs \
+  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
+node patches/memory-windows-runtime/tests/test-memory-sessionid.mjs \
   "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
 ```
 

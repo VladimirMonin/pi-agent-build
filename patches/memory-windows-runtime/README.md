@@ -1,8 +1,8 @@
-# pi-memory 1.5.0: Windows spawn, порядок реплик и русский embedder
+# pi-memory 1.5.0: Windows spawn, порядок реплик, русский embedder и session id
 
 Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
 
-## Четыре исправления
+## Пять исправлений
 
 ### Windows spawn
 
@@ -23,6 +23,12 @@ Stock-пакет всегда читает `~/.pi/agent/settings.json`. Patch с
 Stock-пакет считает embeddings моделью `Xenova/all-MiniLM-L6-v2` — англоязычной. На русских фактах она даёт плохую разделимость: перефразированный запрос часто ближе к постороннему факту, чем к нужному, а порог `SEMANTIC_THRESHOLD = 0.25` пропускает почти весь шум. Patch заменяет модель на `Xenova/paraphrase-multilingual-MiniLM-L12-v2`.
 
 Модель остаётся локальной (offline, без API-ключа), сохраняет **384 измерения** и mean pooling, поэтому существующие векторы и порог остаются валидными — reindex не требуется. На контрольном наборе (12 русских фактов, 8 перефразированных запросов) точность top-1 выросла с 4/8 до 7/8.
+
+### Идентификатор сессии в консолидации
+
+Stock-пакет берёт id сессии как `ctx.sessionId ?? ctx.session?.id`. Но `ExtensionContext` не содержит ни поля `sessionId`, ни `session` — только read-only `sessionManager`. Поэтому выражение всегда даёт `undefined`, и каждая консолидированная запись помечается источником `session:unknown`.
+
+Patch читает реальный id через `ctx.sessionManager?.getSessionId?.()` с сохранением прежних fallback'ов. Проверено на живом ExtensionRunner: `getSessionId()` возвращает реальный id, а консолидация записывает `source = session:<id>`. На факты это не влияет (у них `source` всегда `consolidation`), но lessons получают корректную привязку к сессии.
 
 ## Использование
 
@@ -51,9 +57,13 @@ node .\patches\memory-windows-runtime\tests\test-memory-pushturn.mjs `
 node .\patches\memory-windows-runtime\tests\test-memory-pairing.mjs
 node .\patches\memory-windows-runtime\tests\test-memory-embedder.mjs `
   "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
+node .\patches\memory-windows-runtime\tests\test-memory-sessionid.mjs `
+  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
 ```
 
 `test-memory-embedder.mjs` подтверждает выбор мультиязычной модели, 384d, mean pooling, отсутствие сетевых вызовов в `embed()` и неизменность порога.
+
+`test-memory-sessionid.mjs` подтверждает, что id сессии читается из `sessionManager.getSessionId()`, stock-выражение не осталось, а fallback `session:unknown` сохранён.
 
 `test-memory-runtime-scope.mjs` выполняет настоящий одноразовый запрос модели. Он не входит в бесплатную автоматическую проверку и запускается только владельцем осознанно.
 
