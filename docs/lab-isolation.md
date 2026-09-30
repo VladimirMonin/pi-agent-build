@@ -23,6 +23,8 @@
 | MCP | `PI_MCP_CONFIG_MODE=exclusive`, пустой профильный `mcp.json` без `imports` до осознанного теста; не запускать OAuth/stdio-серверы с унаследованными секретами |
 | Дочерние процессы | Узкий `PATH` из проверенных бинарников и приватного prefix; убедиться, что потомок видит те же маршруты. |
 
+Даже без установки `npm view`/`npm config` могут создать debug-log и cache в общих пользовательских каталогах. Не вызывайте их из обычной shell-сессии: только отдельный child с `npm_config_cache`, `npm_config_userconfig`, `npm_config_globalconfig`, `npm_config_prefix`, `HOME`/`APPDATA`/`LOCALAPPDATA` под `<LAB_ROOT>`; после него сравните внешние пути. Не очищайте общий npm cache «для восстановления».
+
 `PI_TRACE_PARENT_DIR`, `PI_GOAL_ROOT`, `PI_GOAL_GLOBAL_SETTINGS_FILE`, `CBM_CACHE_DIR`, `PI_POLZA_ENV_FILE`, `MCP_OAUTH_DIR` и любые явные абсолютные пути в profile/project configs либо отсутствуют, либо проверены на принадлежность лаборатории. Goal-X, Polza cache, MCP trace, subagent schedules и некоторые outputs пишут в **cwd**; cwd должен быть `<LAB_ROOT>/test-cwd`, не исходный проект и не worktree. Session-search хранит index отдельно от **источников** sessions; проверяйте оба пути.
 
 ## Два разных gate
