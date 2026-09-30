@@ -502,7 +502,7 @@ try {
             )
         } finally { $env:PATH = $oldPath }
         Assert-True ($result.ExitCode -ne 0) 'tampered Git checkout unexpectedly passed install postcondition'
-        Assert-True ($result.Output -match 'HEAD.*pinned commit') 'Git checkout rejection was not reported'
+        Assert-True ($result.Output -match 'HEAD does not match pinned\s+commit') 'Git checkout rejection was not reported'
     }
 
     Test-Case 'installer creates pre-install settings backup before a failing pi lifecycle' {

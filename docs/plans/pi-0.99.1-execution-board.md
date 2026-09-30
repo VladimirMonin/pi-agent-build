@@ -9,7 +9,7 @@
 | № | Веха | Статус | Gate / свидетельство |
 |---|---|---|---|
 | 0 | Baseline и матрица изменений 0.87.0 → 0.99.1 | PASS | `baseline-repo`, `baseline-tests`, `baseline-live`, `baseline-safety`, `official-release-retry`, `official-registry`, `lab-repo-verify`, `lab-safety-tree` |
-| 1 | Отдельные worktree и `<LAB_ROOT>`, предварительная изоляция | TODO | Статическая карта всех write paths + безопасный дочерний dry-run, **до установки** |
+| 1 | Отдельные worktree и `<LAB_ROOT>`, предварительная изоляция | PASS | ACL root: только текущий пользователь; `preinstall-global-snapshot`, `static-paths`, `static-path-closure`, `preflight-probe`, `dummy-window`, `lab-preflight-plan`, `lab-preflight-tests` (15/15), `stage1-full-unit` (23/23), `stage1-repo-verify` (0/0). Повторяемая [инструкция](../lab-isolation.md) опубликована в ветке. Это **только предварительный** gate: до подключения fail-closed preflight к установщику этапа 2 его Apply запрещён. |
 | 2 | Лабораторные installer/verifier и точный lock 0.99.1 | TODO | Plan/apply/verify Code+Task через явный бинарник из отдельного npm prefix; runtime isolation gate на синтетических данных **до credentials/моделей** |
 | 3 | Патчи, плагины, CLI и обязательные MCP-маршруты (пока с адаптером) | TODO | Матрица Code/Task × компонент; память/ребёнок `--no-extensions`/JSON-headless/tools; не испытывать WVM на этом этапе |
 | 4 | Каталог, доступность моделей, реальный payload | TODO | Отдельная матрица catalog/auth/response/tool/limits; платные вызовы — лишь с отдельного разрешения |
@@ -49,6 +49,20 @@
 
 **Известные npm-уязвимости:** в исходном публичном плане отдельные CVE/пакеты не перечислены. До изолированного `npm audit` состояние дерева — `NOT TESTED`, не «0 уязвимостей». Обновление Pi само по себе не является исправлением; находки и решения внести в release risks.
 
+## Предварительная карта изоляции (этап 1; реальный Pi ещё не запускался)
+
+| Источник записи / причина | Лабораторный маршрут и gate |
+|---|---|
+| npm/Pi/внешние CLI | Отдельный `<LAB_ROOT>/npm-prefix`, npm cache/config и **явный бинарник** Pi; существующие установщики пока пишут глобально, поэтому `-Apply`/`--apply` **запрещены** до этапа 2. Глобальные `uv tool` и пользовательские launchers исключены. |
+| Профили и сессии | `PI_CODING_AGENT_DIR=<LAB_ROOT>/pi-root/{agent,task}`, `PI_CODING_AGENT_SESSION_DIR=<LAB_ROOT>/sessions/{agent,task}` и, где поддерживается, `--session-dir`; [CLI 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/cli.md#sessions) фиксирует приоритет CLI-флага. |
+| SQLite memory | Даже при profile env stock default — `~/.pi/memory/memory.db`; в синтетическом `<LAB_ROOT>/test-cwd/.pi/settings.json` задан относительный `pi-memory.localPath` под `<LAB_ROOT>/memory`. Изолированный `USERPROFILE/HOME` защищает и fallback, но фактическую DB/WAL/SHM докажет только runtime gate. |
+| Goal-X, intercom, subagents | Goal state/trace — project-local `.pi` в **тестовом cwd**, broker/config и артефакты — под профилем; `PI_INTERCOM_SCOPE_ID` отдельный. Абсолютные overrides (`goalsRoot`, artifact roots, broker) не использовать без явной проверки. |
+| session-search, Trace, Polza, CBM | Home/default indexes и cache — под синтетическим home, Trace под профилем, Polza project cache под test-cwd; `PI_CBM_CACHE_DIR` задан под `<LAB_ROOT>`. Перед runtime сверить Task-specific patch и фактические пути. |
+| MCP/внешние серверы | Адаптер может читать shared host configs и передавать env в stdio child: синтетический `HOME/USERPROFILE`, чистый test-cwd, no credentials и explicit lab config; `PI_MCP_CONFIG_MODE=exclusive` только после проверки семантики. Не запускать WVM до последнего этапа. |
+| Другие кэши и дочерние процессы | Переопределить `APPDATA`, `LOCALAPPDATA`, `TEMP/TMP`, XDG, npm/uv cache/tool dirs; разрешать только узкий `PATH`, исключать внешние ключи, `NODE_OPTIONS` и неаудированные redirect-env. |
+
+Подставной Node-child и его потомок из `<LAB_ROOT>/test-cwd` получили только очищенный process-local env; проверили `os.homedir()`, каталоги и `memory.db` внутри lab, отсутствие синтетического секрета: `preflight-probe` PASS. Отдельный `scripts/lab-preflight.ps1` проверяет пути, Git/reparse-escape, пустые конфиги MCP/npm, синтетическую БД; 15 отрицательных/положительных тестов PASS, реальный lab PLAN PASS и ничего не устанавливает. Приватные Windows ACL `<LAB_ROOT>` не наследуются и дают доступ только владельцу. **Это не runtime gate:** расширения исполняются с правами пользователя, а активные рабочие SQLite WAL/SHM меняются между снимками даже без лабораторного Pi; простая hash-разница не определяет виновный процесс. До любых credentials/реальных данных требуется отдельная проверка маршрутов *фактического* Pi и сравнение рабочих путей с учётом конкурирующих процессов.
+
 ## Safety и решение о выпуске
 
 - Ни `pi update`, ни глобальные `npm install -g`/`uv tool install`, ни `setx`, ни изменение живой SQLite DB/`source=user`, ни запуск из рабочего проекта с его local settings.
@@ -63,3 +77,7 @@
 |---|---|---|
 | 0 | Первый исследователь релизов не смог запуститься: недоступные child tools `web_search`, `fetch_content`, `get_search_content`, `source_check`. | Tracked tree не изменился; повтор через сабагента с доступным `curl` сверил официальный источник (`official-release-retry`). Сбой инструментария не считать проверкой runtime. |
 | 0 | Git Bash `mkdir -m 700` на Windows создал пустой `<LAB_ROOT>`, но не смог применить POSIX-права. | Наследование NTFS ACL отключено; текущему пользователю оставлен единственный FullControl, после чего в отдельном root созданы только evidence и тестовый cwd. Никаких данных не потеряно. |
+| 1 | Изменился hash живых `memory.db-wal`/`-shm` между широким baseline и сравниванием после подставного child; сам `memory.db` и проверенные рабочие settings/Pi package не изменились. | Остановили продвижение к установке, затем повторили *ограниченное окно* вокруг child+descendant и отдельно вокруг preflight PLAN: global diff пуст, включая WAL/SHM (`dummy-window`, `preflight-plan-window`). Конкурирующие Pi/Node sessions остаются; реальному Pi нужен собственный runtime gate, широкую WAL-разницу нельзя атрибутировать лаборатории. |
+| 1 | Независимый review preflight указал недостающие пути, флаг с ложной претензией на установленный Pi и возможную утечку путей в ошибке. | Дополнены все плановые пути профиля/сессий/npm/uv, неподтверждённый installed-флаг удалён, диагностические ошибки обезличены; добавлены отрицательные тесты Git-escape, пустых npm configs и fake launcher (`lab-preflight-tests`: 15/15). Реальная установка по-прежнему запрещена до интеграции gate. |
+| 1 | Первый полный Windows unit run в новом worktree показал 21/23: Git `text=auto` развернул byte-exact TS store в CRLF, а длинный путь сломал строковую проверку synthetic Git error из-за переносов. | `.gitattributes` закрепил LF для pristine TS store; тест принимает whitespace между `pinned` и `commit`. Повтор: `stage1-full-unit` 23/23, не менять живые package files. |
+| 5 | `verify.sh --repository-only` в Git Bash на Windows не прошёл: Windows `python.exe` выдаёт CRLF в перечне patch имён; `python3` в PATH является неработающим Store alias. | Отложено до POSIX-проверок этапа 5; `PI_BUILD_PYTHON` выбирает рабочий Python, CRLF-normalization/регрессию исправить адресно. Это не результат нативного Linux/macOS. |
