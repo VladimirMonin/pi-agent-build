@@ -224,6 +224,11 @@ try {
         npm_config_globalconfig = (Join-Path $lab 'npm-config\global.npmrc')
         PI_AGENT_BUILD_NPM_PREFIX = $targets.NpmPrefix
         PI_CBM_CACHE_DIR = (Join-Path $lab 'cbm-cache')
+        CBM_CACHE_DIR = (Join-Path $lab 'cbm-cache')
+        MCP_OAUTH_DIR = (Join-Path $lab 'mcp-oauth')
+        PI_TRACE_PARENT_DIR = (Join-Path $lab 'trace')
+        PI_GOAL_ROOT = (Join-Path $lab 'goal')
+        PI_GOAL_GLOBAL_SETTINGS_FILE = (Join-Path $lab 'goal\settings.json')
         UV_CACHE_DIR = (Join-Path $lab 'uv-cache'); UV_TOOL_DIR = (Join-Path $lab 'uv-tools')
         UV_TOOL_BIN_DIR = (Join-Path $lab 'uv-bin')
     }

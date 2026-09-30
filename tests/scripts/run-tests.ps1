@@ -282,7 +282,8 @@ try {
         Assert-Equal 0 $result.ExitCode 'install plan exit code'
         Assert-True (-not (Test-Path -LiteralPath $piRoot)) 'plan created the Pi root'
         Assert-True ($result.Output -match 'PLAN') 'plan marker missing'
-        Assert-True ($result.Output -match '@earendil-works/pi-coding-agent@0\.87\.0') 'Pi exact version missing from plan'
+        $runtime = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\runtime.lock.json') -Raw | ConvertFrom-Json
+        Assert-True ($result.Output.Contains("$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)")) 'Pi exact version missing from plan'
         Assert-True ($result.Output -match 'pi-cbm@1\.2\.1') 'Code package exact version missing from plan'
     }
 
