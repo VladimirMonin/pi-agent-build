@@ -59,7 +59,7 @@ try {
 const fs = require('fs'), path = require('path');
 const lab = process.env.FAKE_LAB_PATH;
 const args = process.argv.slice(2);
-fs.appendFileSync(path.join(lab, 'calls.jsonl'), JSON.stringify({tool:process.env.FAKE_TOOL,args,home:process.env.HOME,profile:process.env.PI_CODING_AGENT_DIR || '',secret:process.env.SECRET_SENTINEL || '',noBytecode:process.env.PYTHONDONTWRITEBYTECODE || ''}) + '\n');
+fs.appendFileSync(path.join(lab, 'calls.jsonl'), JSON.stringify({tool:process.env.FAKE_TOOL,args,home:process.env.HOME,profile:process.env.PI_CODING_AGENT_DIR || '',secret:process.env.SECRET_SENTINEL || '',noBytecode:process.env.PYTHONDONTWRITEBYTECODE || '',shellAvailable:(process.env.PATH || '').split(path.delimiter).some(dir => fs.existsSync(path.join(dir, 'powershell.exe')))}) + '\n');
 if (args[0] === '--version') { console.log(process.env.FAKE_VERSION); process.exit(0); }
 if (process.env.FAKE_TOOL === 'npm' && args[0] === 'install') {
   const prefix = path.join(lab, 'npm-prefix');
@@ -92,6 +92,7 @@ process.exit(9);
         Check 'candidate Pi version and install, no global pi fallback' (@($calls | Where-Object { $_.tool -eq 'pi' -and $_.args[0] -eq 'install' }).Count -eq 1)
         Check 'fake children received lab home without provider secret' (@($calls | Where-Object { $_.secret -ne '' -or $_.home -ne (Join-Path $lab 'home') }).Count -eq 0)
         Check 'synthetic install child receives Python bytecode disabled' (@($calls | Where-Object { $_.noBytecode -ne '1' }).Count -eq 0)
+        Check 'lab child PATH resolves PowerShell for package lifecycle' (@($calls | Where-Object { -not $_.shellAvailable }).Count -eq 0)
         $verify = Run $verifier @('-LabRoot', $lab, '-RepoRoot', $repo, '-Profile', 'Both')
         Check 'verifier checks private candidate but refuses incomplete profile' ($verify.Code -ne 0 -and $verify.Text.Contains('PASS private Pi launcher exact version') -and $verify.Text.Contains('FAIL Task'))
         $callsBeforeReapply = @((Get-Content (Join-Path $lab 'calls.jsonl'))).Count

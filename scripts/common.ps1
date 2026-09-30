@@ -255,7 +255,7 @@ function Assert-LabToolPath {
 function Get-LabToolEnvironment {
     param([string]$LabRoot, [string]$NpmPrefix, [string]$ProfileName = '')
     $map = Get-LabChildEnvironment -LabRoot $LabRoot -NpmPrefix $NpmPrefix -ProfileName $ProfileName
-    $directories = @($NpmPrefix, "$env:SystemRoot\System32", "$env:SystemRoot")
+    $directories = @($NpmPrefix, "$env:SystemRoot\System32", "$env:SystemRoot", (Split-Path (Get-Process -Id $PID).Path -Parent))
     foreach ($name in @('node', 'npm', 'git', 'python', 'uv')) {
         $toolPath = Assert-LabToolPath -Name $name -NpmPrefix $NpmPrefix
         $directory = Split-Path $toolPath -Parent
