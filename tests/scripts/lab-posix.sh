@@ -83,7 +83,7 @@ SH
 chmod +x "$tmp/bin/npm" "$tmp/bin/git" "$tmp/fake-pi"
 FAKE_CALLS="$tmp/calls"
 export PI_BUILD_PYTHON="$(command -v "$py")"
-export PATH="$tmp/bin:$PATH" POLZA_API_KEY='synthetic-must-not-propagate' NODE_OPTIONS='--synthetic-must-not-propagate'
+export PATH="$tmp/bin:$PATH" POLZA_API_KEY='EXAMPLE_MUST_NOT_PROPAGATE' NODE_OPTIONS='--synthetic-must-not-propagate'
 "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/plan" 2>&1
 [ ! -e "$FAKE_CALLS" ] && [ ! -e "$lab/npm-prefix" ]
 if "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply --skip-patches > "$tmp/skip" 2>&1; then exit 1; fi
