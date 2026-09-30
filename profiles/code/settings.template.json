@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.87.0",
+  "lastChangelogVersion": "0.99.1",
   "theme": "dark",
   "defaultProvider": "polza",
   "defaultModel": "z-ai/glm-5.3-flash",

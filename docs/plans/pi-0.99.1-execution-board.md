@@ -10,14 +10,22 @@
 |---|---|---|---|
 | 0 | Baseline и матрица изменений 0.87.0 → 0.99.1 | PASS | `baseline-repo`, `baseline-tests`, `baseline-live`, `baseline-safety`, `official-release-retry`, `official-registry`, `lab-repo-verify`, `lab-safety-tree` |
 | 1 | Отдельные worktree и `<LAB_ROOT>`, предварительная изоляция | PASS | ACL root: только текущий пользователь; `preinstall-global-snapshot`, `static-paths`, `static-path-closure`, `preflight-probe`, `dummy-window`, `lab-preflight-plan`, `lab-preflight-tests` (15/15), `stage1-full-unit` (23/23), `stage1-repo-verify` (0/0). Повторяемая [инструкция](../lab-isolation.md) опубликована в ветке. Это **только предварительный** gate: до подключения fail-closed preflight к установщику этапа 2 его Apply запрещён. |
-| 2 | Лабораторные installer/verifier и точный lock 0.99.1 | TODO | Plan/apply/verify Code+Task через явный бинарник из отдельного npm prefix; runtime isolation gate на синтетических данных **до credentials/моделей** |
+| 2 | Лабораторные installer/verifier и точный lock 0.99.1 | DOING | Кандидатный lock/templates → строго 0.99.1; Windows/POSIX независимые writer lanes, затем один integration owner. До review явного Pi/npm prefix никакого Apply; runtime isolation gate **до credentials/моделей** |
 | 3 | Патчи, плагины, CLI и обязательные MCP-маршруты (пока с адаптером) | TODO | Матрица Code/Task × компонент; память/ребёнок `--no-extensions`/JSON-headless/tools; не испытывать WVM на этом этапе |
 | 4 | Каталог, доступность моделей, реальный payload | TODO | Отдельная матрица catalog/auth/response/tool/limits; платные вызовы — лишь с отдельного разрешения |
 | 5 | Общие tests/platform/safety gates | TODO | unit/contract, оба verifier, JSON/schema/синтаксис, Markdown links, diff, safety; Windows нативно; прочие ОС — только с нативным доказательством |
 | 6 | **WVM последним техническим этапом**: legacy SSE + streamable HTTP и выбор MCP | TODO | Изолированные конфигурации, функциональный паритет адаптера/встроенного MCP; затронутые финальные smokes после изменений |
 | 7 | GO/NO-GO, документация, откат, решение владельца | TODO | Review staged-файлов, остаточные риски, приватный backup/rollback; нет автоматического main/tag/push/переключения |
 
-Зависимости строгие: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7. Внешние read-only исследования можно делать параллельно, но gates не перепрыгивать. Если WVM нельзя испытать, отметить `NOT TESTED` и ограничить релизное заявление; не заменять адаптер гипотезой о совместимости.
+Зависимости строгие: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7. Внешние read-only исследования можно делать параллельно, но gates не перепрыгивать.
+
+**Этап 2 — multi-seam topology (до writer launch):** Windows PowerShell и POSIX shell — независимые контракты с разными install/verify/test файлами; общие runtime lock, profile templates и доска принадлежат только интеграционному владельцу. Каждый writer работает в отдельном Git worktree от кандидатного commit и передаёт проверенный commit; интеграция — последовательный cherry-pick с повтором gates.
+
+| Lane / изоляция | Исключительный владелец и решение | Gate / handoff |
+|---|---|---|
+| Windows / `<LAB_WIN_LANE>` вне `main` | `scripts/install.ps1`, `verify.ps1`, при необходимости `common.ps1`/`lab-preflight.ps1`, Windows-тесты; только lab-mode, глобальный default не запускать | Synthetic plan/apply с fake toolchain, оба profile preflight, exact private Pi path, без реальной установки до parent review; commit |
+| POSIX / `<LAB_POSIX_LANE>` вне `main` | `scripts/install.sh`, `verify.sh`, при необходимости `common.sh`, shell-тесты; Git Bash — лишь синтаксис на Windows | Dry-run/fake lifecycle, no global fallback, исправить CRLF в Git Bash verifier, native POSIX остаётся NOT TESTED; commit |
+| Интеграция / `<LAB_WORKTREE>` | Только parent: `manifests/runtime.lock.json`, Code/Task templates, docs/board; cherry-pick по одному | Windows и Git Bash repository gates, diff/safety, затем явный runtime isolation gate на синтетике | Если WVM нельзя испытать, отметить `NOT TESTED` и ограничить релизное заявление; не заменять адаптер гипотезой о совместимости.
 
 ## Baseline (этап 0)
 
