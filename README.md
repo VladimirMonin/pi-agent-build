@@ -4,7 +4,7 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Статус: **Pi 0.99.1 candidate**, не release GO и не обновление рабочих профилей. Windows private/mock проверки ограничены [матрицей совместимости](docs/plans/pi-0.99.1-compat-matrix.md); модельные ответы/платные провайдеры и native Linux/macOS не подтверждены. Последний WVM availability check отказал `fetch failed`; оба live transports NOT TESTED. **Полный release / перенос рабочих профилей — NO-GO**, публикация ветки кандидата разрешена отдельно. `pi-mcp-adapter` сохранён. До первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
+> Статус: **Pi 0.99.1 candidate**, не release GO и не обновление рабочих профилей. Windows private/mock проверки ограничены [матрицей совместимости](docs/plans/pi-0.99.1-compat-matrix.md); модельные ответы/платные провайдеры и native Linux/macOS не подтверждены. Последний WVM gateway connect и read-only schema-вызов PASS; обе отдельные candidate SSE/HTTP-конфигурации NOT TESTED. **Полный release / перенос рабочих профилей — NO-GO**, публикация ветки кандидата разрешена отдельно. `pi-mcp-adapter` сохранён. До первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
 
 ## Граница повторяемости
 
@@ -66,7 +66,7 @@ instructions/       постоянные правила сопровождени
 
 - [Лабораторный план](docs/plans/pi-0.99.1-lab.md), [доска доказательств](docs/plans/pi-0.99.1-execution-board.md) и [модельная матрица](docs/plans/pi-0.99.1-model-matrix.md) разделяют проверенные функции, metadata и NOT TESTED; Sol 6.1 уже доступна владельцу на старом Pi, это не update-specific gain.
 - [Изоляция лаборатории](docs/lab-isolation.md): отдельный owner-only root **и безопасный parent**, чистые synthetic HOME/config/auth/cache/session/trace/MCP, явные private executables; никаких изменений shared ACL. JavaScript guard не является OS sandbox.
-- Проверены private Windows установка 15/12 пакетов, оба mock headless runtime и verified Apply no-op. Функциональные smokes не подтверждают все команды/children/провайдеры. WVM проверен последним: доступность configured gateway FAIL, legacy SSE / streamable HTTP кандидата NOT TESTED; это не протокольный диагноз. Adapter без доказанного live-паритета не заменяется.
+- Проверены private Windows установка 15/12 пакетов, оба mock headless runtime и verified Apply no-op. Функциональные smokes не подтверждают все команды/children/провайдеры. WVM оценён последним: configured gateway connect и actual public schema-call PASS после раннего `fetch failed`; legacy SSE / streamable HTTP кандидата NOT TESTED, протокольного паритета это не доказывает. Adapter без доказанного live-паритета не заменяется.
 - `main`, рабочие профили и пользовательские данные не переключались. Будущий перенос/откат требует отдельного решения и согласованных private backups [runtime, обоих профилей и данных](docs/state-migration.md#откат).
 
 ## Начало работы
