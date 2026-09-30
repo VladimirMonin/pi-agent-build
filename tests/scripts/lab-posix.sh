@@ -26,7 +26,7 @@ for e in m['profiles']['common']+m['profiles']['codeOnly']:
     for name in (e.get('patch'),e.get('taskProfilePatch')):
         if name:
             p=root/'patches'/name/'apply.py';p.parent.mkdir(parents=True,exist_ok=True)
-            p.write_text('import sys\nsys.exit(0)\n')
+            p.write_text('import os,sys\nassert os.environ.get("PYTHONDONTWRITEBYTECODE") == "1"\nsys.exit(0)\n')
 PY
 cat > "$tmp/bin/npm" <<'SH'
 #!/usr/bin/env bash
@@ -37,6 +37,7 @@ prefix="${npm_config_prefix:?}"
 lab="$(dirname "$prefix")"
 [ "$HOME" = "$lab/home" ] && [ "$PI_CODING_AGENT_DIR" = "$lab/pi-root/agent" ] || exit 93
 [ -z "${POLZA_API_KEY:-}" ] && [ -z "${NODE_OPTIONS:-}" ] || exit 94
+[ "${PYTHONDONTWRITEBYTECODE:-}" = 1 ] || exit 99
 mkdir -p "$prefix/lib/node_modules/@earendil-works/pi-coding-agent" "$prefix/bin"
 printf '%s\n' '{"version":"0.99.1"}' > "$prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json"
 cp "$(dirname "$lab")/fake-pi" "$prefix/bin/pi"
@@ -49,6 +50,7 @@ lab="$(dirname "${npm_config_prefix:?}")"
 [ "$1" = install ] && [ "$PWD" = "$lab/test-cwd" ] || exit 95
 [[ "$PI_CODING_AGENT_DIR" == "$lab/pi-root/agent" || "$PI_CODING_AGENT_DIR" == "$lab/pi-root/task" ]] || exit 96
 [ -z "${POLZA_API_KEY:-}" ] && [ -z "${NODE_OPTIONS:-}" ] || exit 97
+[ "${PYTHONDONTWRITEBYTECODE:-}" = 1 ] || exit 99
 printf '%s %s\n' "$PI_CODING_AGENT_DIR" "$2" >> "$(dirname "$lab")/calls"
 source="$2"
 if [[ "$source" == npm:* ]]; then
@@ -95,8 +97,12 @@ rm "$lab/pi-root/task/auth.json"
 "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/apply" 2>&1
 [ -f "$lab/npm-prefix/bin/pi" ] && [ -f "$lab/pi-root/agent/settings.json" ] && [ -f "$lab/pi-root/task/settings.json" ]
 [ "$(wc -l < "$FAKE_CALLS")" = 28 ] # one npm call + 15 Code + 12 Task installs
-"$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/reapply" 2>&1
-[ "$(wc -l < "$FAKE_CALLS")" = 56 ] # private-prefix rerun, same two pinned profiles
+[ -z "$(find "$lab" "$fake/patches" -name __pycache__ -print -quit)" ]
+if "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/reapply" 2>&1; then
+  echo 'FAIL repeat Apply accepted an installed prefix' >&2; exit 1
+fi
+grep -q 'repeat Apply is NOT idempotent and refused' "$tmp/reapply"
+[ "$(wc -l < "$FAKE_CALLS")" = 28 ] # repeat did not call npm or Pi
 if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/verify" 2>&1; then
   echo 'FAIL lab verifier reported complete despite untested Code tools' >&2; exit 1
 fi
@@ -104,8 +110,68 @@ grep -q 'private candidate Pi 0.99.1' "$tmp/verify"
 grep -q 'external Code tools NOT TESTED' "$tmp/verify"
 grep -q 'VERIFY result: failures=1' "$tmp/verify"
 if grep -q 'global Pi package' "$tmp/verify"; then exit 1; fi
+# Native symlink privileges vary on Windows. Never replace the working fake
+# launcher unless a disposable probe can create and resolve a real symlink.
+if "$py" - "$tmp" <<'PY'
+import pathlib, sys
+base = pathlib.Path(sys.argv[1]); probe = base / 'symlink-probe'
+try:
+    probe.symlink_to(base / 'fake-pi')
+    assert probe.resolve(strict=True) == (base / 'fake-pi').resolve()
+except (OSError, AssertionError):
+    probe.unlink(missing_ok=True)
+    raise SystemExit(1)
+probe.unlink()
+PY
+then
+  "$py" - "$lab" <<'PY'
+import os, pathlib, sys
+lab = pathlib.Path(sys.argv[1]); prefix = lab / 'npm-prefix'
+launcher = prefix / 'bin/pi'
+target = prefix / 'lib/node_modules/@earendil-works/pi-coding-agent/pi.js'
+launcher.rename(target)
+launcher.symlink_to(os.path.relpath(target, launcher.parent))
+bin_dir = lab / 'pi-root/agent/npm/node_modules/.bin'
+bin_dir.mkdir(parents=True, exist_ok=True)
+linked = bin_dir / 'memory-link'
+target = lab / 'pi-root/agent/npm/node_modules/@samfp/pi-memory/package.json'
+linked.symlink_to(os.path.relpath(target, bin_dir))
+PY
+  if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/linked" 2>&1; then
+    echo 'FAIL linked fake lab verifier reported complete despite untested Code tools' >&2; exit 1
+  fi
+  grep -q 'private candidate Pi 0.99.1' "$tmp/linked"
+  grep -q 'VERIFY result: failures=1' "$tmp/linked"
+  "$py" - "$lab" "$tmp" <<'PY'
+import pathlib, sys
+lab, outside = map(pathlib.Path, sys.argv[1:])
+(outside / 'escape-target').write_text('outside fixture')
+(lab / 'npm-prefix/bin/escape').symlink_to(outside / 'escape-target')
+PY
+  if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/escape" 2>&1; then
+    echo 'FAIL escaping installed symlink was accepted' >&2; exit 1
+  fi
+  grep -q 'symlink/reparse escapes lab' "$tmp/escape"
+  "$py" - "$lab" <<'PY'
+import pathlib, sys
+prefix = pathlib.Path(sys.argv[1]) / 'npm-prefix/bin'
+(prefix / 'escape').unlink()
+(prefix / 'broken').symlink_to('missing-private-target')
+PY
+  if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/broken" 2>&1; then
+    echo 'FAIL broken installed symlink was accepted' >&2; exit 1
+  fi
+  grep -q 'broken/cyclic symlink/reparse' "$tmp/broken"
+  "$py" - "$lab" <<'PY'
+import pathlib, sys
+(pathlib.Path(sys.argv[1]) / 'npm-prefix/bin/broken').unlink()
+PY
+  echo 'PASS installed in-lab launcher/.bin symlinks; escaping and broken links refused'
+else
+  echo 'SKIP symlink fixture: Windows/POSIX host denied real symlink creation'
+fi
 # Unsafe project-local memory must be rejected before reinstall writes.
 printf '%s\n' '{"pi-memory":{"localPath":"../../outside"}}' > "$lab/test-cwd/.pi/settings.json"
 if "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/memory" 2>&1; then exit 1; fi
-[ "$(wc -l < "$FAKE_CALLS")" = 56 ]
-echo 'PASS fake POSIX lab plan, preflight refusal, isolated apply/reapply and fail-closed verify'
+[ "$(wc -l < "$FAKE_CALLS")" = 28 ]
+echo 'PASS fake POSIX lab plan, fresh-only apply, repeat refusal and fail-closed verify'

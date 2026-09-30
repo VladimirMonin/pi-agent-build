@@ -93,7 +93,10 @@ MODE="PLAN"; [ "$APPLY" = "1" ] && MODE="APPLY"
 log "$MODE Pi Agent installation (POSIX)"
 log "profiles: $PROFILE"
 log "Pi root: $PI_ROOT"
-[ -z "$LAB_ROOT" ] || log "private lab root: $LAB_ROOT"
+if [ -n "$LAB_ROOT" ]; then
+  log "private lab root: $LAB_ROOT"
+  log 'lab Apply is fresh-only, NOT idempotent; repeat Apply fails closed before writes'
+fi
 log "runtime: node@$NODE_VERSION, npm@$NPM_VERSION, $PI_PACKAGE@$PI_VERSION"
 
 while IFS=$'\t' read -r name dir; do
@@ -132,7 +135,7 @@ fi
 
 if [ -n "$LAB_ROOT" ]; then
   # Read-only preflight on both roots before the first mkdir, npm or patch write.
-  lab_preflight || exit 2
+  lab_preflight fresh || exit 2
   for tool in node npm git; do
     command_exists "$tool" || { err "lab prerequisite missing: $tool"; exit 2; }
   done

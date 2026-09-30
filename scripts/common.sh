@@ -204,11 +204,14 @@ run_checked() {
 # private lab path and environment gate (read-only until lab_run is invoked)
 # --------------------------------------------------------------------------- #
 lab_preflight() {
-  local py
+  local py mode="${1:-fresh}"
   py="$(resolve_python)" || return 2
-  "$py" - "$LAB_ROOT" "$REPO_ROOT" "$PI_ROOT" "$LAB_PREFIX" "$LAB_CWD" "${HOME:-}" "${USERPROFILE:-}" <<'PY'
+  "$py" - "$LAB_ROOT" "$REPO_ROOT" "$PI_ROOT" "$LAB_PREFIX" "$LAB_CWD" "$mode" "${HOME:-}" "${USERPROFILE:-}" <<'PY'
 import json, os, pathlib, sys
-lab, repo, profiles, prefix, cwd, *homes = map(pathlib.Path, sys.argv[1:])
+lab, repo, profiles, prefix, cwd = map(pathlib.Path, sys.argv[1:6])
+mode = sys.argv[6]
+homes = [pathlib.Path(home) for home in sys.argv[7:]]
+if mode not in ('fresh', 'installed'): raise SystemExit('ERROR invalid lab preflight mode')
 def reject(message):
     raise SystemExit('ERROR lab preflight: ' + message)
 def normalized(path):
@@ -224,6 +227,20 @@ def inside(path, parent):
 lab, repo, profiles, prefix, cwd = map(normalized, (lab, repo, profiles, prefix, cwd))
 if not lab.is_dir() or not repo.is_dir() or inside(lab, repo) or inside(repo, lab):
     reject('lab and repository must be disjoint existing directories')
+# Inspect links before reading any config/marker under the lab. Never follow a
+# linked directory while walking, including Windows junctions.
+for current, dirs, files in os.walk(lab, followlinks=False):
+    for entry in list(dirs) + files:
+        p = pathlib.Path(current) / entry
+        if p.is_symlink() or (hasattr(p, 'is_junction') and p.is_junction()):
+            if entry in dirs: dirs.remove(entry)
+            if mode == 'fresh': reject('symlink/reparse descendant: ' + str(p))
+            try:
+                target = p.resolve(strict=True)
+            except (OSError, RuntimeError):
+                reject('broken/cyclic symlink/reparse descendant: ' + str(p))
+            if target == lab or not inside(target, lab):
+                reject('symlink/reparse escapes lab: ' + str(p))
 for home in homes:
     if str(home) not in ('', '.') and home.is_absolute() and inside(lab, normalized(home)):
         reject('lab must not be inside the live home')
@@ -249,11 +266,13 @@ if settings != {'pi-memory': {'localPath': '../memory'}}:
 memory = normalized(lab / 'memory')
 if memory.exists() and (not memory.is_dir() or any(memory.iterdir())):
     reject('memory must be empty before runtime gate')
-# Reuse is allowed only for a previously marked private prefix; a partial
-# failed installation must be inspected rather than silently overwritten.
+# Apply is fresh-only. Even a previously marked prefix must be inspected
+# separately, never overwritten by a second Apply in this slice.
 marker = prefix / '.pi-agent-build-lab'
-if prefix.exists() and any(prefix.iterdir()) and not marker.is_file():
-    reject('npm prefix not empty and not marked as private lab')
+if mode == 'fresh' and prefix.exists() and any(prefix.iterdir()):
+    reject('npm prefix not empty; repeat Apply is NOT idempotent and refused')
+if mode == 'installed' and not marker.is_file():
+    reject('installed private lab marker is missing')
 if profiles.exists():
     if {p.name for p in profiles.iterdir()} - {'agent', 'task'}:
         reject('pi-root contains unexpected entries')
@@ -261,11 +280,11 @@ for name in ('agent', 'task'):
     root = normalized(profiles / name)
     if not root.is_dir(): reject(name + ' synthetic profile directory is missing')
     entries = {p.name for p in root.iterdir()}
-    if entries - ({'mcp.json'} if not marker.is_file() else
+    if entries - ({'mcp.json'} if mode == 'fresh' else
                   {'mcp.json', 'settings.json', 'models.json', 'ollama-cloud.json',
                    'skills', 'npm', 'git', '.pi-agent-build-backups'}):
         reject(name + ' contains non-synthetic content')
-    if marker.is_file():
+    if mode == 'installed':
         template = repo / 'profiles' / ('code' if name == 'agent' else 'task') / 'settings.template.json'
         for filename, expected in (
             ('models.json', repo / 'config/models.polza-memory.example.json'),
@@ -291,14 +310,6 @@ for name in ('user.npmrc', 'global.npmrc'):
     if config.exists() and any(line.strip() and not line.lstrip().startswith(('#', ';'))
                                for line in config.read_text(encoding='utf-8').splitlines()):
         reject(name + ' contains npm directives')
-# Check every existing descendant, including symlinked package subtrees and
-# project settings, before any install could follow a link outside the lab.
-for base in (lab,):
-    for current, dirs, files in os.walk(base, followlinks=False):
-        for entry in dirs + files:
-            p = pathlib.Path(current) / entry
-            if p.is_symlink() or (hasattr(p, 'is_junction') and p.is_junction()):
-                reject('symlink/reparse descendant: ' + str(p))
 print('LAB PREFLIGHT: PASS (static paths only; runtime isolation NOT TESTED)')
 PY
 }
@@ -321,7 +332,7 @@ lab_run() (
     PI_SESSION_ARCHIVE_DIR="$LAB_ROOT/sessions-archive/$LAB_NAME" \
     PI_CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" \
     PI_MCP_CONFIG_MODE=exclusive PI_INTERCOM_SCOPE_ID="lab-$LAB_NAME" \
-    PI_BUILD_PYTHON="${LAB_PATCH_PYTHON:-$LAB_PYTHON}" "$@"
+    PYTHONDONTWRITEBYTECODE=1 PI_BUILD_PYTHON="${LAB_PATCH_PYTHON:-$LAB_PYTHON}" "$@"
 )
 
 # --------------------------------------------------------------------------- #

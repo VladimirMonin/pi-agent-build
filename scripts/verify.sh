@@ -65,7 +65,7 @@ if [ -n "$LAB_ROOT" ]; then
   PI_ROOT="$LAB_ROOT/pi-root"
   LAB_PREFIX="$LAB_ROOT/npm-prefix"
   LAB_CWD="$LAB_ROOT/test-cwd"
-  lab_preflight || exit 2
+  lab_preflight installed || exit 2
 fi
 
 FAILURES=0
