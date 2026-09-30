@@ -5,7 +5,8 @@ param(
     [string]$PiRoot = '',
     [string]$NpmPrefix = '',
     [string]$TestCwd = '',
-    [ValidateSet('Both', 'Code', 'Task')][string]$Profile = 'Both'
+    [ValidateSet('Both', 'Code', 'Task')][string]$Profile = 'Both',
+    [switch]$RequireInstalledPi
 )
 
 Set-StrictMode -Version 2.0
@@ -132,6 +133,14 @@ function Assert-SyntheticSettings {
 }
 
 try {
+    if ($RequireInstalledPi) {
+        if ($Profile -ne 'Both' -or $PiRoot -or $NpmPrefix -or $TestCwd) { throw 'Installed gate requires fixed Both private destinations.' }
+        . (Join-Path $PSScriptRoot 'common.ps1')
+        $installedLab = Assert-PrivateLabRoot -LabRoot $LabRoot -RepoRoot $RepoRoot
+        Assert-LabInstalledState -LabRoot $installedLab -RepoRoot $RepoRoot -Mcp
+        Write-Output 'LAB PREFLIGHT INSTALLED: PASS (fully verified; no package/launcher writes)'
+        exit 0
+    }
     $lab = Assert-AbsolutePath $LabRoot 'LabRoot'
     $repo = Assert-AbsolutePath $RepoRoot 'RepoRoot'
     if (-not (Test-Path -LiteralPath $lab -PathType Container) -or

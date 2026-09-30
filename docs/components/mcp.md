@@ -66,3 +66,11 @@ npm uninstall -g @upstash/context7-mcp
 npm uninstall -g @brave/brave-search-mcp-server
 uv tool uninstall mcp-server-fetch
 ```
+
+## Решение для кандидата Pi 0.99.1
+
+`pi-mcp-adapter@2.36.0` **сохранён**. После остальных Windows/private gates последний WVM availability check configured gateway отказал `fetch failed`; это проверка parent harness, не протокольный диагноз кандидата. **Legacy SSE и streamable HTTP в отдельных candidate-конфигурациях NOT TESTED**: live endpoints не подтверждены, working configs/credentials не копировались. Cached 33 schemas не подтверждают handshake или tool result.
+
+Для замены должны быть доказаны: единственный `/mcp`, lazy discovery/schema exposure, proxy/direct tools и `mcpScript`, auth без экспорта credentials, ошибки/output guard и реальные требуемые WVM tools на обоих transports. Паритет builtin по этим функциям **NOT TESTED**, эксперимент не запускался; два владельца `/mcp` не добавлялись. Официальная [документация 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/mcp.md#configure-servers) описывает stdio/streamable HTTP, но не обещает legacy SSE. Это static contract, не наш runtime PASS.
+
+Итог — **NO-GO для полного релиза/переключения**, bounded candidate branch может быть опубликована по отдельному разрешению владельца. Доказательства/риски: [доска](../plans/pi-0.99.1-execution-board.md), [матрица](../plans/pi-0.99.1-compat-matrix.md); сырые WVM результаты только в private evidence.

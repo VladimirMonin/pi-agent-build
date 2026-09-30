@@ -9,9 +9,17 @@
 3. В **синтетическом** `<LAB_ROOT>/test-cwd/.pi/settings.json` задайте только `{"pi-memory":{"localPath":"../memory"}}`. Проверьте, что путь к `memory.db` и возможным `-wal`/`-shm` остаётся внутри `<LAB_ROOT>`, включая reparse/junction links. В профилях допускается только пустой локальный `mcp.json` без `imports` и servers; OAuth через OS credential store не считается изолированным одним `MCP_OAUTH_DIR`.
 4. Запустите **только чтение**: `powershell -NoProfile -File scripts/lab-preflight.ps1 -LabRoot "<LAB_ROOT>" -RepoRoot "<LAB_WORKTREE>"`. `LAB PREFLIGHT PLAN: PASS` означает проверенные входные пути/пустые конфиги, а **не** разрешение на `install.ps1 -Apply` и не доказательство изоляции исполняемого Pi. Отрицательные случаи: `powershell -NoProfile -File tests/scripts/lab-preflight-tests.ps1`. Любой FAIL — стоп до исправления. Этот preflight не создаёт каталоги и не устанавливает Pi.
 
-## Process-local окружение для будущего установщика
+## Проверка уже установленного кандидата
 
-Нельзя ограничиться `-PiRoot` или `PI_CODING_AGENT_DIR`: существующий установщик без лабораторного режима ставит Pi/npm/Code tools **глобально**, а stock `pi-memory` использует `~/.pi/memory/memory.db`. Пока installer не вызывает fail-closed preflight и явный бинарник `<LAB_ROOT>/npm-prefix/pi.cmd` (POSIX: `bin/pi`), его `Apply` **запрещён**. Не используйте `pi update`, `setx`, пользовательский `bin`, глобальный `npm install -g`/`uv tool install` и fallback на `pi` из `PATH`.
+`install.ps1 -LabRoot <LAB_ROOT>` (также `-Apply`) и `install.sh --lab-root <LAB_ROOT>` (также `--apply`) принимают существующую установку только после полного installed-state gate. Успех: `VERIFIED INSTALLED-STATE NO-OP`, без npm/package/launcher writes. Смешанная, частичная или неизвестная установка — отказ, не repair/reinstall. Проверяются канонический private launcher/Pi version, 15 Code и 12 Task identities, точные synthetic configs/skills, canonical patches (Code session-search `--runtime-only`, Task full patch), private external metadata/version и mandatory stdio probes. Автоматический **пустой** `auth.json` допустим; ключи — нет.
+
+`verify.ps1 -LabRoot <LAB_ROOT> -Profile Both` / `verify.sh --lab-root <LAB_ROOT> --profile Both` и `lab-preflight.ps1 -RequireInstalledPi` используют этот же gate. У installed links/junctions конечная существующая цель должна оставаться внутри LAB; escaping/broken/cyclic links запрещены. Fresh preflight по-прежнему запрещает reparse points. Windows installed gate требует Python >=3.12 для junction inspection.
+
+External probes используют только абсолютные private ast-grep/CBM/Serena binaries, без uvx/download/global fallback. Mandatory CBM и Serena: local stdio `initialize` + `tools/list`, synthetic private cwd, dashboard/HTTP выключены; **не** `tools/call`. Private cache/log state может создаваться даже при Plan/no-op. Metadata/version не доказывают full functionality; LSP/indexing, optional MCP, реальные providers, native Linux/macOS и WVM остаются NOT TESTED. Конкретный отказ процесса (включая CBM ACL identity guard на родительском каталоге) — FAIL, не skip; shared-parent ACL нельзя менять автоматически ради PASS.
+
+## Process-local окружение установщика
+
+Нельзя ограничиться `-PiRoot` или `PI_CODING_AGENT_DIR`: существующий установщик без лабораторного режима ставит Pi/npm/Code tools **глобально**, а stock `pi-memory` использует `~/.pi/memory/memory.db`. Лабораторный installer вызывает fail-closed preflight и явный бинарник `<LAB_ROOT>/npm-prefix/pi.cmd` (POSIX: `bin/pi`); без этих gates его `Apply` **запрещён**. Не используйте `pi update`, `setx`, пользовательский `bin`, глобальный `npm install -g`/`uv tool install` и fallback на `pi` из `PATH`.
 
 Для каждого запуска соберите новый allowlist окружения, **не** наследуйте provider keys/`NODE_OPTIONS`/непроверенные redirect-переменные. Обязательные направления:
 

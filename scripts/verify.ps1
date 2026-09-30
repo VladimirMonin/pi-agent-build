@@ -344,9 +344,7 @@ try {
         $PiRoot = Join-Path $lab 'pi-root'
         $prefix = Join-Path $lab 'npm-prefix'
         $candidate = Join-Path $prefix 'pi.cmd'
-        Assert-NoLabReparseTree -Root $prefix
-        Assert-NoLabReparseTree -Root $PiRoot
-        Assert-NoLabReparseTree -Root (Join-Path $lab 'test-cwd')
+        Assert-LabInstalledState -LabRoot $lab -RepoRoot $RepoRoot -Mcp
         $piPackage = Join-Path (Join-Path (Join-Path $prefix 'node_modules') ([string]$runtime.runtime.pi.package).Replace('/', [IO.Path]::DirectorySeparatorChar)) 'package.json'
         if (Test-RequiredPath -Path $candidate -Label 'private Pi launcher' -Type Leaf) {
             try {
@@ -370,7 +368,7 @@ try {
                 }
             } catch { Fail "lab verification failed: $($_.Exception.Message)" }
         }
-        Fail 'NOT TESTED: private Code external tools and MCP runtime; global tools cannot establish lab portability'
+        Warn 'NOT TESTED: WVM, optional MCP/tools-call, real provider transport and native Linux/macOS; private stdio probes are not an OS sandbox'
         Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings"
         if ($script:Failures -gt 0) { exit 1 }
         exit 0

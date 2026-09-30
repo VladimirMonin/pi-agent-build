@@ -58,7 +58,7 @@ names = []
 for e in m["profiles"]["common"]:
     if e.get("patch"):
         names.append(e["patch"])
-    if profile == "Task" and e.get("taskProfilePatch"):
+    if e.get("taskProfilePatch") and (profile == "Task" or e["taskProfilePatch"] == "session-search-profile"):
         names.append(e["taskProfilePatch"])
 if profile == "Code":
     for e in m["profiles"].get("codeOnly", []):
@@ -89,6 +89,7 @@ while IFS=$'\t' read -r name dir; do
       continue
     fi
     args=("$patcher" --agent-dir "$agent_dir")
+    if [ "$patch_name" = session-search-profile ] && [ "$name" = Code ]; then args+=(--runtime-only); fi
     case "$MODE" in
       Check) args+=(--check) ;;
       Restore) args+=(--restore) ;;

@@ -94,11 +94,12 @@ process.exit(9);
         Check 'synthetic install child receives Python bytecode disabled' (@($calls | Where-Object { $_.noBytecode -ne '1' }).Count -eq 0)
         Check 'lab child PATH resolves PowerShell for package lifecycle' (@($calls | Where-Object { -not $_.shellAvailable }).Count -eq 0)
         $verify = Run $verifier @('-LabRoot', $lab, '-RepoRoot', $repo, '-Profile', 'Both')
-        Check 'verifier checks private candidate but refuses incomplete profile' ($verify.Code -ne 0 -and $verify.Text.Contains('PASS private Pi launcher exact version') -and $verify.Text.Contains('FAIL Task'))
-        $callsBeforeReapply = @((Get-Content (Join-Path $lab 'calls.jsonl'))).Count
+        Check 'verifier refuses incomplete installed state before claiming success' ($verify.Code -ne 0 -and $verify.Text.Contains('installed-state validation refused') -and -not $verify.Text.Contains('VERIFIED INSTALLED-STATE: PASS'))
+        $callsBeforeReapply = @((Get-Content (Join-Path $lab 'calls.jsonl')) | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.args[0] -eq 'install' }).Count
         $reapplyPlan = Run $installer $common
         $reapply = Run $installer ($common + @('-Apply'))
-        Check 'reapply plan read-only, Apply fails closed before package writes' ($reapplyPlan.Code -eq 0 -and $reapplyPlan.Text.Contains('preflight NOT PASSED') -and $reapply.Code -ne 0 -and @((Get-Content (Join-Path $lab 'calls.jsonl'))).Count -eq $callsBeforeReapply)
+        $callsAfterReapply = @((Get-Content (Join-Path $lab 'calls.jsonl')) | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.args[0] -eq 'install' }).Count
+        Check 'mixed reapply Plan and Apply refuse before package writes' ($reapplyPlan.Code -ne 0 -and $reapply.Code -ne 0 -and $callsAfterReapply -eq $callsBeforeReapply)
         $skipped = Run $verifier @('-LabRoot', $lab, '-SkipPatchChecks', '-RepoRoot', $repo)
         Check 'lab verifier cannot mask failed patch gate' ($skipped.Code -ne 0)
     } finally { $env:PATH = $oldPath; $env:SECRET_SENTINEL = $oldSecret }

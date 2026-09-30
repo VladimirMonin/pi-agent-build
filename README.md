@@ -4,11 +4,11 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Статус: до первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
+> Статус: **Pi 0.99.1 candidate**, не release GO и не обновление рабочих профилей. Windows private/mock проверки ограничены [матрицей совместимости](docs/plans/pi-0.99.1-compat-matrix.md); модельные ответы/платные провайдеры и native Linux/macOS не подтверждены. Последний WVM availability check отказал `fetch failed`; оба live transports NOT TESTED. **Полный release / перенос рабочих профилей — NO-GO**, публикация ветки кандидата разрешена отдельно. `pi-mcp-adapter` сохранён. До первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
 
 ## Граница повторяемости
 
-Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `0.87.0`, Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
+Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `0.99.1` (candidate), Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
 
 Это даёт повторяемую установку заявленных top-level versions, но **не bit-for-bit reproducibility**. Репозиторий пока не содержит переносимых transitive lockfiles/полного dependency graph, integrity hashes всех скачиваемых artifacts, lock Python dependencies или идентичного образа ОС. Повторная установка может получить иной transitive dependency tree даже при тех же верхнеуровневых версиях. Для release artifact нужно отдельно зафиксировать transitive locks/hashes и затем проверить итоговый bundle.
 
@@ -62,10 +62,12 @@ instructions/       постоянные правила сопровождени
 
 `update.ps1`/`update.sh` сейчас отсутствуют: обновление выполняется только как осознанное изменение manifests/templates/patches с повторной установкой и проверкой. Не используйте `latest` и не предполагайте наличие автоматического update workflow.
 
-## План следующего выпуска
+## Кандидат Pi 0.99.1
 
-- [Изолированная лаборатория и проверка Pi 0.99.1](docs/plans/pi-0.99.1-lab.md) — план работ, **не** объявление совместимости или смена текущего runtime.
-- [Инструкция по изоляции лаборатории](docs/lab-isolation.md) и [доска выполнения](docs/plans/pi-0.99.1-execution-board.md) — предварительный gate и текущие доказательства; реальная миграция ещё не завершена.
+- [Лабораторный план](docs/plans/pi-0.99.1-lab.md), [доска доказательств](docs/plans/pi-0.99.1-execution-board.md) и [модельная матрица](docs/plans/pi-0.99.1-model-matrix.md) разделяют проверенные функции, metadata и NOT TESTED; Sol 6.1 уже доступна владельцу на старом Pi, это не update-specific gain.
+- [Изоляция лаборатории](docs/lab-isolation.md): отдельный owner-only root **и безопасный parent**, чистые synthetic HOME/config/auth/cache/session/trace/MCP, явные private executables; никаких изменений shared ACL. JavaScript guard не является OS sandbox.
+- Проверены private Windows установка 15/12 пакетов, оба mock headless runtime и verified Apply no-op. Функциональные smokes не подтверждают все команды/children/провайдеры. WVM проверен последним: доступность configured gateway FAIL, legacy SSE / streamable HTTP кандидата NOT TESTED; это не протокольный диагноз. Adapter без доказанного live-паритета не заменяется.
+- `main`, рабочие профили и пользовательские данные не переключались. Будущий перенос/откат требует отдельного решения и согласованных private backups [runtime, обоих профилей и данных](docs/state-migration.md#откат).
 
 ## Начало работы
 
@@ -74,7 +76,7 @@ instructions/       постоянные правила сопровождени
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
 - Компоненты: [`docs/components/README.md`](docs/components/README.md)
 - Заметки о поведении компонентов: [`docs/notes/README.md`](docs/notes/README.md)
-- POSIX (macOS/Linux) установка: [`docs/setup.md`](docs/setup.md#posix-macoslinux) и [`docs/platforms.md`](docs/platforms.md)
+- POSIX (macOS/Linux): [`docs/platforms.md`](docs/platforms.md); общие принципы установки — [`docs/setup.md`](docs/setup.md).
 
 ## Документация для агентов
 

@@ -203,8 +203,21 @@ run_checked() {
 # --------------------------------------------------------------------------- #
 # private lab path and environment gate (read-only until lab_run is invoked)
 # --------------------------------------------------------------------------- #
+lab_installed_state() (
+  # Subshell confines cwd and environment changes even when the gate refuses.
+  LAB_PYTHON="$(command -v "$(resolve_python)")" || exit 2
+  local node git tool
+  node="$(command -v node)"; git="$(command -v git)"
+  [ -f "$node" ] && [ -f "$git" ] || { err 'absolute node/git required'; exit 2; }
+  LAB_PATH="$LAB_PREFIX/bin:$LAB_PREFIX:$(dirname "$node"):$(dirname "$git"):$(dirname "$LAB_PYTHON"):/usr/bin:/bin"
+  LAB_NAME=agent LAB_PROFILE="$PI_ROOT/agent"
+  lab_run "$LAB_PYTHON" "$SCRIPT_DIR/lab-state.py" --lab-root "$LAB_ROOT" --repo-root "$REPO_ROOT" \
+    --node "$node" --git "$git" "$@"
+)
+
 lab_preflight() {
   local py mode="${1:-fresh}"
+  if [ "$mode" = installed ]; then lab_installed_state; return $?; fi
   py="$(resolve_python)" || return 2
   "$py" - "$LAB_ROOT" "$REPO_ROOT" "$PI_ROOT" "$LAB_PREFIX" "$LAB_CWD" "$mode" "${HOME:-}" "${USERPROFILE:-}" <<'PY'
 import json, os, pathlib, sys
@@ -332,7 +345,9 @@ lab_run() (
     PI_SESSION_ARCHIVE_DIR="$LAB_ROOT/sessions-archive/$LAB_NAME" \
     PI_CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" \
     PI_MCP_CONFIG_MODE=exclusive PI_INTERCOM_SCOPE_ID="lab-$LAB_NAME" \
-    PYTHONDONTWRITEBYTECODE=1 PI_BUILD_PYTHON="${LAB_PATCH_PYTHON:-$LAB_PYTHON}" "$@"
+    PYTHONDONTWRITEBYTECODE=1 PI_BUILD_PYTHON="${LAB_PATCH_PYTHON:-$LAB_PYTHON}" \
+    PI_LAB_LIVE_HOME="${HOME:-}" PI_LAB_LIVE_USERPROFILE="${USERPROFILE:-}" \
+    SystemRoot="${SYSTEMROOT:-${SystemRoot:-}}" COMSPEC="${COMSPEC:-}" "$@"
 )
 
 # --------------------------------------------------------------------------- #

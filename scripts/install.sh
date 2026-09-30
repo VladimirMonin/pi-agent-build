@@ -95,7 +95,7 @@ log "profiles: $PROFILE"
 log "Pi root: $PI_ROOT"
 if [ -n "$LAB_ROOT" ]; then
   log "private lab root: $LAB_ROOT"
-  log 'lab Apply is fresh-only, NOT idempotent; repeat Apply fails closed before writes'
+  log 'existing install requires full private installed-state validation; no repair/reinstall'
 fi
 log "runtime: node@$NODE_VERSION, npm@$NPM_VERSION, $PI_PACKAGE@$PI_VERSION"
 
@@ -126,6 +126,16 @@ if [ "$SYNC_SETTINGS_ONLY" = "1" ]; then
   log 'settings-only: verify installed payloads, back up and merge settings; no package/patch/credential writes'
 else
   log 'Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle'
+fi
+
+if [ -n "$LAB_ROOT" ]; then
+  if lab_fresh_result="$(lab_preflight fresh 2>&1)"; then
+    log "$lab_fresh_result"
+  else
+    lab_installed_state --mcp || exit 2
+    log "LAB $MODE: VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
+    exit 0
+  fi
 fi
 
 if [ "$APPLY" != "1" ]; then

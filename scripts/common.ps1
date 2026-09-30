@@ -210,6 +210,24 @@ function Assert-NoLabReparseTree {
     }
 }
 
+function Assert-LabInstalledState {
+    param([string]$LabRoot, [string]$RepoRoot, [switch]$Mcp)
+    $prefix = Join-Path $LabRoot 'npm-prefix'
+    $environment = Get-LabToolEnvironment -LabRoot $LabRoot -NpmPrefix $prefix
+    $environment['PI_LAB_LIVE_HOME'] = $HOME
+    $environment['PI_LAB_LIVE_USERPROFILE'] = [string]$env:USERPROFILE
+    $python = Assert-LabToolPath -Name 'python' -NpmPrefix $prefix
+    $node = Assert-LabToolPath -Name 'node' -NpmPrefix $prefix
+    $git = Assert-LabToolPath -Name 'git' -NpmPrefix $prefix
+    $arguments = @((Join-Path $PSScriptRoot 'lab-state.py'), '--lab-root', $LabRoot, '--repo-root', $RepoRoot, '--node', $node, '--git', $git)
+    if ($Mcp) { $arguments += '--mcp' }
+    $result = Get-CommandOutput -Command $python -Arguments $arguments -SanitizeEnvironment -Environment $environment -WorkingDirectory (Join-Path $LabRoot 'test-cwd')
+    if ($result.Output) { Write-Host $result.Output }
+    if (-not $result.Found -or $result.ExitCode -ne 0 -or -not $result.Output.Contains('VERIFIED INSTALLED-STATE: PASS')) {
+        throw 'Lab installed-state validation refused; no repair/reinstall is authorized.'
+    }
+}
+
 function Get-LabChildEnvironment {
     param([string]$LabRoot, [string]$NpmPrefix, [string]$ProfileName = '')
     $paths = @{

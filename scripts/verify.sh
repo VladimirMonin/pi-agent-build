@@ -484,7 +484,8 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
   fi
 
   if [ -n "$LAB_ROOT" ]; then
-    fail 'external Code tools NOT TESTED: private ast-grep, CBM and Serena required; no global fallback'
+    if lab_installed_state --mcp; then pass 'private external identity/version and stdio MCP probes';
+    else fail 'private external/MCP probe failed'; fi
     warn 'runtime isolation NOT TESTED: static checks do not prove Pi/child write paths'
   elif [ "$SKIP_EXTERNAL_CHECKS" != "1" ]; then
     test_external_tools

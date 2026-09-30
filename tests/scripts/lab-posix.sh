@@ -101,14 +101,14 @@ rm "$lab/pi-root/task/auth.json"
 if "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/reapply" 2>&1; then
   echo 'FAIL repeat Apply accepted an installed prefix' >&2; exit 1
 fi
-grep -q 'repeat Apply is NOT idempotent and refused' "$tmp/reapply"
+grep -q 'VERIFIED INSTALLED-STATE: REFUSED' "$tmp/reapply"
 [ "$(wc -l < "$FAKE_CALLS")" = 28 ] # repeat did not call npm or Pi
 if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/verify" 2>&1; then
   echo 'FAIL lab verifier reported complete despite untested Code tools' >&2; exit 1
 fi
-grep -q 'private candidate Pi 0.99.1' "$tmp/verify"
-grep -q 'external Code tools NOT TESTED' "$tmp/verify"
-grep -q 'VERIFY result: failures=1' "$tmp/verify"
+grep -q 'VERIFIED INSTALLED-STATE: REFUSED' "$tmp/verify"
+# The fake install is deliberately incomplete (no canonical launcher/identity/
+# private tools). Refusal is required, never a replacement NOT TESTED pass.
 if grep -q 'global Pi package' "$tmp/verify"; then exit 1; fi
 # Native symlink privileges vary on Windows. Never replace the working fake
 # launcher unless a disposable probe can create and resolve a real symlink.
@@ -140,8 +140,7 @@ PY
   if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/linked" 2>&1; then
     echo 'FAIL linked fake lab verifier reported complete despite untested Code tools' >&2; exit 1
   fi
-  grep -q 'private candidate Pi 0.99.1' "$tmp/linked"
-  grep -q 'VERIFY result: failures=1' "$tmp/linked"
+  grep -q 'VERIFIED INSTALLED-STATE: REFUSED' "$tmp/linked"
   "$py" - "$lab" "$tmp" <<'PY'
 import pathlib, sys
 lab, outside = map(pathlib.Path, sys.argv[1:])
@@ -151,7 +150,7 @@ PY
   if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/escape" 2>&1; then
     echo 'FAIL escaping installed symlink was accepted' >&2; exit 1
   fi
-  grep -q 'symlink/reparse escapes lab' "$tmp/escape"
+  grep -q 'private link escapes LAB' "$tmp/escape"
   "$py" - "$lab" <<'PY'
 import pathlib, sys
 prefix = pathlib.Path(sys.argv[1]) / 'npm-prefix/bin'
@@ -161,7 +160,7 @@ PY
   if "$repo/scripts/verify.sh" --lab-root "$lab" --repo-root "$fake" > "$tmp/broken" 2>&1; then
     echo 'FAIL broken installed symlink was accepted' >&2; exit 1
   fi
-  grep -q 'broken/cyclic symlink/reparse' "$tmp/broken"
+  grep -q 'broken/cyclic private link' "$tmp/broken"
   "$py" - "$lab" <<'PY'
 import pathlib, sys
 (pathlib.Path(sys.argv[1]) / 'npm-prefix/bin/broken').unlink()
@@ -174,4 +173,4 @@ fi
 printf '%s\n' '{"pi-memory":{"localPath":"../../outside"}}' > "$lab/test-cwd/.pi/settings.json"
 if "$repo/scripts/install.sh" --lab-root "$lab" --repo-root "$fake" --apply > "$tmp/memory" 2>&1; then exit 1; fi
 [ "$(wc -l < "$FAKE_CALLS")" = 28 ]
-echo 'PASS fake POSIX lab plan, fresh-only apply, repeat refusal and fail-closed verify'
+echo 'PASS fake POSIX lab plan, fresh apply, partial repeat refusal and fail-closed verify'

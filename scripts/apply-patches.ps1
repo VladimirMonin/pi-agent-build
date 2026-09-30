@@ -29,7 +29,8 @@ function Get-PatchesForProfile {
     $result = New-Object System.Collections.Generic.List[string]
     foreach ($entry in $Manifest.profiles.common) {
         if ($entry.PSObject.Properties.Name -contains 'patch') { $result.Add([string]$entry.patch) }
-        if ($ProfileName -eq 'Task' -and $entry.PSObject.Properties.Name -contains 'taskProfilePatch') {
+        if ($entry.PSObject.Properties.Name -contains 'taskProfilePatch' -and
+            ($ProfileName -eq 'Task' -or [string]$entry.taskProfilePatch -eq 'session-search-profile')) {
             $result.Add([string]$entry.taskProfilePatch)
         }
     }
@@ -62,6 +63,7 @@ try {
                 continue
             }
             $arguments = @($python.Prefix) + @($patcher, '--agent-dir', $agentDir)
+            if ($patchName -eq 'session-search-profile' -and $selected.Name -eq 'Code') { $arguments += '--runtime-only' }
             if ($Mode -eq 'Check') { $arguments += '--check' }
             elseif ($Mode -eq 'Restore') { $arguments += '--restore' }
             elseif ($patchName -ne 'memory-windows-runtime') { $arguments += '--apply' }

@@ -218,12 +218,15 @@ try {
         $fresh = $preflight.Found -and $preflight.ExitCode -eq 0 -and $preflight.Output.Contains('LAB PREFLIGHT PLAN: PASS')
         Write-Host "LAB $(if ($Apply) { 'APPLY' } else { 'PLAN' }): private Pi $(Join-Path $prefix 'pi.cmd')"
         Write-Host "npm prefix: $prefix; synthetic cwd: $cwd; Code: $(Join-Path $root 'agent'); Task: $(Join-Path $root 'task')"
-        if (-not $Apply) {
-            if ($fresh) { Write-Host 'LAB PLAN: both synthetic profiles passed fresh preflight; no writes' }
-            else { Write-Host 'LAB PLAN: preflight NOT PASSED; installed reapply requires separate gate; no writes' }
+        if (-not $fresh) {
+            Assert-LabInstalledState -LabRoot $lab -RepoRoot $RepoRoot -Mcp
+            Write-Host "LAB $(if ($Apply) { 'APPLY' } else { 'PLAN' }): VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
             exit 0
         }
-        if (-not $fresh) { throw 'LAB APPLY refused before any write: both synthetic profiles must pass fresh lab-preflight; reapply is not authorized.' }
+        if (-not $Apply) {
+            Write-Host 'LAB PLAN: both synthetic profiles passed fresh preflight; no writes'
+            exit 0
+        }
         Assert-NoLabReparseTree -Root $lab
     }
     $PiRoot = Resolve-FullPath $PiRoot

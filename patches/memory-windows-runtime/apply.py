@@ -241,6 +241,24 @@ P2_INPUT_TO = """      userMessages: pendingUserMessages,
       assistantMessages: pendingAssistantMessages,
       turns: pendingTurns.slice(),"""
 
+TIMEOUT_FROM = '''function withTimeout(p, ms, label) {
+  return Promise.race([
+    p,
+    new Promise(
+      (_, reject) => setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    )
+  ]);
+}'''
+TIMEOUT_TO = '''function withTimeout(p, ms, label) {
+  let timer;
+  return Promise.race([
+    p,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+}'''
+
 CANONICAL_REPLACEMENTS = [
     (SETTINGS_FROM, SETTINGS_TO),
     (P1_FROM, P1_TO),
@@ -307,7 +325,7 @@ def short(data: bytes) -> str:
     return digest(data)[:12]
 
 
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True) -> bytes:
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, timers=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -317,6 +335,10 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
         text = text.replace(old, new, 1)
     if replacements is CANONICAL_REPLACEMENTS and injector:
         text = apply_injection(text)
+    if replacements is CANONICAL_REPLACEMENTS and timers:
+        if text.count(TIMEOUT_FROM) != 1:
+            raise RuntimeError("timeout anchor mismatch")
+        text = text.replace(TIMEOUT_FROM, TIMEOUT_TO, 1)
     result = text.encode("utf-8")
     if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
@@ -423,7 +445,8 @@ def main() -> int:
         return 2
     try:
         canonical = build_canonical(stock)
-        previous_injector = build_canonical(stock, injector=False)
+        previous_timers = build_canonical(stock, timers=False)
+        previous_injector = build_canonical(stock, injector=False, timers=False)
         previous = build_canonical(stock, PREVIOUS_CANONICAL_REPLACEMENTS)
         previous_no_embedder = build_canonical(stock, PREVIOUS_CANONICAL_NO_EMBEDDER_REPLACEMENTS)
         legacy = build_canonical(stock, LEGACY_CANONICAL_REPLACEMENTS)
@@ -433,7 +456,7 @@ def main() -> int:
 
     current = target.read_bytes()
     try:
-        state = classify(current, stock, canonical, (previous_injector, previous, previous_no_embedder, legacy))
+        state = classify(current, stock, canonical, (previous_timers, previous_injector, previous, previous_no_embedder, legacy))
     except UnicodeDecodeError:
         state = "unknown"
 
@@ -445,7 +468,7 @@ def main() -> int:
     if state == "runtime-safe":
         print("verdict: RUNTIME-SAFE — pushTurn shares lexical scope with pending arrays.")
     elif state == "legacy-canonical":
-        print("verdict: PATCH REQUIRED — previous canonical patch lacks scoped whole-record injection.")
+        print("verdict: PATCH REQUIRED — exact previous canonical requires current runtime/injection upgrade.")
     elif state == "legacy-local-injector":
         print("verdict: PATCH REQUIRED — exact local v1 injector requires private alias config before migration.")
         if not private_aliases_ready(agent_dir):
