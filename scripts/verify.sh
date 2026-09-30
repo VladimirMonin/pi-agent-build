@@ -11,7 +11,7 @@
 # remain hard failures. Use --strict-runtime to fail on runtime drift too.
 #
 # Usage:
-#   scripts/verify.sh [--profile Code|Task|Both] [--pi-root <dir>]
+#   scripts/verify.sh [--profile Code|Task|Both] [--pi-root <dir>] [--lab-root <dir>]
 #                     [--repo-root <dir>] [--repository-only] [--external-only]
 #                     [--skip-patch-checks] [--skip-external-checks]
 #                     [--strict-runtime]
@@ -34,11 +34,14 @@ EXTERNAL_ONLY=0
 SKIP_PATCH_CHECKS=0
 SKIP_EXTERNAL_CHECKS=0
 STRICT_RUNTIME=0
+LAB_ROOT=""
+PI_ROOT_EXPLICIT=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
-    --pi-root) PI_ROOT="$2"; shift 2 ;;
+    --pi-root) PI_ROOT="$2"; PI_ROOT_EXPLICIT=1; shift 2 ;;
+    --lab-root) LAB_ROOT="$2"; shift 2 ;;
     --repo-root) REPO_ROOT="$2"; shift 2 ;;
     --repository-only) REPOSITORY_ONLY=1; shift ;;
     --external-only) EXTERNAL_ONLY=1; shift ;;
@@ -54,6 +57,16 @@ case "$PROFILE" in Code|Task|Both) ;; *) err "invalid --profile: $PROFILE"; exit
 
 REPO_ROOT="$(resolve_full_path "$REPO_ROOT")"
 PI_ROOT="$(resolve_full_path "$PI_ROOT")"
+if [ -n "$LAB_ROOT" ]; then
+  [ "$PI_ROOT_EXPLICIT" = 0 ] && [ "$PROFILE" = Both ] && [ "$REPOSITORY_ONLY" = 0 ] && \
+    [ "$EXTERNAL_ONLY" = 0 ] && [ "$SKIP_PATCH_CHECKS" = 0 ] && [ "$SKIP_EXTERNAL_CHECKS" = 0 ] || {
+      err 'lab verify requires both profiles and all gates, without --pi-root or skip flags'; exit 2;
+    }
+  PI_ROOT="$LAB_ROOT/pi-root"
+  LAB_PREFIX="$LAB_ROOT/npm-prefix"
+  LAB_CWD="$LAB_ROOT/test-cwd"
+  lab_preflight || exit 2
+fi
 
 FAILURES=0
 WARNINGS=0
@@ -176,7 +189,7 @@ compare_template Task "$REPO_ROOT/profiles/task/settings.template.json" "$PI_VER
 while IFS= read -r patch_name; do
   [ -n "$patch_name" ] || continue
   test_required_path "$REPO_ROOT/patches/$patch_name/apply.py" "patch $patch_name"
-done < <("$PYTHON" - "$PACKAGES_MANIFEST" <<'PY'
+done < <(manifest_lines_lf "$PYTHON" - "$PACKAGES_MANIFEST" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
@@ -299,7 +312,9 @@ test_installed_profile() {
     if json_get "$settings" 'd' >/dev/null 2>&1; then
       pass "$name settings JSON"
       local memory_route
-      if memory_route="$(node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" 2>&1)"; then
+      if [ -n "$LAB_ROOT" ]; then
+        warn "$name credential-backed memory route NOT TESTED (private lab)"
+      elif memory_route="$(node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" 2>&1)"; then
         pass "$name memory consolidation route (static provider, credential configured)"
       else
         fail "$name $memory_route"
@@ -381,11 +396,15 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
   elif [ "$STRICT_RUNTIME" = "1" ]; then fail "Node.js expected $expected_node, found $actual_node"
   else warn "Node.js is $actual_node; manifest pins Windows $expected_node (>=24 required)"; fi
 
-  actual_npm="$(get_version_from_text "$(command_output npm --version || true)")"
   expected_npm="$(json_get "$RUNTIME_MANIFEST" 'd["runtime"]["npm"]')"
-  if [ "$actual_npm" = "$expected_npm" ]; then pass "npm $actual_npm"
-  elif [ "$STRICT_RUNTIME" = "1" ]; then fail "npm expected $expected_npm, found $actual_npm"
-  else warn "npm is $actual_npm; manifest pins Windows $expected_npm"; fi
+  if [ -n "$LAB_ROOT" ]; then
+    warn "npm runtime NOT TESTED by verifier (candidate prefix checked without global npm)"
+  else
+    actual_npm="$(get_version_from_text "$(command_output npm --version || true)")"
+    if [ "$actual_npm" = "$expected_npm" ]; then pass "npm $actual_npm"
+    elif [ "$STRICT_RUNTIME" = "1" ]; then fail "npm expected $expected_npm, found $actual_npm"
+    else warn "npm is $actual_npm; manifest pins Windows $expected_npm"; fi
+  fi
 
   actual_git="$(get_version_from_text "$(command_output git --version || true)")"
   expected_git="$(json_get "$EXTERNAL_MANIFEST" 'd["common"][0]["version"]')"
@@ -397,12 +416,23 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
   actual_py="$(get_version_from_text "$(command_output "$PYTHON" --version || true)")"
   if version_ge "$actual_py" "$py_min"; then pass "Python $actual_py"; else fail "Python expected >= $py_min, found $actual_py"; fi
 
-  # global Pi package
-  global_root="$(npm root --global 2>/dev/null || true)"
-  pi_meta="$global_root/@earendil-works/pi-coding-agent/package.json"
-  if [ -f "$pi_meta" ] && [ "$(json_get "$pi_meta" 'd.get("version")')" = "$PI_VERSION" ]; then
-    pass "Pi package $PI_VERSION"
-  else fail "global Pi package missing or wrong version: $pi_meta"; fi
+  # Lab verification never consults global npm root or PATH for Pi.
+  if [ -n "$LAB_ROOT" ]; then
+    pi_meta="$LAB_PREFIX/lib/node_modules/@earendil-works/pi-coding-agent/package.json"
+    lab_pi="$LAB_PREFIX/bin/pi"
+    if [ -f "$pi_meta" ] && [ -f "$lab_pi" ] && \
+      [ -f "$LAB_PREFIX/.pi-agent-build-lab" ] && \
+      [ "$(json_get "$pi_meta" 'd.get("version")')" = "$PI_VERSION" ] && \
+      [ "$(<"$LAB_PREFIX/.pi-agent-build-lab")" = "@earendil-works/pi-coding-agent@$PI_VERSION" ]; then
+      pass "private candidate Pi $PI_VERSION at $lab_pi"
+    else fail "private candidate Pi missing or wrong version: $pi_meta / $lab_pi"; fi
+  else
+    global_root="$(npm root --global 2>/dev/null || true)"
+    pi_meta="$global_root/@earendil-works/pi-coding-agent/package.json"
+    if [ -f "$pi_meta" ] && [ "$(json_get "$pi_meta" 'd.get("version")')" = "$PI_VERSION" ]; then
+      pass "Pi package $PI_VERSION"
+    else fail "global Pi package missing or wrong version: $pi_meta"; fi
+  fi
 
   while IFS=$'\t' read -r name dir; do
     test_installed_profile "$name" "$dir"
@@ -430,8 +460,21 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
 
   if [ "$SKIP_PATCH_CHECKS" != "1" ]; then
     set +e
-    "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Check --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" >/dev/null 2>&1
-    patch_exit=$?
+    if [ -n "$LAB_ROOT" ]; then
+      LAB_NAME=agent LAB_PROFILE="$PI_ROOT/agent"
+      LAB_PATH="$LAB_PREFIX/bin:$PATH"
+      LAB_PYTHON="$(command -v "$PYTHON")"
+      LAB_PATCH_PYTHON="$LAB_ROOT/bin/python-lf"
+      if [ -f "$LAB_PATCH_PYTHON" ]; then
+        lab_run "$SCRIPT_DIR/apply-patches.sh" --profile Both --mode Check --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" >/dev/null 2>&1
+        patch_exit=$?
+      else
+        patch_exit=2
+      fi
+    else
+      "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Check --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" >/dev/null 2>&1
+      patch_exit=$?
+    fi
     set -e
     case "$patch_exit" in
       0) pass "installed patch checks" ;;
@@ -440,7 +483,12 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
     esac
   fi
 
-  [ "$SKIP_EXTERNAL_CHECKS" != "1" ] && test_external_tools
+  if [ -n "$LAB_ROOT" ]; then
+    fail 'external Code tools NOT TESTED: private ast-grep, CBM and Serena required; no global fallback'
+    warn 'runtime isolation NOT TESTED: static checks do not prove Pi/child write paths'
+  elif [ "$SKIP_EXTERNAL_CHECKS" != "1" ]; then
+    test_external_tools
+  fi
 fi
 
 log "VERIFY result: failures=$FAILURES warnings=$WARNINGS"

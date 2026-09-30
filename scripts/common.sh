@@ -20,10 +20,13 @@ err()  { printf 'ERROR %s\n' "$*" >&2; }
 # python resolution (used for JSON parsing and version comparison)
 # --------------------------------------------------------------------------- #
 resolve_python() {
-  if [ -n "${PI_BUILD_PYTHON:-}" ]; then printf '%s' "$PI_BUILD_PYTHON"; return 0; fi
+  if [ -n "${PI_BUILD_PYTHON:-}" ]; then
+    [ -f "$PI_BUILD_PYTHON" ] && "$PI_BUILD_PYTHON" -c 'import sys' >/dev/null 2>&1 || return 1
+    printf '%s' "$PI_BUILD_PYTHON"; return 0
+  fi
   local c
   for c in python3 python; do
-    if command -v "$c" >/dev/null 2>&1; then printf '%s' "$c"; return 0; fi
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys' >/dev/null 2>&1; then printf '%s' "$c"; return 0; fi
   done
   return 1
 }
@@ -75,6 +78,10 @@ for e in entries:
     )))
 PY
 }
+
+# A Windows python.exe may emit CRLF through Git Bash pipes. Keep manifest
+# records (including patch names) byte-exact on both platforms.
+manifest_lines_lf() { "$@" | tr -d '\r'; }
 
 # Field separator used by manifest_packages and external-tool listings.
 IFS_US=$'\x1f'
@@ -192,6 +199,130 @@ run_checked() {
   log "RUN  $label: $*"
   if ! "$@"; then err "$label failed"; return 1; fi
 }
+
+# --------------------------------------------------------------------------- #
+# private lab path and environment gate (read-only until lab_run is invoked)
+# --------------------------------------------------------------------------- #
+lab_preflight() {
+  local py
+  py="$(resolve_python)" || return 2
+  "$py" - "$LAB_ROOT" "$REPO_ROOT" "$PI_ROOT" "$LAB_PREFIX" "$LAB_CWD" "${HOME:-}" "${USERPROFILE:-}" <<'PY'
+import json, os, pathlib, sys
+lab, repo, profiles, prefix, cwd, *homes = map(pathlib.Path, sys.argv[1:])
+def reject(message):
+    raise SystemExit('ERROR lab preflight: ' + message)
+def normalized(path):
+    if not path.is_absolute() or '..' in path.parts or str(path) in ('/', ''):
+        reject('absolute path without parent traversal required: ' + str(path))
+    # Never accept symlink/reparse ancestors, including missing path descendants.
+    for part in (path, *path.parents):
+        if part.is_symlink() or (hasattr(part, 'is_junction') and part.is_junction()):
+            reject('symlink/reparse ancestor: ' + str(part))
+    return path.resolve(strict=False)
+def inside(path, parent):
+    return path == parent or parent in path.parents
+lab, repo, profiles, prefix, cwd = map(normalized, (lab, repo, profiles, prefix, cwd))
+if not lab.is_dir() or not repo.is_dir() or inside(lab, repo) or inside(repo, lab):
+    reject('lab and repository must be disjoint existing directories')
+for home in homes:
+    if str(home) not in ('', '.') and home.is_absolute() and inside(lab, normalized(home)):
+        reject('lab must not be inside the live home')
+for ancestor in (lab, *lab.parents):
+    if (ancestor / '.git').exists(): reject('lab is inside a Git checkout')
+if (profiles, prefix, cwd) != (lab / 'pi-root', lab / 'npm-prefix', lab / 'test-cwd'):
+    reject('use the fixed pi-root, npm-prefix and test-cwd under lab')
+for label, target in [('profiles', profiles), ('npm prefix', prefix), ('cwd', cwd)]:
+    if not inside(target, lab) or target == lab: reject(label + ' must be inside the lab')
+    if target.exists() and not target.is_dir(): reject(label + ' is not a directory')
+for a, b in ((profiles, prefix), (profiles, cwd), (prefix, cwd)):
+    if inside(a, b) or inside(b, a): reject('profiles, prefix and cwd must be disjoint')
+if not cwd.is_dir(): reject('test-cwd must already exist')
+if set(p.name for p in cwd.iterdir()) != {'.pi'}: reject('test-cwd must contain only .pi')
+project = cwd / '.pi'
+if not project.is_dir() or set(p.name for p in project.iterdir()) != {'settings.json'}:
+    reject('project .pi must contain only settings.json')
+try:
+    settings = json.loads((project / 'settings.json').read_text(encoding='utf-8'))
+except (OSError, ValueError) as exc: reject('project settings unavailable: ' + str(exc))
+if settings != {'pi-memory': {'localPath': '../memory'}}:
+    reject('project memory localPath must be exactly ../memory')
+memory = normalized(lab / 'memory')
+if memory.exists() and (not memory.is_dir() or any(memory.iterdir())):
+    reject('memory must be empty before runtime gate')
+# Reuse is allowed only for a previously marked private prefix; a partial
+# failed installation must be inspected rather than silently overwritten.
+marker = prefix / '.pi-agent-build-lab'
+if prefix.exists() and any(prefix.iterdir()) and not marker.is_file():
+    reject('npm prefix not empty and not marked as private lab')
+if profiles.exists():
+    if {p.name for p in profiles.iterdir()} - {'agent', 'task'}:
+        reject('pi-root contains unexpected entries')
+for name in ('agent', 'task'):
+    root = normalized(profiles / name)
+    if not root.is_dir(): reject(name + ' synthetic profile directory is missing')
+    entries = {p.name for p in root.iterdir()}
+    if entries - ({'mcp.json'} if not marker.is_file() else
+                  {'mcp.json', 'settings.json', 'models.json', 'ollama-cloud.json',
+                   'skills', 'npm', 'git', '.pi-agent-build-backups'}):
+        reject(name + ' contains non-synthetic content')
+    if marker.is_file():
+        template = repo / 'profiles' / ('code' if name == 'agent' else 'task') / 'settings.template.json'
+        for filename, expected in (
+            ('models.json', repo / 'config/models.polza-memory.example.json'),
+            ('ollama-cloud.json', repo / 'config/ollama-cloud.example.json')):
+            target = root / filename
+            if not target.is_file() or target.read_bytes() != expected.read_bytes():
+                reject(name + ' existing ' + filename + ' differs from synthetic template')
+        try:
+            actual = json.loads((root / 'settings.json').read_text(encoding='utf-8'))
+            desired = json.loads(template.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as exc: reject(name + ' existing settings invalid: ' + str(exc))
+        if actual != desired:
+            reject(name + ' existing settings differ from synthetic template')
+    mcp = root / 'mcp.json'
+    if not mcp.is_file(): reject(name + ' empty synthetic MCP config is missing')
+    if mcp.exists():
+        try: config = json.loads(mcp.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as exc: reject(name + ' MCP invalid: ' + str(exc))
+        if config != {'mcpServers': {}, 'settings': {'scriptMode': False}}:
+            reject(name + ' MCP is not empty synthetic config')
+for name in ('user.npmrc', 'global.npmrc'):
+    config = lab / 'npm-config' / name
+    if config.exists() and any(line.strip() and not line.lstrip().startswith(('#', ';'))
+                               for line in config.read_text(encoding='utf-8').splitlines()):
+        reject(name + ' contains npm directives')
+# Check every existing descendant, including symlinked package subtrees and
+# project settings, before any install could follow a link outside the lab.
+for base in (lab,):
+    for current, dirs, files in os.walk(base, followlinks=False):
+        for entry in dirs + files:
+            p = pathlib.Path(current) / entry
+            if p.is_symlink() or (hasattr(p, 'is_junction') and p.is_junction()):
+                reject('symlink/reparse descendant: ' + str(p))
+print('LAB PREFLIGHT: PASS (static paths only; runtime isolation NOT TESTED)')
+PY
+}
+
+lab_run() (
+  cd "$LAB_CWD" || exit 2
+  env -i PATH="$LAB_PATH" HOME="$LAB_ROOT/home" USERPROFILE="$LAB_ROOT/home" \
+    APPDATA="$LAB_ROOT/appdata" LOCALAPPDATA="$LAB_ROOT/localappdata" \
+    TEMP="$LAB_ROOT/temp" TMP="$LAB_ROOT/temp" TMPDIR="$LAB_ROOT/temp" \
+    XDG_CONFIG_HOME="$LAB_ROOT/xdg-config" XDG_CACHE_HOME="$LAB_ROOT/xdg-cache" \
+    XDG_DATA_HOME="$LAB_ROOT/xdg-data" XDG_STATE_HOME="$LAB_ROOT/xdg-state" \
+    npm_config_prefix="$LAB_PREFIX" PI_AGENT_BUILD_NPM_PREFIX="$LAB_PREFIX" \
+    npm_config_cache="$LAB_ROOT/npm-cache" \
+    npm_config_userconfig="$LAB_ROOT/npm-config/user.npmrc" \
+    npm_config_globalconfig="$LAB_ROOT/npm-config/global.npmrc" \
+    UV_CACHE_DIR="$LAB_ROOT/uv-cache" UV_TOOL_DIR="$LAB_ROOT/uv-tools" \
+    UV_TOOL_BIN_DIR="$LAB_ROOT/uv-bin" PI_CODING_AGENT_DIR="$LAB_PROFILE" \
+    PI_CODING_AGENT_SESSION_DIR="$LAB_ROOT/sessions/$LAB_NAME" \
+    PI_SESSION_DIR="$LAB_ROOT/sessions/$LAB_NAME" \
+    PI_SESSION_ARCHIVE_DIR="$LAB_ROOT/sessions-archive/$LAB_NAME" \
+    PI_CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" CBM_CACHE_DIR="$LAB_ROOT/cbm-cache" \
+    PI_MCP_CONFIG_MODE=exclusive PI_INTERCOM_SCOPE_ID="lab-$LAB_NAME" \
+    PI_BUILD_PYTHON="${LAB_PATCH_PYTHON:-$LAB_PYTHON}" "$@"
+)
 
 # --------------------------------------------------------------------------- #
 # memory embedder warm-up
