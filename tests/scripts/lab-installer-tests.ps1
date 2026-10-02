@@ -1,10 +1,13 @@
 [CmdletBinding()]
-param()
+param([Parameter(Mandatory = $true)][string]$FixtureRoot)
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $exe = (Get-Process -Id $PID).Path
-$fixture = Join-Path (Split-Path $repo -Parent) ('pi-lab-installer-' + [guid]::NewGuid().ToString('N'))
+. (Join-Path $repo 'scripts/common.ps1')
+$fixtureParent = Assert-PrivateLabRoot -LabRoot $FixtureRoot -RepoRoot $repo
+Assert-NoLabReparseTree $fixtureParent
+$fixture = Join-Path $fixtureParent ('pi-lab-installer-' + [guid]::NewGuid().ToString('N'))
 $lab = Join-Path $fixture 'lab'
 $bin = Join-Path $fixture 'bin'
 $installer = Join-Path $repo 'scripts\install.ps1'

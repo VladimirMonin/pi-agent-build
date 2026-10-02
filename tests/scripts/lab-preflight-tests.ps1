@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([Parameter(Mandatory = $true)][string]$FixtureRoot)
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -7,8 +7,12 @@ $scriptPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 
 $exe = (Get-Process -Id $PID).Path
 $passed = 0
 $skipped = 0
-# Ephemeral fixture beside the checkout, never under the real user home or repository.
-$fixture = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent | Split-Path -Parent) ('pi-lab-preflight-' + [guid]::NewGuid().ToString('N'))
+# Explicit owned private fixture parent, not the checkout sibling or real user home.
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+. (Join-Path $repo 'scripts/common.ps1')
+$fixtureParent = Assert-PrivateLabRoot -LabRoot $FixtureRoot -RepoRoot $repo
+Assert-NoLabReparseTree $fixtureParent
+$fixture = Join-Path $fixtureParent ('pi-lab-preflight-' + [guid]::NewGuid().ToString('N'))
 
 function Invoke-Preflight {
     param([string[]]$Extra = @())

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private lab stand preparation inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "repoRoot", "labRoot", "expectedPiVersion"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schemaVersion": {"const": 1},
+    "repoRoot": {"type": "string", "pattern": "^(<LAB_WORKTREE>|[A-Za-z]:[\\\\/].+)$"},
+    "labRoot": {"type": "string", "pattern": "^(<LAB_ROOT>|[A-Za-z]:[\\\\/].+)$"},
+    "expectedPiVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+  },
+  "$comment": "Example placeholders are schema-valid templates. The runtime entry point must refuse unfilled placeholders before any preparation. This file does not authorize install or actors."
+}

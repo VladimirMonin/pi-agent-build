@@ -27,7 +27,19 @@ Working baseline и исследовательский кандидат — ра
 
 Применяется scope текущей задачи; документация не требует повторного вопроса там, где владелец уже явно разрешил работу. Но широкое разрешение не делает failed gate successful и не включает неоговорённый paid расход.
 
-Общий preparation entry point пока реализуется: не запускать выдуманный `lab-stand` API. Следовать [паспортному контракту](lab-stand.md) и существующим preflight commands; root/environment setup нельзя заменить host shell inheritance.
+### Filesystem-only PLAN/PREPARE
+
+Создать **новый private machine config** по [sample](../config/lab-stand.example.json), не копируя рабочий config. Заменить placeholders на distinct source/lab roots, выбрать existing safe parent и взять `expectedPiVersion` из текущего runtime manifest. Config/receipts вне Git. Из source checkout:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/lab-stand.ps1 -Config '<PRIVATE_MACHINE_CONFIG>'
+# Только после принятого PLAN и permission:
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/lab-stand.ps1 -Config '<PRIVATE_MACHINE_CONFIG>' -Prepare
+# Повтор PREPARE только для неизменного prepared state: VERIFIED_PREPARED_NO_OP.
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests/scripts/lab-stand-tests.ps1 -FixtureRoot '<PRIVATE_FIXTURE_PARENT>'
+```
+
+PLAN не создаёт lab и не скрывает executable probes. PREPARE создаёт owner-only root/synthetic configs, вызывает existing read-only preflight **в том же PS process**, но ничего не устанавливает и не запускает Pi/native actors. Failed/unknown/nonempty roots не repair/clear. Это preparation approval, не kernel/global proof; последующие provisioning/probes/actor state проходят свои gates. Tests сохраняют owned fixture/raw cases; private parent и TEMP/TMP задаются заранее. Same-machine relocated source/Unicode root проверяют parameterization, не заменяют machine-B replay.
 
 ### Существующая static preflight команда
 
@@ -40,10 +52,10 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/
 Она ничего не создаёт и не устанавливает; PASS относится к входным paths/configs. Negative cases:
 
 ```powershell
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests/scripts/lab-preflight-tests.ps1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests/scripts/lab-preflight-tests.ps1 -FixtureRoot '<PRIVATE_FIXTURE_PARENT>'
 ```
 
-Tests способны создать принадлежащие тесту temporary fixtures; redirect TEMP/TMP и output в private evidence до запуска. Не вводить credentials в synthetic configs.
+Tests получают explicit private parent, не используют checkout sibling; redirect TEMP/TMP и output в private evidence до запуска. Installer fake regressions: `tests/scripts/lab-installer-tests.ps1 -FixtureRoot '<PRIVATE_FIXTURE_PARENT>'`. Это fake driver/source tests, не actual Pi install/runtime. Не вводить credentials в synthetic configs.
 
 ## 3. Exact provisioning и installed-state gate
 

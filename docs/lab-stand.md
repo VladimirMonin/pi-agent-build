@@ -4,7 +4,7 @@
 
 ## Реализовано и запланировано
 
-Уже существуют `scripts/lab-preflight.ps1`, lab-mode installer/verifier и `scripts/lab-state.py` в кандидатном source. Они не являются полноценным portable native runner. Общий preparation entry point, machine config schema и public mock/native fixtures ещё готовятся; не использовать `scripts/lab-stand.ps1` как существующую команду до её появления и проверок. Ранее private sources не являются shipped files.
+Реализованы filesystem-only `scripts/lab-stand.ps1` (PLAN/PREPARE/verified prepared NO-OP), [sample](../config/lab-stand.example.json) и [schema](../config/schemas/lab-stand.schema.json). Focused tests проверяют fresh root, canonical fixture bytes/type/ACL, unsafe ancestors, links, drift, relocated source и unique intercom scope. Существующие `lab-preflight.ps1`, lab-mode installer/verifier и `lab-state.py` сохраняются. **Это не portable native runner**: public native/mock fixtures и actual boundary/SDK gate ещё готовятся; ранее private sources не являются shipped files.
 
 ## Корни и write scopes
 
@@ -68,6 +68,10 @@ Host tools/virtualization features не устанавливаются и не �
 - frozen actor command, source fingerprints и bounded launch scope, если этап запускается.
 
 Публичный sample — placeholders/synthetic values. Заполненный machine config/inventory — private. Не хранить credentials/USERPROFILE/hostname/actual user SID в публичном sample. Wrong version, escaping link, unsafe ACL и mixed installed state не становятся WARN только ради новой машины.
+
+Текущий minimal preparation config содержит `schemaVersion`, `repoRoot`, `labRoot`, `expectedPiVersion` (+optional `$schema`). Expected version должна совпасть с текущим manifest; placeholders runtime отказывается принимать. Входные исходники привязаны к самому вызываемому checkout и hashes. Explicit binary/probe/actor packet — отдельный следующий этап, не hidden действие этого config.
+
+PREPARE создаёт только **новый** owner-only root под уже существующим безопасным parent и минимальные пустые/synthetic directories/configs. Не устанавливает Node/Pi/tools, не применяет process environment и не запускает probes. Успешный prepared NO-OP требует canonical path/type/bytes, DACL/owner, source hashes и root-specific scope; неизвестный DB/auth path отказывается по metadata до чтения/hash. Installed/probed state проходит другой gate — `lab-state`/installer, не repair через PREPARE. Failed partial root сохраняется и отказывается; повтор fresh testing получает новый owned root.
 
 ## Environment contract
 

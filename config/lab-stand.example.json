@@ -1,0 +1,7 @@
+{
+  "$schema": "./schemas/lab-stand.schema.json",
+  "schemaVersion": 1,
+  "repoRoot": "<LAB_WORKTREE>",
+  "labRoot": "<LAB_ROOT>",
+  "expectedPiVersion": "0.99.1"
+}

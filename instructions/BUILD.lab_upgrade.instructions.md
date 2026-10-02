@@ -1,5 +1,5 @@
 ---
-applyTo: "scripts/lab-*,scripts/install.*,scripts/verify.*,tests/lab/**,manifests/**,profiles/**,docs/lab-*.md,docs/pi-upgrade-workflow.md,docs/plans/**"
+applyTo: "scripts/lab-*,scripts/install.*,scripts/verify.*,tests/lab/**,tests/scripts/lab-*,config/lab-*,config/schemas/lab-*,manifests/**,profiles/**,docs/lab-*.md,docs/pi-upgrade-workflow.md,docs/plans/**"
 name: "BUILD.LabUpgrade"
 description: "Читай при обновлении Pi/пакетов, подготовке переносимого стенда, изменении lab environment/fixtures/gates, проверке кандидата или передаче к release: scope, permissions, fail-closed и evidence."
 ---
@@ -31,7 +31,7 @@ description: "Читай при обновлении Pi/пакетов, подг
 
 ## Исполнение и gates
 
-1. Read-only filesystem/config PLAN не включает скрытые executable probes. Пробы выделяются: у них есть write scope, timeout и actual coverage.
+1. Read-only filesystem/config PLAN не включает скрытые executable probes. `lab-stand` preparation config не является actor/provisioning packet; prepared canonical NO-OP и installed-state gate различаются. Tests получают explicit owned private FixtureRoot, не создают runtime-state рядом с checkout. Пробы выделяются: у них есть write scope, timeout и actual coverage.
 2. PREPARE создаёт только новый owned subtree по явному scope. Private provisioning выполняется после preliminary gate и допуска установки.
 3. Source/managed tests сначала; native actors — отдельный bounded frozen packet с разрешённой командой и pre/post fingerprints.
 4. До Pi runtime требуется usable root+descendant runner proof и независимая actual raw приёмка принятой native boundary. Source review/compiler/mock не заменяют этот gate.

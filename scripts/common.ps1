@@ -246,7 +246,11 @@ function Get-LabChildEnvironment {
     $envMap['PI_AGENT_BUILD_NPM_PREFIX'] = $NpmPrefix
     $envMap['PI_MCP_CONFIG_MODE'] = 'exclusive'
     $envMap['PYTHONDONTWRITEBYTECODE'] = '1'
-    $envMap['PI_INTERCOM_SCOPE_ID'] = 'pi-lab-synthetic'
+    $scopePath = [IO.Path]::GetFullPath($LabRoot).TrimEnd([char[]]@('\', '/')).ToUpperInvariant()
+    $scopeHasher = [Security.Cryptography.SHA256]::Create()
+    try { $scopeHash = [BitConverter]::ToString($scopeHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($scopePath))).Replace('-', '').ToLowerInvariant() }
+    finally { $scopeHasher.Dispose() }
+    $envMap['PI_INTERCOM_SCOPE_ID'] = 'pi-lab-' + $scopeHash.Substring(0, 32)
     if ($ProfileName) {
         $envMap['PI_CODING_AGENT_DIR'] = Join-Path (Join-Path $LabRoot 'pi-root') $ProfileName
         $envMap['PI_CODING_AGENT_SESSION_DIR'] = Join-Path (Join-Path $LabRoot 'sessions') $ProfileName
