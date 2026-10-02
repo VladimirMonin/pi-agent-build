@@ -4,7 +4,7 @@
 
 ## Реализовано и запланировано
 
-Реализованы filesystem-only `scripts/lab-stand.ps1` (PLAN/PREPARE/verified prepared NO-OP), [sample](../config/lab-stand.example.json) и [schema](../config/schemas/lab-stand.schema.json). Focused tests проверяют fresh root, canonical fixture bytes/type/ACL, unsafe ancestors, links, drift, relocated source и unique intercom scope. Существующие `lab-preflight.ps1`, lab-mode installer/verifier и `lab-state.py` сохраняются. **Это не portable native runner**: public native/mock fixtures и actual boundary/SDK gate ещё готовятся; ранее private sources не являются shipped files.
+Реализованы filesystem-only `scripts/lab-stand.ps1` (PLAN/PREPARE/verified prepared NO-OP), [sample](../config/lab-stand.example.json) и [schema](../config/schemas/lab-stand.schema.json). Focused tests проверяют fresh root, canonical fixture bytes/type/ACL, unsafe ancestors, links, drift, relocated source и unique intercom scope. Существующие `lab-preflight.ps1`, lab-mode installer/verifier и `lab-state.py` сохраняются. **Это не принятый portable native runner**: public dummy/managed sources доступны в [tests/lab/native](../tests/lab/native/README.md), но actual boundary/SDK gate не пройден. Mock/SDK fixtures ещё готовятся; private originals/receipts не являются shipped files.
 
 ## Корни и write scopes
 

@@ -7,6 +7,7 @@
 - Новая source branch: `lab/pi-1.0.0`, от docs candidate `53112c7`; runtime source исследовательского0.99.1 — `b31ca02`.
 - Working main/runtime baseline: `030adfa` / Pi0.87.0; его profiles/data не изменяются. Разрешён будущий перенос **repository source** в main/tag/GitHub Release, не live-profile switch.
 - Перед первым runtime manifest edit официальный GitHub stable и npm dist-tags повторно сверены: **1.0.0**, draft/prerelease false. Exact target закреплён на цикл; candidate manifest и оба `lastChangelogVersion` теперь **1.0.0**. Private target installation/runtime acceptance ещё NOT TESTED.
+- Fresh exact npm source payloads прошли guarded patch lifecycle: Code5/Task3 contexts, 96 CLI actions — stock/check/apply/check, apply NO-OP, unknown drift и wrong-version refusals, byte-exact restore. Trace `--restore` раньше перезаписывал unknown current files; исправлен отказ и проверка полного backup до первой записи, 8 focused synthetic regressions PASS. Independent source review OK; supplied tests reviewer не повторял. Это не installed Pi 1.0.0/runtime acceptance.
 - Trace остаётся pinned installed package; оба canonical templates теперь используют `extensions: []`, manifest отражает installed-disabled. Windows/POSIX verifier проверяют filters, installer merge regression сохраняет off. Actual loading/off→on→off recipe ещё NOT TESTED, не support claim.
 - Исходные AGENTS/instructions/passport/runbook/evidence docs приняты в initial commit `833d2fe` до runtime edits. Filesystem-only preparation/schema/synthetic config fixtures реализованы; public native dummy/managed fixtures подготовлены в `tests/lab/native/`; mock/SDK и actor gate ещё не приняты.
 - Second-machine/VM replay и usable controlled native runner/actual SDK/env/default acceptance — TODO/BLOCKED по evidence. Native public source исправил номера Win32 enum и 1-byte BOOLEAN encoding class21. Последние bounded actual helpers остановились до actors; последняя причина — non-NULL opaque class22 `SecurityAttributes`, cleanup/preservation PASS в failed packet. Scalar `Flags` теперь сохраняется и сравнивается без ошибочного требования zero; подтверждённого TOKEN/CLAIM ABI для opaque payload пока нет. Native boundary остаётся непринятой.
@@ -30,7 +31,7 @@
 |---|---|
 | Исходная документация до runtime changes | PASS (initial doc changeset; stand execution pending) |
 | Portable stand/actual native boundary | TODO |
-| Exact target manifest/installer/verifier/patches | PARTIAL — exact1.0.0 source pinned; required target runtime/patch compatibility pending |
+| Exact target manifest/installer/verifier/patches | PARTIAL — exact1.0.0 source pinned; guarded source-payload patch lifecycle PASS; required private target installation/runtime compatibility pending |
 | Trace default-off и explicit on/off оба profiles | PARTIAL — source defaults/filters implemented; actual off→on→off pending |
 | Final target sandbox Code/Task tests/no-op | TODO |
 | Final user/agent update docs | TODO |

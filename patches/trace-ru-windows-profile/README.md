@@ -28,9 +28,13 @@ python .\patches\trace-ru-windows-profile\apply.py `
 - `PATCH REQUIRED` и exit `1` — состояние распознано и может быть исправлено;
 - `UNKNOWN STATE` и exit `2` — автоматическая перезапись запрещена.
 
+`--restore` также отказывается перезаписывать неизвестные изменённые файлы. До первой записи проверяются весь backup inventory, допустимые исходные hashes и сохранённый `assets.json`; повреждение позднего entry не приводит к частичному восстановлению.
+
 ## Проверка в Pi
 
-После `/reload`:
+В Code/Task кандидат сохраняет пакет установленным, но выключает его extension loading по умолчанию. Один `/reload` не включает Trace. Следующие команды относятся к **включённому** плагину; actual off→on→off для Pi 1.0.0 ещё проверяется отдельно.
+
+После включения и `/reload`:
 
 ```text
 /trace
@@ -53,6 +57,17 @@ python .\patches\trace-ru-windows-profile\apply.py `
 python .\patches\trace-ru-windows-profile\apply.py `
   --agent-dir "$HOME\.pi\agent" --restore
 ```
+
+## Source regression
+
+На существующем owned private parent вне Git:
+
+```powershell
+python -I -B .\patches\trace-ru-windows-profile\tests\test_restore.py `
+  --fixture-root '<PRIVATE_FIXTURE_PARENT>'
+```
+
+Synthetic tests проверяют exact restore, отказ на unknown current/backup bytes, неправильный inventory/identity и corrupted assets **до первой записи**. Pi/SDK и package builder не запускаются; это не runtime compatibility proof.
 
 ## После обновления
 
