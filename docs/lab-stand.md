@@ -110,6 +110,10 @@ Environment создаётся из allowlist, а не `{...process.env}`. До 
 
 Этот source сейчас имеет только historical partial run и subsequent managed/source query approvals. **Usable root+descendant proof ещё BLOCKED**; перенос source в repo не означает prelaunch approval. Raw PID/token/Job/resource/natural-exit receipt и независимая actual result приёмка обязательны перед Pi runtime. Причина старого descendant DLL_INIT_FAILED/conhost ACCESS_DENIED остаётся UNKNOWN.
 
+### Альтернативная Windows Sandbox capsule
+
+[Public capsule preparation](../tests/lab/windows-sandbox/README.md) создаёт только files/config/approved Node copy на новом prepared stand, не включает host feature и не запускает VM. Это отдельная proposed VM boundary: read-only input, один private writable export, disabled sharing/network XML. Source/filesystem checks PASS не доказывают actual isolation; guest status прямо исключает host cleanup/SDK acceptance. Existing token/USER/DACL security contract не изменён; actual VM proof/independent raw review остаются обязательными.
+
 ## Воспроизведение на другой машине
 
 1. Получить принятый source ref, public docs/fixtures и prerequisites; не копировать personal/private state.
