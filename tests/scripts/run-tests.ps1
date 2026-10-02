@@ -467,6 +467,10 @@ try {
         $background = @($installedSettings.packages | Where-Object { $_ -isnot [string] -and $_.source -match 'pi-background-tasks' })
         Assert-Equal 1 $background.Count 'background-tasks filter missing after merge'
         Assert-Equal 0 @($background[0].extensions).Count 'background-tasks was not kept disabled'
+        $trace = @($installedSettings.packages | Where-Object { $_ -isnot [string] -and $_.source -eq 'npm:pi-trace-extension@0.1.16' })
+        Assert-Equal 1 $trace.Count 'Trace exact pinned package/filter missing after merge'
+        Assert-True ($trace[0].PSObject.Properties.Name -contains 'extensions') 'Trace default-off filter missing'
+        Assert-Equal 0 @($trace[0].extensions).Count 'Trace was enabled by installer merge'
         $installedModels = Get-Content -LiteralPath $existingModels -Raw | ConvertFrom-Json
         Assert-Equal 'keep-me' ([string]$installedModels.providers.'local-test'.name) 'existing model provider was not preserved'
         Assert-True ($null -ne $installedModels.providers.'polza-memory') 'polza-memory provider was not merged'
@@ -851,6 +855,39 @@ try {
         Assert-True ($badBrave.ExitCode -ne 0) 'wrong Brave npm metadata version was not rejected'
         Assert-True ($badBrave.Output -match 'brave-search-mcp-server expected 2\.0\.85') 'Brave version failure was not reported'
         Assert-True (-not (Test-Path -LiteralPath $braveMarker)) 'Brave server was started by a failing probe'
+    }
+
+    Test-Case 'Trace remains installed but canonical Code and Task filters reject opt-in drift' {
+        function Read-JsonFile { param([string]$Path) return ([IO.File]::ReadAllText($Path) | ConvertFrom-Json) }
+        $root = New-TestRoot
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\verify.ps1'), [ref]$tokens, [ref]$errors)
+        $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Compare-ProfileTemplate' }, $true).Extent.Text
+        $manifest = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')
+        $version = [string](Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')).runtime.pi.version
+        foreach ($profile in @('Code','Task')) {
+            foreach ($state in @('canonical','enabled','missing-filter','string')) {
+                $settings = Read-JsonFile (Join-Path $RepoRoot "profiles\$($profile.ToLowerInvariant())\settings.template.json")
+                $index = 0; while ($index -lt $settings.packages.Count -and ($settings.packages[$index] -is [string] -or [string]$settings.packages[$index].source -ne 'npm:pi-trace-extension@0.1.16')) { $index++ }
+                Assert-True ($index -lt $settings.packages.Count) 'Installed Trace package missing'
+                if ($state -eq 'enabled') { $settings.packages[$index].extensions = @('extensions/trace') }
+                if ($state -eq 'missing-filter') { $settings.packages[$index].PSObject.Properties.Remove('extensions') }
+                if ($state -eq 'string') { $settings.packages[$index] = [string]$settings.packages[$index].source }
+                $file = Join-Path $root "$profile-$state.json"
+                [IO.File]::WriteAllText($file, ($settings | ConvertTo-Json -Depth 100))
+                $rejected = $false
+                try {
+                    & {
+                        function Pass { param($Message) }
+                        function Fail { param($Message) throw $Message }
+                        function Get-EntrySource { param($Item) if ($Item -is [string]) { return $Item }; return [string]$Item.source }
+                        . ([scriptblock]::Create($definition))
+                        Compare-ProfileTemplate $profile $file $manifest $version
+                    }
+                } catch { $rejected = $true }
+                Assert-Equal ($state -ne 'canonical') $rejected "$profile/$state Trace filter decision wrong"
+            }
+        }
     }
 
     Test-Case 'repository-only verification performs no profile writes' {

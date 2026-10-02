@@ -39,7 +39,10 @@ lab="$(dirname "$prefix")"
 [ -z "${POLZA_API_KEY:-}" ] && [ -z "${NODE_OPTIONS:-}" ] || exit 94
 [ "${PYTHONDONTWRITEBYTECODE:-}" = 1 ] || exit 99
 mkdir -p "$prefix/lib/node_modules/@earendil-works/pi-coding-agent" "$prefix/bin"
-printf '%s\n' '{"version":"0.99.1"}' > "$prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json"
+if [[ "$*" == *'@earendil-works/pi-coding-agent@'* ]]; then
+  spec="${@: -1}"
+  printf '{"version":"%s"}\n' "${spec##*@}" > "$prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json"
+fi
 cp "$(dirname "$lab")/fake-pi" "$prefix/bin/pi"
 chmod +x "$prefix/bin/pi"
 SH

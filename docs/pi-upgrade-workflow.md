@@ -84,7 +84,7 @@ PLAN installed gate может запускать private executable/MCP probes 
 
 **Целевая политика нового выпуска:** ровно Code и Task. `pi-trace-extension` сохраняется установленным, но default extension inactive в обоих. Это не третий «trace» режим и не отключение обязательных диагностических receipts стенда.
 
-**Текущее implementation status:** изменение templates/installer и actual on/off recipes ещё не проверены; canonical исследовательский baseline пока загружает Trace. Не применять предполагаемый recipe к working profiles. Final docs обязаны заменить этот pending note проверенными командами после соответствующего task.
+**Текущее implementation status:** candidate Code/Task templates содержат pinned Trace в object form с `extensions: []`; пакет и patch не удалены. Manifest и оба verifier согласованы с default-off; synthetic installer merge сохраняет filter. Это source configuration, а не actual startup proof. Runtime off→on→off и user recipe ещё требуют accepted native boundary; не применять непроверенный recipe к working profiles. Final docs обязаны заменить этот pending note проверенными командами после соответствующего task.
 
 Required tests на synthetic profiles:
 

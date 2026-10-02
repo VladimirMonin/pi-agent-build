@@ -58,6 +58,16 @@ function Compare-ProfileTemplate {
     if (($expected -join "`n") -ne ($actual -join "`n")) {
         Fail "$ProfileName template package list differs from pi-packages.lock.json"
     } else { Pass "$ProfileName template package list and exact versions" }
+    foreach ($entry in $expectedEntries) {
+        if ($entry.PSObject.Properties.Name -notcontains 'enabledExtensions') { continue }
+        $selected = @($settings.packages | Where-Object { (Get-EntrySource $_) -eq [string]$entry.source })
+        if ($selected.Count -ne 1 -or $selected[0] -is [string] -or
+            $selected[0].PSObject.Properties.Name -notcontains 'extensions' -or
+            ($selected[0].extensions -isnot [array]) -or
+            (@($selected[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
+            Fail "$ProfileName $($entry.package) extension filter differs from manifest"
+        } else { Pass "$ProfileName $($entry.package) canonical extension filter" }
+    }
     $goal = @($expectedEntries | Where-Object { $_.package -eq 'pi-goal-x' })
     $intercom = @($expectedEntries | Where-Object { $_.package -eq 'pi-intercom' })
     if ($goal.Count -ne 1 -or $intercom.Count -ne 1 -or
@@ -257,6 +267,15 @@ function Test-InstalledProfile {
     else { Fail "$($Selected.Name) installed package sources differ from pinned manifest; run install.ps1 -Apply -SyncSettingsOnly" }
     foreach ($entry in $entries) {
         $source = [string]$entry.source
+        if ($entry.PSObject.Properties.Name -contains 'enabledExtensions') {
+            $selectedEntry = @($packageItems | Where-Object { (Get-EntrySource $_) -eq $source })
+            if ($selectedEntry.Count -ne 1 -or $selectedEntry[0] -is [string] -or
+                $selectedEntry[0].PSObject.Properties.Name -notcontains 'extensions' -or
+                $selectedEntry[0].extensions -isnot [array] -or
+                (@($selectedEntry[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
+                Fail "$($Selected.Name) $($entry.package) installed extension filter differs from manifest"
+            } else { Pass "$($Selected.Name) $($entry.package) installed extension filter" }
+        }
         if ($source.StartsWith('npm:')) {
             $relative = ([string]$entry.package).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
             $packageJson = Join-Path (Join-Path (Join-Path $profileRoot 'npm\node_modules') $relative) 'package.json'

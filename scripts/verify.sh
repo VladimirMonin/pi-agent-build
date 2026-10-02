@@ -165,6 +165,12 @@ def src(item):
 actual = [src(i) for i in settings.get("packages", [])]
 if expected != actual:
     problems.append(f"{profile} template package list differs from pi-packages.lock.json")
+for entry in entries:
+    if "enabledExtensions" not in entry:
+        continue
+    selected = [item for item in settings.get("packages", []) if src(item) == entry["source"]]
+    if len(selected) != 1 or not isinstance(selected[0], dict) or not isinstance(selected[0].get("extensions"), list) or selected[0]["extensions"] != entry["enabledExtensions"]:
+        problems.append(f"{profile} {entry['package']} extension filter differs from manifest")
 names = [e["package"] for e in entries]
 if names.count("pi-goal-x") != 1 or names.count("pi-intercom") != 1 or names.index("pi-goal-x") >= names.index("pi-intercom"):
     problems.append(f"{profile} manifest must load pi-goal-x before pi-intercom")
@@ -344,10 +350,17 @@ with open(sys.argv[2], encoding="utf-8") as fh:
 entries = manifest["profiles"]["common"] + (manifest["profiles"].get("codeOnly", []) if sys.argv[3] == "Code" else [])
 expected = [e["source"] for e in entries]
 actual = [item if isinstance(item, str) else item.get("source", "") for item in settings.get("packages", [])]
-sys.exit(0 if actual[:len(expected)] == expected else 1)
+filters_match = True
+for entry in entries:
+    if "enabledExtensions" not in entry:
+        continue
+    selected = [item for item in settings.get("packages", []) if (item if isinstance(item, str) else item.get("source", "")) == entry["source"]]
+    if len(selected) != 1 or not isinstance(selected[0], dict) or selected[0].get("extensions") != entry["enabledExtensions"]:
+        filters_match = False
+sys.exit(0 if actual[:len(expected)] == expected and filters_match else 1)
 PY
       then pass "$name installed package sources pinned in manifest order"
-      else fail "$name installed package sources differ from pinned manifest; run install.sh --apply --sync-settings-only"; fi
+      else fail "$name installed package sources/extension filters differ from pinned manifest; run install.sh --apply --sync-settings-only"; fi
     else fail "$name settings JSON invalid"; fi
   fi
   while IFS="$IFS_US" read -r source pkg ver _patch _taskpatch kind commit _tag releaseTag; do

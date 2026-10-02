@@ -3,5 +3,5 @@
   "schemaVersion": 1,
   "repoRoot": "<LAB_WORKTREE>",
   "labRoot": "<LAB_ROOT>",
-  "expectedPiVersion": "0.99.1"
+  "expectedPiVersion": "1.0.0"
 }

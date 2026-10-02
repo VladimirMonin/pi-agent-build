@@ -6,10 +6,10 @@
 
 - Новая source branch: `lab/pi-1.0.0`, от docs candidate `53112c7`; runtime source исследовательского0.99.1 — `b31ca02`.
 - Working main/runtime baseline: `030adfa` / Pi0.87.0; его profiles/data не изменяются. Разрешён будущий перенос **repository source** в main/tag/GitHub Release, не live-profile switch.
-- При подтверждении проекта официальный release/npm latest stable — **1.0.0**. Перед первым runtime manifest change повторно сверить и однократно закрепить exact target. Сейчас manifest всё ещё **0.99.1**.
-- Trace policy для нового выпуска: installed but default disabled в Code **и** Task, с tested opt-in/off recipe; текущие0.99.1 templates ещё загружают Trace. Реализация/recipes — TODO, не support claim.
-- Исходные AGENTS/instructions/passport/runbook/evidence docs приняты в initial commit `833d2fe` до runtime edits. Filesystem-only preparation/schema/synthetic config fixtures реализованы; public native/mock fixtures и actor gate ещё не готовы.
-- Second-machine/VM replay и usable controlled native runner/actual SDK/env/default acceptance — TODO/BLOCKED по evidence. Source class20/21 fixes approved только managed/source; новой actor проверки ещё нет.
+- Перед первым runtime manifest edit официальный GitHub stable и npm dist-tags повторно сверены: **1.0.0**, draft/prerelease false. Exact target закреплён на цикл; candidate manifest и оба `lastChangelogVersion` теперь **1.0.0**. Private target installation/runtime acceptance ещё NOT TESTED.
+- Trace остаётся pinned installed package; оба canonical templates теперь используют `extensions: []`, manifest отражает installed-disabled. Windows/POSIX verifier проверяют filters, installer merge regression сохраняет off. Actual loading/off→on→off recipe ещё NOT TESTED, не support claim.
+- Исходные AGENTS/instructions/passport/runbook/evidence docs приняты в initial commit `833d2fe` до runtime edits. Filesystem-only preparation/schema/synthetic config fixtures реализованы; public native dummy/managed fixtures подготовлены в `tests/lab/native/`; mock/SDK и actor gate ещё не приняты.
+- Second-machine/VM replay и usable controlled native runner/actual SDK/env/default acceptance — TODO/BLOCKED по evidence. Native public source исправил номера Win32 enum и 1-byte BOOLEAN encoding class21. Последние bounded actual helpers остановились до actors; последняя причина — reserved access-information field, cleanup/preservation PASS в failed packet. Native boundary остаётся непринятой.
 - Historical0.99.1 incidents/partial approvals остаются в [исторической доске](pi-0.99.1-execution-board.md); новая goal/release не переименовывает их в PASS.
 
 ## Progress D0–D6
@@ -19,7 +19,7 @@
 | D0 inventory | PASS (source inventory only) | `docs-initial-v1`: source ref + selected private source bytes/hashes, disposition и gaps; personal runtime data не читались, actors0 |
 | D1 инструкции/AGENTS | PASS (initial docs) | AGENTS каталог6, BUILD.LabUpgrade и related rules; `docs-initial-v1`:15Markdown/121targets/1anchor/errors0, frontmatter/catalog0 errors, safetyBoth/no findings; начальный doc changeset |
 | D2 паспорт/runbook/evidence | PASS (initial docs) | Документы/current/proposed APIs разделены; repository-only verifier0failures/0warnings, diffcheck0/manual doc review; runtime actors0. Initial commit не означает stand/runtime acceptance |
-| D3 executable preparation/fixtures | PARTIAL (preparation PASS) | `lab-stand.ps1`/schema/sample; `stand-tests-v1`:44 focused checks, source relocation/root Unicode, exact prepared NO-OP, metadata-before-DB refusal, owner/ACL/ancestor/reparse/source drift. Composed Windows23/23, installer fake15/15, preflight15/15; public native/mock source promotion ещё TODO |
+| D3 executable preparation/fixtures | PARTIAL (preparation PASS) | `lab-stand.ps1`/schema/sample; `stand-tests-v1`:44 focused checks, source relocation/root Unicode, exact prepared NO-OP, metadata-before-DB refusal, owner/ACL/ancestor/reparse/source drift. Composed Windows23/23, installer fake15/15, preflight15/15; public native source/managed fixtures подготовлены; actual native/SDK acceptance не получена |
 | D4 машина B | NOT TESTED | Найти независимое Windows окружение/VM, replay по repo/docs; alternate root на этой машине недостаточен |
 | D5 controlled native/runtime | BLOCKED (gate, не lifecycle цели) | Новый bounded frozen attempt/raw review и actual baseline SDK/env/default acceptance в разрешённом scope |
 | D6 final readiness/handoff | TODO | Final composed/doc checks, truthful readiness и старт target migration |
@@ -30,8 +30,8 @@
 |---|---|
 | Исходная документация до runtime changes | PASS (initial doc changeset; stand execution pending) |
 | Portable stand/actual native boundary | TODO |
-| Exact target manifest/installer/verifier/patches | TODO |
-| Trace default-off и explicit on/off оба profiles | TODO |
+| Exact target manifest/installer/verifier/patches | PARTIAL — exact1.0.0 source pinned; required target runtime/patch compatibility pending |
+| Trace default-off и explicit on/off оба profiles | PARTIAL — source defaults/filters implemented; actual off→on→off pending |
 | Final target sandbox Code/Task tests/no-op | TODO |
 | Final user/agent update docs | TODO |
 | WVM LAST и release scope acceptance | TODO |
@@ -61,7 +61,7 @@
 
 - Машина B ещё не выбрана/проверена. `stand-capabilities-v1`: Windows x64, hypervisor present, vmcompute/hns running; Windows Sandbox feature **Disabled**. WSL и PATH discovery не Windows-VM/replay proof; host feature не включался автоматически.
 - Restricted token/MIC/Job не гарантируют network/read-secret/full-global isolation. Scope каждого accepted mechanism явный.
-- Последний actual0.99.1 helper остановился перед actor launch; после query fixes native actor не запускался. Old raw-review timeout не заменён новым source approval.
+- Последний actual0.99.1 helper остановился перед actor launch; новые public-helper попытки после query fixes также не дошли до root/descendant actors. Old raw-review timeout и новые prelaunch source approvals не заменяют actual native acceptance.
 - Controlled default acceptance prepared, не испытан. Old lifecycle/mock receipts не закрывают новый SDK/native requirement.
 - Parent WVM gateway/public schema PASS — historical availability; candidate legacy SSE и streamable HTTP каждый NOT TESTED. Новый WVM LAST относится к финальному technical slice migration, не к этому doc commit.
 - Native Linux/macOS и paid providers NOT TESTED; прежние24/35/Windows-count receipts не становятся freshly rerun здесь.
