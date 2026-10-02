@@ -866,11 +866,12 @@ try {
         $manifest = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')
         $version = [string](Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')).runtime.pi.version
         foreach ($profile in @('Code','Task')) {
-            foreach ($state in @('canonical','enabled','missing-filter','string')) {
+            foreach ($state in @('canonical','enabled','empty-item','missing-filter','string')) {
                 $settings = Read-JsonFile (Join-Path $RepoRoot "profiles\$($profile.ToLowerInvariant())\settings.template.json")
                 $index = 0; while ($index -lt $settings.packages.Count -and ($settings.packages[$index] -is [string] -or [string]$settings.packages[$index].source -ne 'npm:pi-trace-extension@0.1.16')) { $index++ }
                 Assert-True ($index -lt $settings.packages.Count) 'Installed Trace package missing'
                 if ($state -eq 'enabled') { $settings.packages[$index].extensions = @('extensions/trace') }
+                if ($state -eq 'empty-item') { $settings.packages[$index].extensions = @('') }
                 if ($state -eq 'missing-filter') { $settings.packages[$index].PSObject.Properties.Remove('extensions') }
                 if ($state -eq 'string') { $settings.packages[$index] = [string]$settings.packages[$index].source }
                 $file = Join-Path $root "$profile-$state.json"

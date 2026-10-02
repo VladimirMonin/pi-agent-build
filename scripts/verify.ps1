@@ -64,6 +64,7 @@ function Compare-ProfileTemplate {
         if ($selected.Count -ne 1 -or $selected[0] -is [string] -or
             $selected[0].PSObject.Properties.Name -notcontains 'extensions' -or
             ($selected[0].extensions -isnot [array]) -or
+            @($selected[0].extensions).Count -ne @($entry.enabledExtensions).Count -or
             (@($selected[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
             Fail "$ProfileName $($entry.package) extension filter differs from manifest"
         } else { Pass "$ProfileName $($entry.package) canonical extension filter" }
@@ -272,6 +273,7 @@ function Test-InstalledProfile {
             if ($selectedEntry.Count -ne 1 -or $selectedEntry[0] -is [string] -or
                 $selectedEntry[0].PSObject.Properties.Name -notcontains 'extensions' -or
                 $selectedEntry[0].extensions -isnot [array] -or
+                @($selectedEntry[0].extensions).Count -ne @($entry.enabledExtensions).Count -or
                 (@($selectedEntry[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
                 Fail "$($Selected.Name) $($entry.package) installed extension filter differs from manifest"
             } else { Pass "$($Selected.Name) $($entry.package) installed extension filter" }

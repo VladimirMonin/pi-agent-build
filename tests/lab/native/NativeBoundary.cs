@@ -264,7 +264,10 @@ public static class NativeBoundary {
     static string AccessIdentity(IntPtr p,uint bytes) {
         if(IntPtr.Size!=8||bytes<(uint)Marshal.SizeOf(typeof(TOKEN_ACCESS_INFORMATION)))throw new InvalidOperationException("Unsupported token access information layout");
         TOKEN_ACCESS_INFORMATION x=(TOKEN_ACCESS_INFORMATION)Marshal.PtrToStructure(p,typeof(TOKEN_ACCESS_INFORMATION));
-        if(x.Flags!=0||x.SecurityAttributes!=IntPtr.Zero)throw new InvalidOperationException("Reserved token access information fields not supported");
+        // Reserved scalar Flags has no documented zero-value requirement. Preserve every bit
+        // in the identity below; do not interpret it or change token rights. Unknown pointer
+        // structure is different: refuse it before dereferencing or mutating the NEW token.
+        if(x.SecurityAttributes!=IntPtr.Zero)throw new InvalidOperationException("Unsupported non-NULL token access SecurityAttributes structure");
         if(x.PackageSid!=IntPtr.Zero)SidRange(p,bytes,x.PackageSid);if(x.TrustLevelSid!=IntPtr.Zero)SidRange(p,bytes,x.TrustLevelSid);
         return string.Join(";",new[]{SidHashIdentity(p,bytes,x.SidHash),SidHashIdentity(p,bytes,x.RestrictedSidHash),PrivilegeIdentity(p,bytes,x.Privileges),unchecked((ulong)x.AuthenticationId).ToString("X16"),x.TokenType.ToString(),x.ImpersonationLevel.ToString(),x.MandatoryPolicy.ToString("X8"),x.Flags.ToString("X8"),x.AppContainerNumber.ToString(),x.PackageSid==IntPtr.Zero?"NULL":SidText(x.PackageSid),SidHashIdentity(p,bytes,x.CapabilitiesHash),x.TrustLevelSid==IntPtr.Zero?"NULL":SidText(x.TrustLevelSid),"SecurityAttributes=NULL"});
     }

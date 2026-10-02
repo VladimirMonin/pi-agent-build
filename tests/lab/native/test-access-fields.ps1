@@ -87,8 +87,12 @@ try{
     }
     $c=Case 'TOKEN_SOURCE tail LUID change detected' @{TestSourceTail=[long]1001} $true
     if($a['Class7']-eq $c['Class7']){throw 'Only first source DWORD compared'}
-    $null=Case 'reserved flags refused' @{TestFlags=[uint32]1} $false
+    $flags=Case 'opaque scalar flags accepted and change detected' @{TestFlags=[uint32]1} $true
+    if($a['Class22']-eq $flags['Class22']){throw 'Scalar Flags change undetected'}
+    $sameFlags=Case 'same opaque scalar flags preserve semantic identity' @{TestFlags=[uint32]1} $true
+    if($flags['Class22']-ne $sameFlags['Class22']){throw 'Same scalar Flags identity changed'}
     $null=Case 'opaque reserved security attributes refused' @{TestOpaque=$true} $false
+    $null=Case 'nonzero flags never bypass unknown security attributes refusal' @{TestFlags=[uint32]1;TestOpaque=$true} $false
     $null=Case 'truncated access-information buffer refused' @{TestAccessLength=[uint32]87} $false
     $null=Case 'invalid TOKEN_SOURCE length refused' @{TestSourceLength=[uint32]17} $false
     $null=Case 'out-of-buffer hash pointer refused before dereference' @{TestBadHashPointer=$true} $false

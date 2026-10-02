@@ -14,6 +14,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests/la
 
 Каждый запуск создаёт новый retained child fixture; compiler temp/env и DLLs остаются там. Query suite компилирует полный source без вызова boundary. Unit copies заменяют Win32 declarations throwing guards/stubs; это actual managed consumer tests, **native token queries/actors — 0**. Проверяются DWORD20, ownership/semantic identity19/default18, full TOKEN_SOURCE7, x64 access-information22 members, DWORD scalar Type8/Virtualization23,24 и HasRestrictions21 (observed BOOLEAN1 или documented DWORD4, только0/1), nested buffer ranges, unknown/reserved/length refusals и cleanup errors. Исторический null-sizing algorithm реконструирован только для regression, не поставляется второй устаревший runner.
 
+**Текущий runtime status:** actual helpers ещё не достигли usable root/descendant proof. Последний отказ до DACL setter/actor launch — non-NULL class22 `SecurityAttributes`, объявленный SDK как opaque `PVOID`. Scalar `Flags` сохраняется и сравнивается целиком; opaque pointer не разыменовывается и не подменяется предположением о TOKEN/CLAIM layout. Нужна подтверждённая ABI/semantic coverage, не bypass этого отказа.
+
 ## Actual native attempt — отдельный допуск
 
 `run.ps1` исполняемый actor entrypoint, не PLAN и не автоматически запускаемый test. Перед ним обязательны source review и принятый **один bounded frozen packet**: command/binary identities, source/config fingerprints, owned outputs/resources, timeout, preservation и cleanup oracle. Не запускать по одному этому README.
