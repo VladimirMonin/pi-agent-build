@@ -86,6 +86,12 @@ Safety scan должен:
 
 Если секрет уже опубликован, считай его скомпрометированным независимо от скорости удаления.
 
+## Перенос лабораторных sources и evidence
+
+Безопасные harness sources/validators/synthetic fixtures можно сделать сопровождаемыми repository tests после проверки происхождения/лицензий и удаления machine binding. Не переносить вместе с ними реальные configs/env dumps, DB/sessions/trace outputs, compiled artifacts или raw host receipts. Рабочий secret-bearing config нельзя копировать и чистить даже под названием fixture: новый sample создаётся по allowlist.
+
+Фиксировать measured scope/provenance: public board содержит безопасные IDs и limitations, raw packet — вне Git. Не печатать credentials ради hash/probe диагностики; personal DB/WAL/auth contents не читать как часть lab проверки. Архив исходников release не должен случайно включить private runtime-state. Стенд на другой машине получает repo/source и synthetic state, не копию домашней папки.
+
 ## Runtime backup — отдельный канал
 
 Пользовательская память, сессии и auth могут переноситься только отдельным зашифрованным архивом вне Git. Этот репозиторий может содержать инструкцию и backup script с allowlist, но не сам архив и не пароль.

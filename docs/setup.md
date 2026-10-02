@@ -1,8 +1,12 @@
 # Установка сборки
 
-Сборка рассчитана на Windows x64 и POSIX (macOS/Linux) и повторяет закреплённые **верхнеуровневые** версии Pi `0.87.0`, двух профилей и компонентов из `manifests/*.lock.json`. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Состав задают текущие `manifests/*.lock.json`: в исследовательском candidate source сейчас Pi `0.99.1`, working baseline — `0.87.0`. Следующий target ещё не установлен. Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
+
+> Для обновления кандидата используйте [паспорт стенда](lab-stand.md) и [lab upgrade runbook](pi-upgrade-workflow.md), не global manual commands ниже. Read-only PLAN, private executable probes, PREPARE, install и runtime gate — разные действия. Этот документ не разрешает изменять рабочие Code/Task.
+>
+> Ручные примеры с Pi0.87.0 ниже сохранены как working-baseline procedure, не команда поставить новый target. Целевая политика следующего выпуска — Trace установлен/default-off в обоих профилях; проверенные opt-in/off recipes ещё готовятся и отражаются в workflow/board.
 
 ## До установки
 
@@ -61,7 +65,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 
 После этого всё равно нужны локальные provider configs, `/login` и проверки из разделов 5 и 8. Далее приведён ручной эквивалент, полезный для аудита и точечного восстановления.
 
-## 1. Pi Agent
+## 1. Pi Agent — исторический working baseline, не lab upgrade
+
+Следующий block явно относится к0.87.0. Для кандидата exact version берётся из manifest и устанавливается только private lab-mode installer после gates.
 
 ```bash
 npm install -g --no-audit --no-fund npm@11.11.0

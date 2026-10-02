@@ -2,6 +2,10 @@
 
 Этот репозиторий повторяет закреплённые top-level versions и конфигурационную схему, но не обещает byte-identical dependency tree без transitive locks. Он намеренно не хранит secrets, память, сессии, traces и индексы. Runtime-state переносится отдельным зашифрованным каналом вне Git.
 
+## Стенд не является переносом пользовательского состояния
+
+[Лабораторный паспорт](lab-stand.md) и [upgrade workflow](pi-upgrade-workflow.md) создают новую synthetic среду. Машина B получает repository source/fixtures и private dependency provisioning, **не** old profiles, memory, auth, sessions или stale locks. Runtime migration/backups ниже выполняются только при отдельном разрешённом working-profile switch; release репозитория его не выполняет.
+
 ## Классификация
 
 | Категория | Примеры | Перенос |

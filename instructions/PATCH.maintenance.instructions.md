@@ -39,7 +39,9 @@ description: "Читай при создании, обновлении, прим
 5. Только затем обновить patch, hashes, README, manifest и тесты.
 6. Применить к нужным профилям и проверить runtime.
 
-Нельзя расширять version guard по предположению «скорее всего совместимо».
+Нельзя расширять version guard по предположению «скорее всего совместимо». Если upstream уже исправил дефект, подтвердить это reproduction/contract test и явно изменить нужность patch, а не оставить marker-based обход.
+
+Reuse предыдущих checks допустим только при unchanged существенных source/fixture/dependency/API/platform inputs; changed installed bundle проходит fresh checks. Source review/компиляция не дают runtime approval. Promotion private helper в public tests сохраняет настоящие ownership/error/cleanup assertions и не переносит compiled DLL/raw receipts. Общий [lab workflow](BUILD.lab_upgrade.instructions.md) определяет допуск исполнения.
 
 ## Приёмка
 

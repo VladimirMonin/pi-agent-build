@@ -1,5 +1,7 @@
 # Изоляция лаборатории Pi 0.99.1
 
+Этот документ сохраняет version-specific процедуру/историю0.99.1. Общий контракт следующего стенда: [паспорт](lab-stand.md), [runbook](pi-upgrade-workflow.md), [evidence](lab-evidence.md), [current readiness](plans/lab-readiness-board.md). Ниже fixed baseline refs/counts — не вечные значения для новой машины/версии. Subsequent source-only native query fixes не означают accepted runner: current gate указан в board.
+
 Это инструкция для **кандидата**, не команда обновить рабочий Pi. Исполняемые Code/Task, глобальный npm, настоящие ключи и `~/.pi/memory/memory.db` должны оставаться вне лаборатории. Подробные этапы и стоп-условия: [план](plans/pi-0.99.1-lab.md), текущие результаты: [доска](plans/pi-0.99.1-execution-board.md).
 
 ## Перед любой установкой

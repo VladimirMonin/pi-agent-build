@@ -4,7 +4,7 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Статус: **Pi 0.99.1 candidate**, не release GO и не обновление рабочих профилей. Windows private/mock проверки ограничены [матрицей совместимости](docs/plans/pi-0.99.1-compat-matrix.md); модельные ответы/платные провайдеры и native Linux/macOS не подтверждены. Последний WVM parent gateway после source-only query corrections/review: connect33tools и public schema version1 PASS; прежние `fetch failed` сохранены как история, не candidate transport proof. Обе отдельные candidate SSE/HTTP-конфигурации NOT TESTED. **Полный release / перенос рабочих профилей — NO-GO**, публикация ветки кандидата разрешена отдельно. `pi-mcp-adapter` сохранён. До первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
+> Статус: **Pi 0.99.1 candidate**, не release GO и не обновление рабочих профилей. Windows private/mock проверки ограничены [матрицей совместимости](docs/plans/pi-0.99.1-compat-matrix.md); модельные ответы/платные провайдеры и native Linux/macOS не подтверждены. Последний WVM parent gateway после source-only query corrections/review: connect33tools и public schema version1 PASS; прежние `fetch failed` сохранены как история, не candidate transport proof. Обе отдельные candidate SSE/HTTP-конфигурации NOT TESTED. **Полный release / перенос рабочих профилей — NO-GO**, публикация ветки кандидата разрешена отдельно. `pi-mcp-adapter` сохранён. До первого release tag интерфейсы install/verify и состав manifests могут меняться. В ветке следующего кандидата создан [AGENTS.md](AGENTS.md) — каталог постоянных правил; статус стенда/target implementation отражён в [readiness board](docs/plans/lab-readiness-board.md).
 
 ## Граница повторяемости
 
@@ -71,6 +71,7 @@ instructions/       постоянные правила сопровождени
 
 ## Начало работы
 
+- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют документацию от ещё не принятого portable/native runtime. Цель нового выпуска — exact stable Pi и Trace default-off в обоих профилях; это ещё не выполненная миграция.
 - Установка и точные prerequisites: [`docs/setup.md`](docs/setup.md)
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
@@ -80,7 +81,7 @@ instructions/       постоянные правила сопровождени
 
 ## Документация для агентов
 
-Корневой `AGENTS.md` находится в статусе **pending** и не входит в текущий release surface. Пока используйте [`instructions/BUILD.master.instructions.md`](instructions/BUILD.master.instructions.md) и тематические файлы из `instructions/`; не утверждайте, что каталог уже агрегирован в `AGENTS.md`.
+[`AGENTS.md`](AGENTS.md) — короткий вход и полный каталог инструкций. При upgrade читайте [`BUILD.LabUpgrade`](instructions/BUILD.lab_upgrade.instructions.md), паспорт/runbook/evidence docs и текущий readiness board. Не переносите временные machine paths, модели reviewer или run history в постоянные правила; документы не выдают permission сами по себе. Проверенные команды Trace opt-in/off появятся после соответствующего runtime task — сейчас это pending implementation, не готовый recipe.
 
 ## Лицензирование
 

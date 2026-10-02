@@ -1,6 +1,6 @@
 # Платформы: Windows x64 и POSIX (macOS/Linux)
 
-Сборка описывает один и тот же состав Pi Agent для двух семейств платформ. Различаются только способ запуска скриптов, пути npm-префикса и несколько Windows-специфичных исправлений.
+Состав/templates предусмотрены для двух семейств платформ, но это не доказательство одинаковой native функциональности. Current accepted scope — Windows bounded private/mock checks; native Linux/macOS пока NOT TESTED. Git Bash syntax/fakes не заменяют запуск на POSIX. Переносимость лаборатории на другую Windows машину проверяется по [паспорту](lab-stand.md) и [readiness board](plans/lab-readiness-board.md), отдельно от layout portability.
 
 ## Матрица поддержки
 
@@ -40,7 +40,7 @@ POSIX-набор повторяет PowerShell-набор по контракт�
 | `verify.ps1` | `verify.sh` | проверка репозитория и профилей |
 | `safety-check.ps1` | `safety-check.sh` | публичный safety scan |
 
-Оба набора читают одни manifests и вызывают одни patchers, поэтому состояние установки совместимо между платформами.
+Оба набора читают одни manifests и вызывают общие patchers. Это обеспечивает единый декларативный контракт, но actual install/runtime compatibility каждой платформы требует её собственного native evidence.
 
 ### Runtime-версии
 
@@ -58,7 +58,7 @@ Windows-лаунчеры вызывают `<prefix>\pi.cmd`. POSIX-лаунче�
 
 ## POSIX-установка
 
-Полная процедура — в [setup.md](setup.md#posix-macoslinux). Кратко:
+Общие принципы — в [setup.md](setup.md); ниже предусмотренный POSIX layout/commands, не свидетельство выполненного native прогона. Кратко:
 
 ```bash
 # prerequisites
