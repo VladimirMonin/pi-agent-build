@@ -28,6 +28,10 @@
 
 Windows Sandbox feature enable требует отдельного owner permission; скрипты её автоматически не включают, не меняют ACL/settings и не перезагружают host. Если capability отсутствует, actual этап не запускается.
 
+## Offline core material для следующего этапа
+
+[Source/cache recipe](OFFLINE-CORE.md): published exact lock, official archive identities, private cache и npm bootstrap без установки/запуска Pi. Текущий bundle подготовлен, но offline guest installation и provisioning entry point ещё не приняты; dummy capsule не расширяется до actual boundary/raw review.
+
 ## Source/filesystem regression
 
 ```powershell
