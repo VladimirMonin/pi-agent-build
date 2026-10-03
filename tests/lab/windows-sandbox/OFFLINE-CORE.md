@@ -32,6 +32,14 @@ Networking отключена в dummy capsule. Для следующего SDK 
 
 Для transfer нужен только новый synthetic material subtree: core archive, unchanged published lock, official supplemental metadata, verified cache payload и npm bootstrap archive. Data/cache/raw receipts не коммитятся. Не отображайте весь lab/home/source installation и не копируйте personal auth/configs/cache.
 
+## Guest npm bootstrap: source-only helper
+
+[`npm-bootstrap.mjs`](npm-bootstrap.mjs) использует только Node stdlib: frozen official npm **11.11.0 SHA512**, bounded gzip/tar, exact manifest/CLI entry. Все entries проверяются **до первой записи**; только regular ustar files, без links/special/PAX headers, traversal, Windows device/ADS names, collisions и malformed padding. Hash неизвестного archive не становится разрешением.
+
+`materializeGuestNpm(guestRoot)` отказывает на host до чтения input/записи, требует реальный `WDAGUtilityAccount`, canonical owned guest root и скопированный в него Node. Fixed `C:\PiLabCoreInput\npm-11.11.0.tgz` — интерфейс отдельного future core input, не дополнение к текущей dummy capsule. Только после actual boundary/raw review caller может создать новый `npm-bootstrap` в guest и получить explicit `bin/npm-cli.js`; helper сам npm/Pi не запускает, failed partial не repair/reuse.
+
+[Source parser tests](npm-bootstrap.test.mjs) запускаются approved Node в private sanitized environment: `node.exe --test tests/lab/windows-sandbox/npm-bootstrap.test.mjs`. 21 focused source cases PASS; новый parser прочитал official archive в памяти: 1,811 files, 11,014,801 source bytes, без filesystem materialization/payload execution. **Guest materialization/offline install NOT TESTED**; эти результаты не относятся к 18 прежним capsule checks и не доказывают VM boundary.
+
 ## Фактический статус текущего source этапа
 
 Для frozen Pi **1.0.0** published lock содержит 146 dependency entries; вместе с root получено 146 уникальных архивов (138,984,286 bytes). Семь Earendil 1.0.0 entries без SRI дополнены отдельной exact official metadata. Private npm 11.11.0 cache-only 9 commands: 146 expected blobs/7 URL bindings подтверждены, metadata prefix пуст. Npm 11.11.0 bootstrap source archive: 2,835,959 bytes. Candidate code/SDK actors **0**.
