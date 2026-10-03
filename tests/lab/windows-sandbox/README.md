@@ -30,7 +30,7 @@ Windows Sandbox feature enable требует отдельного owner permiss
 
 ## Offline core material для следующего этапа
 
-[Source/cache recipe](OFFLINE-CORE.md): published exact lock, official archive identities, private cache и npm bootstrap без установки/запуска Pi. Текущий bundle подготовлен, но offline guest installation и provisioning entry point ещё не приняты; dummy capsule не расширяется до actual boundary/raw review.
+[Source/cache recipe](OFFLINE-CORE.md): published exact lock, official archive identities, private cache и npm bootstrap без установки/запуска Pi. Текущий bundle подготовлен, но offline guest installation и provisioning entry point ещё не приняты; dummy capsule не расширяется до actual boundary/raw review. Отдельный [Pi 1.0.0 core SDK fixture](../sdk/README.md) подготовлен как source-only следующий этап, не как разрешение запуска.
 
 ## Source/filesystem regression
 
