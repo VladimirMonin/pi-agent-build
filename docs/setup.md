@@ -105,7 +105,7 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-trace-extension@0.1.16
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-context-inspector@1.1.1
   PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.12.0
-  PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
+  PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.76.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-goal-x@0.31.9
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.13.0

@@ -176,7 +176,7 @@ if (source.startsWith("npm:")) {
 } else {
   const pkg = path.join(agent, "git", "github.com", "VladimirMonin", "pi-polza");
   fs.mkdirSync(path.join(pkg, ".git"), {recursive:true});
-  fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({name:"pi-polza", version:"0.2.0"}));
+  fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({name:"pi-polza", version:"0.2.1"}));
 }
 '@
     [IO.File]::WriteAllText((Join-Path $bin 'fake-pi.js'), $piJs)
@@ -190,13 +190,13 @@ const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const commit = fs.existsSync(path.join(root, "fake-git-head.txt"))
   ? fs.readFileSync(path.join(root, "fake-git-head.txt"), "utf8").trim()
-  : "af36ed0e1cce25cc8c6f26461c84be47f0d4ea42";
+  : "cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139";
 if (args.length === 1 && args[0] === "--version") { console.log("git version 2.54.0.windows.1"); process.exit(0); }
 if (args[0] === "-C" && args[2] === "rev-parse") {
   const ref = args[3];
   if (ref === "HEAD") console.log(commit);
-  else if (ref === "refs/tags/v0.2.0") console.log("907b813b4f6114bebececbff5cd2ff78b1c4e7ec");
-  else if (ref === "907b813b4f6114bebececbff5cd2ff78b1c4e7ec^{commit}" || ref === "907b813b4f6114bebececbff5cd2ff78b1c4e7ec{commit}") console.log("af36ed0e1cce25cc8c6f26461c84be47f0d4ea42");
+  else if (ref === "refs/tags/v0.2.1") console.log("a93589ecd0075d3f4c34eb1f13bda891c5983d8c");
+  else if (ref === "a93589ecd0075d3f4c34eb1f13bda891c5983d8c^{commit}" || ref === "a93589ecd0075d3f4c34eb1f13bda891c5983d8c{commit}") console.log("cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139");
   else process.exit(7);
   process.exit(0);
 }
@@ -267,9 +267,10 @@ try {
         }
         $packageManifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
         $polza = @($packageManifest.profiles.common | Where-Object { $_.package -eq 'pi-polza' })[0]
-        Assert-Equal 'af36ed0e1cce25cc8c6f26461c84be47f0d4ea42' ([string]$polza.commit) 'pi-polza commit pin'
-        Assert-Equal '907b813b4f6114bebececbff5cd2ff78b1c4e7ec' ([string]$polza.tagObject) 'pi-polza annotated tag object'
-        Assert-Equal 'v0.2.0' ([string]$polza.releaseTag) 'pi-polza release tag metadata'
+        Assert-Equal '0.2.1' ([string]$polza.version) 'pi-polza package version'
+        Assert-Equal 'cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139' ([string]$polza.commit) 'pi-polza commit pin'
+        Assert-Equal 'a93589ecd0075d3f4c34eb1f13bda891c5983d8c' ([string]$polza.tagObject) 'pi-polza annotated tag object'
+        Assert-Equal 'v0.2.1' ([string]$polza.releaseTag) 'pi-polza release tag metadata'
         Assert-True ([string]$polza.source -match [regex]::Escape([string]$polza.commit)) 'pi-polza source is not pinned to the commit'
     }
 

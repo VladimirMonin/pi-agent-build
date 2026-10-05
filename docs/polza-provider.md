@@ -1,4 +1,4 @@
-# Провайдер Polza AI (`pi-polza` 0.2.0)
+# Провайдер Polza AI (`pi-polza` 0.2.1)
 
 ## Назначение
 
@@ -8,10 +8,12 @@
 
 ```bash
 PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
+  pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
 ```
 
-Release `v0.2.0`: annotated tag object `907b813b4f6114bebececbff5cd2ff78b1c4e7ec` peels to commit `af36ed0e1cce25cc8c6f26461c84be47f0d4ea42`. Manifest/installer передаёт именно immutable commit `af36…`; tag object и имя `v0.2.0` хранятся отдельно как проверяемая release metadata. Это фиксирует top-level Git source, но не transitive npm tree. Требования: Pi `0.87.0` из manifest и Node.js не ниже `22.6`.
+Release `v0.2.1`: annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c` peels to commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`. Manifest/installer передаёт именно immutable commit `cbc8…`; tag object и имя `v0.2.1` хранятся отдельно как проверяемая release metadata. Это фиксирует top-level Git source, но не transitive npm tree. Требования: Pi `1.0.2` из manifest и Node.js не ниже `22.6`.
+
+В 0.2.1 нативный RUB учитывается один раз по последнему `usage.cost_rub` после успешного ответа, независимо от задержки закрытия SSE после `[DONE]`. Ошибки, отмена и некорректная/отсутствующая стоимость остаются unknown; настоящий ноль сохраняется. Неудачное обновление баланса сохраняет последнюю сумму с пометкой `stale`, успешное снимает пометку; частота запросов не меняется. Проверенная граница — Pi **1.0.2**, не все версии 1.x. Evidence и ограничения: [build.3](releases/pi-1.0.2-build.3.md).
 
 ## Авторизация и данные
 
@@ -43,7 +45,7 @@ Plugin кэширует OpenRouter enrichment в project-local `.pi/pi-polza-cac
 - Неизвестная стоимость остаётся unknown/`partial`, а не превращается в `0 ₽`.
 - Polza catalog — источник существования и тарификации; OpenRouter используется только для exact-id enrichment. `unknown` означает отсутствие доказательств.
 - Долларовый `cost` Pi намеренно равен нулю; реальные рубли не смешиваются с USD.
-- Полный live-тест background import не является гарантией релиза 0.2.0: эта ветка заявлена как offline-tested.
+- Полный live-тест background import не является гарантией релиза 0.2.1: эта ветка заявлена как offline-tested. Live acceptance новой сессии сообщена владельцем отдельно, не как полный background-live тест.
 
 ## Проверка
 

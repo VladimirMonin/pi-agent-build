@@ -22,7 +22,7 @@
 | 2 | `pi-trace-extension` | 0.1.16 | MIT | <https://github.com/npxcnency-ux/pi-trace-extension> |
 | 3 | `pi-context-inspector` | 1.1.1 | MIT | <https://github.com/yuriteixeira/pi-context-inspector> |
 | 4 | `@juicesharp/rpiv-todo` | 2.10.1 | MIT | <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo> |
-| 5 | `pi-polza` | 0.2.0 | MIT | <https://github.com/VladimirMonin/pi-polza> |
+| 5 | `pi-polza` | 0.2.1 | MIT | <https://github.com/VladimirMonin/pi-polza> |
 | 6 | `pi-subagents` | 0.70.1 | MIT | <https://github.com/nicobailon/pi-subagents> |
 | 7 | `pi-intercom` | 0.13.0 | MIT | <https://www.npmjs.com/package/pi-intercom/v/0.13.0> |
 | 8 | `pi-background-tasks` | 2.6.2 | ISC | <https://github.com/ismailsaleekh/pi-background-tasks> |
@@ -40,7 +40,7 @@
 
 ³ И npm tarball metadata, и immutable source `pi-serena/package.json` в опубликованном `gitHead` `b5330ac3d014f92dff97a2b90cd9ebdbf0de22fd` декларируют MIT. Tarball не содержит standalone LICENSE и не публикует copyright notice. Репозиторий фиксирует этот факт, не выдумывая attribution, в [`patches/serena-tools/LICENSE.upstream.txt`](patches/serena-tools/LICENSE.upstream.txt).
 
-Для Git-пакета `pi-polza` release `v0.2.0` имеет annotated tag object `907b813b4f6114bebececbff5cd2ff78b1c4e7ec`, который peels to commit `af36ed0e1cce25cc8c6f26461c84be47f0d4ea42`; source `package.json` и `LICENSE` декларируют MIT. Manifest/installer закрепляет peeled commit `af36…`, а `tagObject`, `releaseTag` и version `0.2.0` остаются отдельной проверяемой release metadata.
+Для Git-пакета `pi-polza` release `v0.2.1` имеет annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c`, который peels to commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`; source `package.json` и `LICENSE` декларируют MIT. Manifest/installer закрепляет peeled commit `cbc8…`, а `tagObject`, `releaseTag` и version `0.2.1` остаются отдельной проверяемой release metadata.
 
 ## Внешние инструменты
 

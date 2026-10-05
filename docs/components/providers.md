@@ -43,7 +43,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-ollama-cloud
 
 Удалите credential через Pi, config и cache отдельно. Для отката установите точную прежнюю версию, не `latest`.
 
-## `pi-polza` 0.2.0
+## `pi-polza` 0.2.1
 
 ### Назначение
 
@@ -53,7 +53,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-ollama-cloud
 
 ```bash
 PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
+  pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
 ```
 
 ### Конфигурация и данные

@@ -46,3 +46,11 @@
 - `pi-background-tasks 2.6.2` остаётся installed-disabled из-за несовместимости с system-role conversation blocks Pi 0.87.0.
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
+
+## [pi-v1.0.2-build.3]
+
+### Изменено
+
+- Source-only интеграция опубликованного `pi-polza` **0.2.1**: exact commit/tag metadata обновлены вместе в manifest, Code/Task templates, synthetic installer fixtures и текущей документации. Core остаётся **1.0.2**; Goal X, фильтры Trace/MCP и skill bytes не изменены.
+- Plugin исправляет однократный нативный RUB-учёт после успешного ответа Pi1.0.2 и сохраняет последний баланс с `stale` при ошибке refresh. Принятый upstream handoff: 203/203 offline checks, включая 47 native на actual installed Pi1.0.2 + synthetic SSE; audit/pack PASS. Live acceptance новой сессии сообщена владельцем, не полный background-live.
+- Выпуск включает ранее добавленный `memory-ops` **1.0.1-public** без новых изменений навыка. История выше сохранена; прежний публичный build.2 не заменяется. [Release notes и ограничения](docs/releases/pi-1.0.2-build.3.md); публикация нового tag/release выполняется отдельно.
