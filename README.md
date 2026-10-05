@@ -4,11 +4,11 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Статус: до первого release tag интерфейсы install/verify и состав manifests могут меняться. Корневой `AGENTS.md` пока не выпущен; постоянные правила находятся в `instructions/`.
+> Статус: **Pi 1.0.2 candidate**. Последняя стабильная версия сверена по официальным npm и GitHub; exact version закреплена в manifests. Реальная Windows-установка, CLI, локальный SDK mock обоих профилей, загрузка расширений с Trace off, guarded patches и Both installed verifier проверены. Холодный локальный эмбеддер в offline mock использует FTS-fallback; semantic embedding, платные провайдеры, candidate WVM SSE/HTTP и native Linux/macOS этим не подтверждены. Полный release ещё не принят, живые Code/Task не переключены; `pi-mcp-adapter` сохранён. Текущие результаты — в [readiness board](docs/plans/lab-readiness-board.md), правила — в [AGENTS.md](AGENTS.md). Обновление выполняется обычными установочными scripts, без VM и native isolation runners.
 
 ## Граница повторяемости
 
-Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `0.87.0`, Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
+Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `1.0.2` (candidate), Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
 
 Это даёт повторяемую установку заявленных top-level versions, но **не bit-for-bit reproducibility**. Репозиторий пока не содержит переносимых transitive lockfiles/полного dependency graph, integrity hashes всех скачиваемых artifacts, lock Python dependencies или идентичного образа ОС. Повторная установка может получить иной transitive dependency tree даже при тех же верхнеуровневых версиях. Для release artifact нужно отдельно зафиксировать transitive locks/hashes и затем проверить итоговый bundle.
 
@@ -23,6 +23,10 @@
 - навык обслуживания памяти Pi.
 
 Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
+
+## Автономный Goal X
+
+Code/Task сразу получают [пресет](docs/goal-autonomy.md): unlimited без `maxAutonomousRuns`, implicit continuation, tasks depth 2, независимый Auditor и read-only Oracle с `openai-codex/gpt-6.1-sol`/`high`. Существующие персональные настройки сохраняются. Для модели нужен собственный Codex login; auth в сборку не входит.
 
 ## Известное ограничение: порядок `pi-goal-x` и `pi-intercom`
 
@@ -62,22 +66,26 @@ instructions/       постоянные правила сопровождени
 
 `update.ps1`/`update.sh` сейчас отсутствуют: обновление выполняется только как осознанное изменение manifests/templates/patches с повторной установкой и проверкой. Не используйте `latest` и не предполагайте наличие автоматического update workflow.
 
-## План следующего выпуска
+## Исторический кандидат Pi 0.99.1
 
-- [Изолированная лаборатория и проверка Pi 0.99.1](docs/plans/pi-0.99.1-lab.md) — план работ, **не** объявление совместимости или смена текущего runtime.
+- [Лабораторный план](docs/plans/pi-0.99.1-lab.md), [доска доказательств](docs/plans/pi-0.99.1-execution-board.md) и [модельная матрица](docs/plans/pi-0.99.1-model-matrix.md) разделяют проверенные функции, metadata и NOT TESTED; Sol 6.1 уже доступна владельцу на старом Pi, это не update-specific gain.
+- [Изоляция лаборатории](docs/lab-isolation.md): отдельный owner-only root **и безопасный parent**, чистые synthetic HOME/config/auth/cache/session/trace/MCP, явные private executables; никаких изменений shared ACL. JavaScript guard не является OS sandbox.
+- Проверены private Windows установка 15/12 пакетов, оба mock headless runtime и verified Apply no-op; дополнительно — two-peer intercom, native async child callback/artifact/terminal и CLI-only background shell output обоих профилей. Paired canonical bytes не менялись. Это narrow lifecycle PASS: native mock без attestation получил default acceptance REJECTED; все команды/провайдеры этим не подтверждены. WVM повторно оценён последним после source-only query corrections/review и gates: parent gateway connect33/public schema version1 PASS; прежние failures сохранены. Это не candidate protocol proof. Private query fixes имеют только managed/source approval, controlled native runner остаётся BLOCKED. Legacy SSE / streamable HTTP кандидата NOT TESTED. Adapter без доказанного live-паритета не заменяется.
+- Полная zero-write изоляция не доказана: native observation сохранил raw host events и изменение timestamp рабочего memory WAL без PID-attribution; personal contents не читались. Исторический npm diagnostic log раскрыт, не удалён. `main`, рабочие профили и пользовательские данные не переключались. Будущий перенос/откат требует отдельного решения и согласованных private backups [runtime, обоих профилей и данных](docs/state-migration.md#откат).
 
 ## Начало работы
 
+- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source и установка уже переведены на exact Pi 1.0.2; Trace default-off и explicit opt-in/off проверены обоими SDK/CLI; [команды](docs/trace.md).
 - Установка и точные prerequisites: [`docs/setup.md`](docs/setup.md)
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
 - Компоненты: [`docs/components/README.md`](docs/components/README.md)
 - Заметки о поведении компонентов: [`docs/notes/README.md`](docs/notes/README.md)
-- POSIX (macOS/Linux) установка: [`docs/setup.md`](docs/setup.md#posix-macoslinux) и [`docs/platforms.md`](docs/platforms.md)
+- POSIX (macOS/Linux): [`docs/platforms.md`](docs/platforms.md); общие принципы установки — [`docs/setup.md`](docs/setup.md).
 
 ## Документация для агентов
 
-Корневой `AGENTS.md` находится в статусе **pending** и не входит в текущий release surface. Пока используйте [`instructions/BUILD.master.instructions.md`](instructions/BUILD.master.instructions.md) и тематические файлы из `instructions/`; не утверждайте, что каталог уже агрегирован в `AGENTS.md`.
+[`AGENTS.md`](AGENTS.md) — короткий вход и полный каталог инструкций. При upgrade читайте [`BUILD.LabUpgrade`](instructions/BUILD.lab_upgrade.instructions.md), паспорт/runbook/evidence docs и текущий readiness board. Не переносите временные machine paths, модели reviewer или run history в постоянные правила; документы не выдают permission сами по себе. [Команды Trace opt-in/off](docs/trace.md) проверены реальными Code/Task SDK и CLI runs; browser UI остаётся вне этого smoke scope.
 
 ## Лицензирование
 

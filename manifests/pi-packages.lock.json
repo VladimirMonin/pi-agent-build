@@ -12,7 +12,10 @@
         "source": "npm:pi-trace-extension@0.1.16",
         "package": "pi-trace-extension",
         "version": "0.1.16",
-        "patch": "trace-ru-windows-profile"
+        "patch": "trace-ru-windows-profile",
+        "enabledExtensions": [],
+        "state": "installed-disabled",
+        "reason": "Trace remains installed and patched; canonical Code/Task disable extension loading. Explicit opt-in is separate from default diagnostic receipts."
       },
       {
         "source": "npm:pi-context-inspector@1.1.1",

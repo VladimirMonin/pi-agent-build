@@ -37,7 +37,8 @@ description: "Читай при любом изменении состава п�
 | Собственные навыки | `skills/` |
 | Локальные исправления | `patches/<имя>/` |
 | Назначение компонентов | `docs/components/` |
-| Установка и обновление | `scripts/` + `docs/setup.md` |
+| Установка и обновление | `scripts/` + `docs/setup.md` + `docs/pi-upgrade-workflow.md` |
+| Лабораторный стенд и доказательства | `BUILD.lab_upgrade` + `docs/lab-stand.md` + `docs/lab-evidence.md` |
 | Публичная безопасность | `SEC.public_repository` + `scripts/safety-check.ps1` |
 
 README является входной страницей, но не заменяет manifests и тематические инструкции.
@@ -70,6 +71,7 @@ README является входной страницей, но не замен�
 
 - **Code** — полный профиль: общие расширения плюс code intelligence (`ast-grep`, Serena, Codebase Memory и связанные env).
 - **Task** — облегчённый профиль без дорогих code-intelligence tools.
+- Для нового выпуска Trace остаётся установленным, но выключен по умолчанию в обоих canonical профилях; explicit opt-in/off имеет проверенные user/agent recipes. Не создавать третий режим. Фактическую готовность политики сверять с readiness board.
 - Профили переключаются process-local переменной `PI_CODING_AGENT_DIR`; глобальный `setx` запрещён.
 - Общие внешние источники (`~/.agents/skills`, корневой `AGENTS.md`, глобальный MCP) не считаются автоматически изолированными.
 - Любое различие профилей должно быть выражено в шаблонах и описано, а не зависеть от ручной памяти владельца.
@@ -122,16 +124,16 @@ README является входной страницей, но не замен�
 
 ## Workflow изменения состава сборки
 
-1. Зафиксируй текущее состояние Git и релевантные версии.
-2. Проверь источник пакета/инструмента и его лицензию.
-3. Обнови manifest.
-4. Обнови шаблон профиля или config, если изменился интерфейс.
-5. Добавь/обнови patch и его проверку, если нужен.
-6. Обнови компонентную документацию.
-7. Обнови тематическую инструкцию, если изменился устойчивый workflow или контракт.
-8. Запусти public safety scan и релевантные verification scripts.
-9. Сделай один смысловой commit.
-10. Тег создавай только после полной проверки всего репозитория.
+1. Зафиксируй Git/working baseline, источник кандидата и scope разрешений.
+2. Для upgrade прочитай [BUILD.LabUpgrade](BUILD.lab_upgrade.instructions.md); сверяй official stable target и однократно фиксируй exact version.
+3. Подготовь и проверь исходные документы/контракт стенда; создай doc commit до runtime edits.
+4. Проверь источник/лицензию и manifests; mutation только в разрешённом установочном каталоге/профилях. Обычное обновление не требует VM, native runner или отдельного isolation framework.
+5. Обнови candidate manifest, templates и guarded patches; неизвестные source/bytes не принимаются по предположению.
+6. Проверь actual Code/Task и changed seams, включая default-off/explicit opt-in Trace; source/mock/native claims раздельны.
+7. Сопроводи код component docs, постоянными instructions и AGENTS каталогом в том же логическом срезе.
+8. Выполни final relevant verification, links/schema/safety и ручной diff review на согласованном ref.
+9. Создай смысловые commits; release/main/tag/working switch только в действующем scope владельца.
+10. Тег — после обязательных accepted gates; repository publication не переключает живые profiles автоматически.
 
 ## Критерий готовности release-tag
 
@@ -143,7 +145,9 @@ README является входной страницей, но не замен�
 - safety scan не находит секреты, личные пути и запрещённые runtime-артефакты;
 - patch checks дают ожидаемые состояния;
 - verifier подтверждает структуру обоих профилей;
-- README и component docs соответствуют manifest;
+- README, component docs, AGENTS/instructions и upgrade/stand docs соответствуют manifest и реальному scope;
+- два профиля и Trace defaults/opt-in проверены; actual runtime не заменён source-only checks, OS containment не заявлен без отдельно заказанной и проверенной границы;
+- optional NOT TESTED отражены в ограничениях выпуска, без расширения support claims;
 - рабочее дерево чистое;
 - commit, на который ставится тег, уже создан и проверен.
 

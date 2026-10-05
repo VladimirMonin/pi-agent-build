@@ -83,6 +83,7 @@
         "version": { "$ref": "#/$defs/semver" },
         "command": { "type": "string", "minLength": 1 },
         "installer": { "enum": ["uv tool"] },
+        "pythonVersion": { "$ref": "#/$defs/semver" },
         "windowsSpawnFix": { "enum": ["stage-real-executable"] },
         "probe": { "enum": ["direct-version", "npm-root-executable-version"] },
         "probeArguments": {
@@ -99,6 +100,10 @@
         {
           "if": { "properties": { "probe": { "const": "npm-root-executable-version" } } },
           "then": { "required": ["npmExecutableRelativePath"] }
+        },
+        {
+          "if": { "required": ["installer"], "properties": { "installer": { "const": "uv tool" } } },
+          "then": { "required": ["pythonVersion"] }
         }
       ]
     }

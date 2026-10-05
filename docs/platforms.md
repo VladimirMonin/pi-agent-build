@@ -1,6 +1,6 @@
 # Платформы: Windows x64 и POSIX (macOS/Linux)
 
-Сборка описывает один и тот же состав Pi Agent для двух семейств платформ. Различаются только способ запуска скриптов, пути npm-префикса и несколько Windows-специфичных исправлений.
+Состав/templates предусмотрены для двух семейств платформ, но это не доказательство одинаковой native функциональности. Current Pi **1.0.2** accepted scope — [Windows SDK/CLI/RPC/functional local-mock checks](releases/pi-1.0.2.md); native Linux/macOS пока NOT TESTED. Git Bash syntax/fakes не заменяют запуск на POSIX. Переносимость лаборатории на другую Windows машину проверяется по [паспорту](lab-stand.md) и [readiness board](plans/lab-readiness-board.md), отдельно от layout portability.
 
 ## Матрица поддержки
 
@@ -14,7 +14,7 @@
 | memory spawn fix | обязателен (`pi.cmd` + `spawn(shell:false)` → ENOENT) | ветка `win32` не срабатывает, работает `pi` из PATH |
 | Trace patch | русификация + Windows UTF-8 | русификация; Windows-ветки не активны |
 | CBM executable | `<prefix>\node_modules\codebase-memory-mcp\bin\codebase-memory-mcp.exe` | `<prefix>/bin/codebase-memory-mcp` (node-скрипт) |
-| Serena | `uv tool install serena-agent==1.7.0` | то же |
+| Serena | `uv tool install --python 3.12.10 --prerelease=allow serena-agent==1.7.0` | тот же аргумент, native run NT |
 | Node/npm/Git pinned versions | exact из manifest | manifest закрепляет Windows-версии; на POSIX проверяются как WARN |
 
 ## Что переносится без изменений
@@ -40,7 +40,7 @@ POSIX-набор повторяет PowerShell-набор по контракт�
 | `verify.ps1` | `verify.sh` | проверка репозитория и профилей |
 | `safety-check.ps1` | `safety-check.sh` | публичный safety scan |
 
-Оба набора читают одни manifests и вызывают одни patchers, поэтому состояние установки совместимо между платформами.
+Оба набора читают одни manifests и вызывают общие patchers. Это обеспечивает единый декларативный контракт, но actual install/runtime compatibility каждой платформы требует её собственного native evidence.
 
 ### Runtime-версии
 
@@ -58,7 +58,7 @@ Windows-лаунчеры вызывают `<prefix>\pi.cmd`. POSIX-лаунче�
 
 ## POSIX-установка
 
-Полная процедура — в [setup.md](setup.md#posix-macoslinux). Кратко:
+Общие принципы — в [setup.md](setup.md); ниже предусмотренный POSIX layout/commands, не свидетельство выполненного native прогона. Кратко:
 
 ```bash
 # prerequisites

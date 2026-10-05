@@ -1,8 +1,12 @@
 # Установка сборки
 
-Сборка рассчитана на Windows x64 и POSIX (macOS/Linux) и повторяет закреплённые **верхнеуровневые** версии Pi `0.87.0`, двух профилей и компонентов из `manifests/*.lock.json`. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Состав задают текущие `manifests/*.lock.json`: в candidate source сейчас Pi `1.0.2`, working baseline — `0.87.0`. Candidate установлен в обычный отдельный prefix; CLI и Both SDK mock проверены, живые профили не переключены. Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
+
+> Для обновления кандидата используйте [паспорт стенда](lab-stand.md) и [lab upgrade runbook](pi-upgrade-workflow.md), не global manual commands ниже. Read-only PLAN, private executable probes, PREPARE, install и runtime gate — разные действия. Этот документ не разрешает изменять рабочие Code/Task.
+>
+> Ручные примеры с Pi0.87.0 ниже сохранены как working-baseline procedure, не команда поставить новый target. Целевая политика следующего выпуска — Trace установлен/default-off в обоих профилях; [проверенный opt-in/off recipe](trace.md) использует обычный `pi -e` без изменения canonical filters.
 
 ## До установки
 
@@ -12,7 +16,7 @@
 - Python `3.8+` нужен patchers и Trace renderer;
 - Python package `jsonschema` нужен для обязательной schema validation в `scripts/verify.ps1`/`verify.sh`;
 - `uv 0.9.27` нужен при установке Code (Serena) и для рекомендуемой установки optional Python MCP server;
-- `serena-agent==1.7.0` требует Python `>=3.11,<3.15`, а `mcp-server-fetch==2025.4.7` — Python `>=3.10`; `uv tool` может использовать managed interpreter, отличный от `python` для patchers.
+- `serena-agent==1.7.0` требует Python `>=3.11,<3.15`, а `mcp-server-fetch==2025.4.7` — Python `>=3.10`; Для Serena manifest закрепляет managed Python `3.12.10`, отличный от `python` для patchers: это избегает source-build `pyyaml==6.0.2` на Python 3.14.
 
 Проверка:
 
@@ -41,7 +45,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 
 Installer запускает `npm`, `pi` и `uv` с allowlisted process environment, а не наследует весь текущий environment: provider/API credentials не должны попадать в package lifecycle children. Это защита от случайной утечки, не sandbox; устанавливаемые packages и их lifecycle scripts всё равно выполняются с правами пользователя.
 
-По умолчанию существующие profile configs сохраняются без полного replace. Для `settings.json` installer после штатных `pi install` выполняет целевой merge: сохраняет неизвестные пользовательские поля и дополнительные пакеты, но приводит 15/12 пакетов сборки к exact sources, в том числе ставит `pi-goal-x` **перед** `pi-intercom`, восстанавливает отключающий filter `pi-background-tasks` и задаёт `memory.consolidationModel`. Оба verifier'а проверяют **все закреплённые источники по порядку**, а не только версии на диске. В существующий `models.json` добавляется только отсутствующий provider `polza-memory`; другие providers сохраняются. Если там уже объявлен старый **static** `polza`, полный installer отказывает **до package writes**, чтобы не столкнуть его с динамическим `pi-polza`: сначала сохраните backup и перенесите этот provider в `polza-memory` по [инструкции](polza-memory.md). `ollama-cloud.json` и существующий `skills/memory-ops/` остаются без изменений. Перед merge создаются приватные runtime backups. Флаг `-ReplaceProfileConfigs` явно разрешает полную замену всех четырёх компонентов шаблонами с backup.
+По умолчанию существующие profile configs сохраняются без полного replace. Для `settings.json` installer после штатных `pi install` выполняет целевой merge: сохраняет неизвестные пользовательские поля и дополнительные пакеты, но приводит 15/12 пакетов сборки к exact sources, в том числе ставит `pi-goal-x` **перед** `pi-intercom`, восстанавливает отключающий filter `pi-background-tasks` и задаёт `memory.consolidationModel`. Оба verifier'а проверяют **все закреплённые источники по порядку**, а не только версии на диске. В существующий `models.json` добавляется только отсутствующий provider `polza-memory`; другие providers сохраняются. Если там уже объявлен старый **static** `polza`, полный installer отказывает **до package writes**, чтобы не столкнуть его с динамическим `pi-polza`: сначала сохраните backup и перенесите этот provider в `polza-memory` по [инструкции](polza-memory.md). `ollama-cloud.json` и существующий `skills/memory-ops/` остаются без изменений. Перед merge создаются приватные runtime backups. Установщики также сразу кладут [автономный Goal X preset](goal-autonomy.md) в `pi-goal-x-settings.json` и две инструкции в `AGENTS.md`: unlimited, implicit continuation, Oracle/Auditor high. Существующие Goal X settings и AGENTS сохраняются. Флаг `-ReplaceProfileConfigs` явно разрешает полную замену этих файлов и остальных конфигурационных компонентов шаблонами с backup.
 
 Если пакеты уже установлены, но `settings.json` содержит старые незакреплённые строки `npm:<name>`, приведите их в соответствие **без переустановки пакетов и без изменения патчей**:
 
@@ -61,7 +65,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 
 После этого всё равно нужны локальные provider configs, `/login` и проверки из разделов 5 и 8. Далее приведён ручной эквивалент, полезный для аудита и точечного восстановления.
 
-## 1. Pi Agent
+## 1. Pi Agent — исторический working baseline, не lab upgrade
+
+Следующий block явно относится к0.87.0. Для кандидата exact version берётся из manifest и устанавливается только private lab-mode installer после gates.
 
 ```bash
 npm install -g --no-audit --no-fund npm@11.11.0
@@ -154,7 +160,7 @@ PI_CODING_AGENT_DIR="$user_home/.pi/task" pi list
 ```bash
 npm install -g @ast-grep/cli@0.45.3
 npm install -g codebase-memory-mcp@0.11.0
-uv tool install --prerelease=allow "serena-agent==1.7.0"
+uv tool install --python 3.12.10 --prerelease=allow "serena-agent==1.7.0"
 ```
 
 На Windows npm создаёт shell-shims, а `@nicknisi/pi-ast-grep` запускает процесс с `shell:false`. Поэтому положите реальный бинарник рядом с npm-shims:

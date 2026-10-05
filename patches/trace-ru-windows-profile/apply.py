@@ -200,20 +200,42 @@ def apply(root: Path, backup_root: Path) -> int:
 
 
 def restore(root: Path, backup_root: Path) -> int:
+    unknown = [rel for rel, state in states(root).items() if state == "unknown"]
+    if unknown:
+        raise RuntimeError(f"unknown installed files; refusing restore overwrite: {unknown}")
     source = latest_backup(backup_root)
     manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("version") != VERSION:
-        raise RuntimeError(f"backup version mismatch: {manifest.get('version')}")
-    for item in manifest.get("files", []):
+    if not isinstance(manifest, dict) or set(manifest) - {"package", "version", "files", "assetsSha256"}:
+        raise RuntimeError("unknown backup manifest structure")
+    if manifest.get("package") != "pi-trace-extension" or manifest.get("version") != VERSION:
+        raise RuntimeError("backup package/version mismatch")
+    items = manifest.get("files")
+    if not isinstance(items, list) or len(items) != len(FILES):
+        raise RuntimeError("backup must contain the exact patch file inventory")
+    seen = set()
+    # Validate the entire backup before the first write; a late corrupt entry
+    # must not leave an earlier file restored or escape the selected package.
+    for item in items:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            raise RuntimeError("unknown backup file entry")
         rel = item["path"]
+        if not isinstance(rel, str) or rel not in FILES or rel in seen:
+            raise RuntimeError("unknown or duplicate backup path")
+        seen.add(rel)
         src = source / rel
-        if not src.exists() or digest(src) != item["sha256"]:
-            raise RuntimeError(f"backup checksum mismatch: {rel}")
-        dst = root / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        allowed = {FILES[rel]["stock"], FILES[rel]["patched"], *FILES[rel]["transitional"]}
+        if item["sha256"] not in allowed or not src.is_file() or digest(src) != item["sha256"]:
+            raise RuntimeError(f"backup checksum/state mismatch: {rel}")
     assets = source / "viewer" / "assets.json"
-    if assets.exists():
+    if "assetsSha256" in manifest:
+        if not assets.is_file() or digest(assets) != manifest["assetsSha256"]:
+            raise RuntimeError("backup assets checksum mismatch")
+    elif assets.exists():
+        raise RuntimeError("unrecorded backup assets refused")
+    for item in items:
+        rel = item["path"]
+        shutil.copy2(source / rel, root / rel)
+    if "assetsSha256" in manifest:
         shutil.copy2(assets, root / "viewer" / "assets.json")
     else:
         rebuild_assets(root)

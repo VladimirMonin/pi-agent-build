@@ -2,6 +2,10 @@
 
 Этот репозиторий повторяет закреплённые top-level versions и конфигурационную схему, но не обещает byte-identical dependency tree без transitive locks. Он намеренно не хранит secrets, память, сессии, traces и индексы. Runtime-state переносится отдельным зашифрованным каналом вне Git.
 
+## Стенд не является переносом пользовательского состояния
+
+[Лабораторный паспорт](lab-stand.md) и [upgrade workflow](pi-upgrade-workflow.md) создают новую synthetic среду. Машина B получает repository source/fixtures и private dependency provisioning, **не** old profiles, memory, auth, sessions или stale locks. Runtime migration/backups ниже выполняются только при отдельном разрешённом working-profile switch; release репозитория его не выполняет. Для текущего Pi1.0.2 владелец отдельно разрешил обновление рабочего Core после выпуска и уже запросил [Goal X preset](goal-autonomy.md) в живой Windows. Goal settings изменены целевым merge; auth, память/DB и session files не переносились. Core package update не требует миграции этих данных.
+
 ## Классификация
 
 | Категория | Примеры | Перенос |
@@ -89,12 +93,16 @@ Project-local memory (`<project>/.pi/.../memory.db`) переносится вм
 
 ## Откат
 
+Pi 0.99.1 остаётся **candidate**: main/user switch и backup рабочих данных в лабораторном прогоне не выполнялись. Этот порядок применяется только после отдельного разрешения владельца, не даёт worker разрешения читать credentials/личные DB.
+
+До будущего переключения сохраните в `<PRIVATE_BACKUP>` оба полных Code/Task профиля, launchers, точные runtime/package identities и patch states. Данные памяти/сессий/индексов/traces сохраняйте согласованно: SQLite online backup либо quiescent window, не main DB без активного WAL. Сохраняйте source=user, scope/aliases и старые каталоги; secrets только приватно.
+
 Если миграция не прошла:
 
-1. остановите целевые процессы;
-2. отложите неудачный каталог профиля под новым локальным именем;
-3. восстановите исходный зашифрованный архив в новый пустой каталог;
-4. верните поддержанные package versions и снова примените patches;
-5. не запускайте одновременно две копии одной SQLite DB через сетевую/sync-папку.
+1. Штатно остановите candidate-owned jobs; не завершайте посторонние сессии.
+2. Верните **оба** launcher на `<BASELINE_RUNTIME>` и `<BASELINE_CODE_PROFILE>`/`<BASELINE_TASK_PROFILE>` с совместимыми tools/environment. Старый baseline не удалять.
+3. Восстановите только изменённую конфигурацию из согласованных private backups, не новый settings целиком поверх старого runtime.
+4. При изменениях схемы/записей восстановите compatible SQLite backup в остановленную БД; не перезаписывайте open DB. Сохраните отдельно candidate-only новые записи, когда это требуется.
+5. Верните sessions/archive/index/trace маршруты, проверьте scope, source=user, launcher/version/patch проверки обоих профилей. Реальные model smokes требуют отдельного разрешения.
 
-После подтверждения целостности уничтожьте незашифрованные временные копии и старые credentials либо выполните их ротацию.
+Git revert сам по себе **не откат**: должны совпасть executable, оба профиля и данные. Не запускайте две копии SQLite DB через сетевую/sync-папку и не очищайте shared npm cache. Удаление backup/ротация credentials — отдельное действие после подтверждённой целостности.

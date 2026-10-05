@@ -282,7 +282,8 @@ try {
         Assert-Equal 0 $result.ExitCode 'install plan exit code'
         Assert-True (-not (Test-Path -LiteralPath $piRoot)) 'plan created the Pi root'
         Assert-True ($result.Output -match 'PLAN') 'plan marker missing'
-        Assert-True ($result.Output -match '@earendil-works/pi-coding-agent@0\.87\.0') 'Pi exact version missing from plan'
+        $runtime = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\runtime.lock.json') -Raw | ConvertFrom-Json
+        Assert-True ($result.Output.Contains("$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)")) 'Pi exact version missing from plan'
         Assert-True ($result.Output -match 'pi-cbm@1\.2\.1') 'Code package exact version missing from plan'
     }
 
@@ -466,6 +467,10 @@ try {
         $background = @($installedSettings.packages | Where-Object { $_ -isnot [string] -and $_.source -match 'pi-background-tasks' })
         Assert-Equal 1 $background.Count 'background-tasks filter missing after merge'
         Assert-Equal 0 @($background[0].extensions).Count 'background-tasks was not kept disabled'
+        $trace = @($installedSettings.packages | Where-Object { $_ -isnot [string] -and $_.source -eq 'npm:pi-trace-extension@0.1.16' })
+        Assert-Equal 1 $trace.Count 'Trace exact pinned package/filter missing after merge'
+        Assert-True ($trace[0].PSObject.Properties.Name -contains 'extensions') 'Trace default-off filter missing'
+        Assert-Equal 0 @($trace[0].extensions).Count 'Trace was enabled by installer merge'
         $installedModels = Get-Content -LiteralPath $existingModels -Raw | ConvertFrom-Json
         Assert-Equal 'keep-me' ([string]$installedModels.providers.'local-test'.name) 'existing model provider was not preserved'
         Assert-True ($null -ne $installedModels.providers.'polza-memory') 'polza-memory provider was not merged'
@@ -502,7 +507,7 @@ try {
             )
         } finally { $env:PATH = $oldPath }
         Assert-True ($result.ExitCode -ne 0) 'tampered Git checkout unexpectedly passed install postcondition'
-        Assert-True ($result.Output -match 'HEAD.*pinned commit') 'Git checkout rejection was not reported'
+        Assert-True ($result.Output -match 'HEAD does not match pinned\s+commit') 'Git checkout rejection was not reported'
     }
 
     Test-Case 'installer creates pre-install settings backup before a failing pi lifecycle' {
@@ -662,7 +667,7 @@ try {
         Assert-Equal 1 $previous.ExitCode 'previous canonical memory patch must require migration'
         $migratePrevious = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
         Assert-Equal 0 $migratePrevious.ExitCode 'previous canonical memory patch did not migrate'
-        $preInjectorCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),injector=False))'
+        $preInjectorCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),injector=False,timers=False))'
         $makePreInjector = Invoke-NativeCapture 'python' @('-c', $preInjectorCode, $patcher, $dist)
         Assert-Equal 0 $makePreInjector.ExitCode 'could not create pre-injector canonical fixture'
         $preInjector = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
@@ -748,12 +753,26 @@ try {
         $cbmTarget = Join-Path $cbmPkg 'src\cbm\client.ts'
         $normalized = [IO.File]::ReadAllText($cbmTarget).Replace("`r`n", "`n")
         [IO.File]::WriteAllText($cbmTarget, $normalized, (New-Object Text.UTF8Encoding($false)))
+        $groupedCode = 'const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict"),{stripTypeScriptTypes}=require("node:module"); const src=fs.readFileSync(process.argv[2],"utf8"); const body=src.slice(src.indexOf("// [local-compat-patch] CBM"),src.indexOf("// [/local-compat-patch]")); const input={cols:["name","label","lines","in","out"],groups:[{qn_prefix:"compat-tiny.synthetic",file:"synthetic.py",rows:[["synthetic_add","Function","1-2",0,0]]}],total:1}; const result=vm.runInNewContext(stripTypeScriptTypes(body)+"normalizeCbm011Result(\"search_graph\", input)",{input}); assert.equal(result.results.length,1); assert.equal(result.results[0].qualified_name,"compat-tiny.synthetic.synthetic_add"); assert.equal(result.results[0].file_path,"synthetic.py"); assert.equal(result.results[0].start_line,1); assert.equal(result.results[0].end_line,2);'
+        $groupedTest = Join-Path $root 'cbm-grouped.cjs'
+        [IO.File]::WriteAllText($groupedTest, $groupedCode, (New-Object Text.UTF8Encoding($false)))
+        $grouped = Invoke-NativeCapture 'node' @($groupedTest, $cbmTarget)
+        Assert-Equal 0 $grouped.ExitCode "CBM grouped search lost symbol/location: $($grouped.Output)"
         $normalizedHash = (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash
         $normalizedCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
         Assert-Equal 0 $normalizedCheck.ExitCode 'exact LF-normalized CBM canonical was not accepted'
         $normalizedApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
         Assert-Equal 0 $normalizedApply.ExitCode 'LF-normalized CBM apply should be idempotent'
         Assert-Equal $normalizedHash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'idempotent CBM apply rewrote normalized bytes'
+        $previousCbm = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''cbm_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); p=pathlib.Path(sys.argv[2]); p.write_bytes(m.previous_patched(p.read_text()).encode())'
+        $makePreviousCbm = Invoke-NativeCapture $python @('-c', $previousCbm, $cbmPatcher, $cbmTarget)
+        Assert-Equal 0 $makePreviousCbm.ExitCode 'could not create exact previous CBM canonical'
+        $previousCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 1 $previousCheck.ExitCode 'previous CBM canonical must require migration'
+        $previousApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 0 $previousApply.ExitCode 'previous CBM canonical migration failed'
+        $groupedMigrated = Invoke-NativeCapture 'node' @($groupedTest, $cbmTarget)
+        Assert-Equal 0 $groupedMigrated.ExitCode 'migrated CBM lost grouped search symbols'
         $normalizedRestore = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--restore') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
         Assert-Equal 0 $normalizedRestore.ExitCode 'LF-normalized CBM restore should accept exact known state'
         Assert-Equal (Get-FileHash -LiteralPath $storeFiles[1] -Algorithm SHA256).Hash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'CBM restore did not recover immutable stock'
@@ -836,6 +855,40 @@ try {
         Assert-True ($badBrave.ExitCode -ne 0) 'wrong Brave npm metadata version was not rejected'
         Assert-True ($badBrave.Output -match 'brave-search-mcp-server expected 2\.0\.85') 'Brave version failure was not reported'
         Assert-True (-not (Test-Path -LiteralPath $braveMarker)) 'Brave server was started by a failing probe'
+    }
+
+    Test-Case 'Trace remains installed but canonical Code and Task filters reject opt-in drift' {
+        function Read-JsonFile { param([string]$Path) return ([IO.File]::ReadAllText($Path) | ConvertFrom-Json) }
+        $root = New-TestRoot
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\verify.ps1'), [ref]$tokens, [ref]$errors)
+        $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Compare-ProfileTemplate' }, $true).Extent.Text
+        $manifest = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')
+        $version = [string](Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')).runtime.pi.version
+        foreach ($profile in @('Code','Task')) {
+            foreach ($state in @('canonical','enabled','empty-item','missing-filter','string')) {
+                $settings = Read-JsonFile (Join-Path $RepoRoot "profiles\$($profile.ToLowerInvariant())\settings.template.json")
+                $index = 0; while ($index -lt $settings.packages.Count -and ($settings.packages[$index] -is [string] -or [string]$settings.packages[$index].source -ne 'npm:pi-trace-extension@0.1.16')) { $index++ }
+                Assert-True ($index -lt $settings.packages.Count) 'Installed Trace package missing'
+                if ($state -eq 'enabled') { $settings.packages[$index].extensions = @('extensions/trace') }
+                if ($state -eq 'empty-item') { $settings.packages[$index].extensions = @('') }
+                if ($state -eq 'missing-filter') { $settings.packages[$index].PSObject.Properties.Remove('extensions') }
+                if ($state -eq 'string') { $settings.packages[$index] = [string]$settings.packages[$index].source }
+                $file = Join-Path $root "$profile-$state.json"
+                [IO.File]::WriteAllText($file, ($settings | ConvertTo-Json -Depth 100))
+                $rejected = $false
+                try {
+                    & {
+                        function Pass { param($Message) }
+                        function Fail { param($Message) throw $Message }
+                        function Get-EntrySource { param($Item) if ($Item -is [string]) { return $Item }; return [string]$Item.source }
+                        . ([scriptblock]::Create($definition))
+                        Compare-ProfileTemplate $profile $file $manifest $version
+                    }
+                } catch { $rejected = $true }
+                Assert-Equal ($state -ne 'canonical') $rejected "$profile/$state Trace filter decision wrong"
+            }
+        }
     }
 
     Test-Case 'repository-only verification performs no profile writes' {

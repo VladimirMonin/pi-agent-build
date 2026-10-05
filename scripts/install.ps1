@@ -9,6 +9,8 @@ param(
 
     [string]$RepoRoot = '',
 
+    [string]$LabRoot = '',
+
     [switch]$SkipPackageInstall,
 
     [switch]$SkipPatches,
@@ -53,8 +55,8 @@ function Assert-PinnedPackageEntry {
 }
 
 function Assert-ExactCommandVersion {
-    param([string]$Command, [string[]]$Arguments, [string]$Expected, [string]$Label)
-    $result = Get-CommandOutput -Command $Command -Arguments $Arguments -SanitizeEnvironment
+    param([string]$Command, [string[]]$Arguments, [string]$Expected, [string]$Label, [hashtable]$Environment = @{}, [string]$WorkingDirectory = '')
+    $result = Get-CommandOutput -Command $Command -Arguments $Arguments -SanitizeEnvironment -Environment $Environment -WorkingDirectory $WorkingDirectory
     if (-not $result.Found) { throw "$Label is required but '$Command' was not found." }
     if ($result.ExitCode -ne 0) { throw "$Label version check failed with exit code $($result.ExitCode)." }
     $actual = Get-VersionFromText $result.Output
@@ -72,8 +74,8 @@ function Test-VersionAtLeast {
 }
 
 function Assert-MinimumCommandVersion {
-    param([string]$Command, [string[]]$Arguments, [string]$Minimum, [string]$Label)
-    $result = Get-CommandOutput -Command $Command -Arguments $Arguments -SanitizeEnvironment
+    param([string]$Command, [string[]]$Arguments, [string]$Minimum, [string]$Label, [hashtable]$Environment = @{}, [string]$WorkingDirectory = '')
+    $result = Get-CommandOutput -Command $Command -Arguments $Arguments -SanitizeEnvironment -Environment $Environment -WorkingDirectory $WorkingDirectory
     if (-not $result.Found) { throw "$Label is required but '$Command' was not found." }
     $actual = Get-VersionFromText $result.Output
     if (-not $actual -or -not (Test-VersionAtLeast -Actual $actual -Minimum $Minimum)) {
@@ -204,6 +206,37 @@ function Merge-PolzaMemoryProvider {
 
 try {
     $RepoRoot = Resolve-FullPath $RepoRoot
+    if ($LabRoot) {
+        if ($SyncSettingsOnly -or $SkipPackageInstall -or $SkipPatches -or $ReplaceProfileConfigs -or $PSBoundParameters.ContainsKey('PiRoot') -or ($Apply -and $Profile -ne 'Both')) {
+            throw 'Lab mode refuses skip, sync, replacement, explicit PiRoot, or partial-profile Apply.'
+        }
+        $lab = Assert-PrivateLabRoot -LabRoot $LabRoot -RepoRoot $RepoRoot
+        $root = Join-Path $lab 'pi-root'
+        $prefix = Join-Path $lab 'npm-prefix'
+        $cwd = Join-Path $lab 'test-cwd'
+        $preflight = Get-CommandOutput -Command ((Get-Process -Id $PID).Path) -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'lab-preflight.ps1'), '-LabRoot', $lab, '-RepoRoot', $RepoRoot, '-Profile', 'Both')
+        $fresh = $preflight.Found -and $preflight.ExitCode -eq 0 -and $preflight.Output.Contains('LAB PREFLIGHT PLAN: PASS')
+        Write-Host "LAB $(if ($Apply) { 'APPLY' } else { 'PLAN' }): private Pi $(Join-Path $prefix 'pi.cmd')"
+        Write-Host "npm prefix: $prefix; synthetic cwd: $cwd; Code: $(Join-Path $root 'agent'); Task: $(Join-Path $root 'task')"
+        if (-not $fresh) {
+            Assert-LabInstalledState -LabRoot $lab -RepoRoot $RepoRoot -Mcp
+            if ($Apply) {
+                foreach ($directory in @('agent', 'task')) {
+                    $profileRoot = Join-Path $root $directory
+                    $backup = Join-Path $profileRoot '.pi-agent-build-backups\install'
+                    [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\pi-goal-x-settings.json') -Destination (Join-Path $profileRoot 'pi-goal-x-settings.json') -BackupDirectory $backup)
+                    [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\goal-autonomy.AGENTS.md') -Destination (Join-Path $profileRoot 'AGENTS.md') -BackupDirectory $backup)
+                }
+            }
+            Write-Host "LAB $(if ($Apply) { 'APPLY' } else { 'PLAN' }): VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
+            exit 0
+        }
+        if (-not $Apply) {
+            Write-Host 'LAB PLAN: both synthetic profiles passed fresh preflight; no writes'
+            exit 0
+        }
+        Assert-NoLabReparseTree -Root $lab
+    }
     $PiRoot = Resolve-FullPath $PiRoot
     $runtime = Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')
     $packages = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')
@@ -212,6 +245,64 @@ try {
 
     foreach ($entry in @($packages.profiles.common) + @($packages.profiles.codeOnly)) {
         Assert-PinnedPackageEntry $entry
+    }
+
+    if ($LabRoot) {
+        $environment = Get-LabToolEnvironment -LabRoot $lab -NpmPrefix $prefix
+        $npm = Assert-LabToolPath -Name 'npm' -NpmPrefix $prefix
+        $node = Assert-LabToolPath -Name 'node' -NpmPrefix $prefix
+        $git = Assert-LabToolPath -Name 'git' -NpmPrefix $prefix
+        $python = Assert-LabToolPath -Name 'python' -NpmPrefix $prefix
+        $uv = Assert-LabToolPath -Name 'uv' -NpmPrefix $prefix
+        Assert-ExactCommandVersion -Command $node -Arguments @('--version') -Expected ([string]$runtime.runtime.node) -Label 'Node.js' -Environment $environment -WorkingDirectory $cwd
+        Assert-ExactCommandVersion -Command $npm -Arguments @('--version') -Expected ([string]$runtime.runtime.npm) -Label 'npm' -Environment $environment -WorkingDirectory $cwd
+        Assert-ExactCommandVersion -Command $git -Arguments @('--version') -Expected ([string](@($external.common | Where-Object { $_.name -eq 'git' })[0].version)) -Label 'Git' -Environment $environment -WorkingDirectory $cwd
+        $pythonLock = @($external.common | Where-Object { $_.name -eq 'python' })[0]
+        Assert-MinimumCommandVersion -Command $python -Arguments @('--version') -Minimum ([string]$pythonLock.minimumVersion) -Label 'Python' -Environment $environment -WorkingDirectory $cwd
+        $uvLock = @($external.common | Where-Object { $_.name -eq 'uv' })[0]
+        Assert-ExactCommandVersion -Command $uv -Arguments @('--version') -Expected ([string]$uvLock.version) -Label 'uv' -Environment $environment -WorkingDirectory $cwd
+        Invoke-CheckedCommand -Command $npm -Arguments @('install', '--global', '--prefix', $prefix, '--no-audit', '--no-fund', "$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
+        Assert-InstalledPackageVersion -NodeModulesRoot (Join-Path $prefix 'node_modules') -PackageName ([string]$runtime.runtime.pi.package) -Expected ([string]$runtime.runtime.pi.version)
+        $piMetadata = Read-JsonFile (Join-Path (Join-Path (Join-Path $prefix 'node_modules') ([string]$runtime.runtime.pi.package).Replace('/', [IO.Path]::DirectorySeparatorChar)) 'package.json')
+        if ([string]$piMetadata.name -ne [string]$runtime.runtime.pi.package) { throw 'Private Pi package metadata name mismatch.' }
+        $candidate = Join-Path $prefix 'pi.cmd'
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'Candidate Pi launcher missing from private prefix; global fallback forbidden.' }
+        $piVersion = Get-CommandOutput -Command $candidate -Arguments @('--version') -SanitizeEnvironment -Environment $environment -WorkingDirectory $cwd
+        if (-not $piVersion.Found -or $piVersion.ExitCode -ne 0 -or (Get-VersionFromText $piVersion.Output) -ne [string]$runtime.runtime.pi.version) {
+            throw 'Candidate Pi launcher version mismatch; global fallback forbidden.'
+        }
+        foreach ($selected in $profiles) {
+            $profileRoot = Join-Path $root $selected.Directory
+            $profileEnv = Get-LabToolEnvironment -LabRoot $lab -NpmPrefix $prefix -ProfileName $selected.Directory
+            $backup = Join-Path $profileRoot '.pi-agent-build-backups\install'
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot "profiles\$($selected.Template)\settings.template.json") -Destination (Join-Path $profileRoot 'settings.json') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\pi-goal-x-settings.json') -Destination (Join-Path $profileRoot 'pi-goal-x-settings.json') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\goal-autonomy.AGENTS.md') -Destination (Join-Path $profileRoot 'AGENTS.md') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\models.polza-memory.example.json') -Destination (Join-Path $profileRoot 'models.json') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\ollama-cloud.example.json') -Destination (Join-Path $profileRoot 'ollama-cloud.json') -BackupDirectory $backup)
+            [void](Install-ProfileDirectory -Source (Join-Path $RepoRoot 'skills\memory-ops') -Destination (Join-Path $profileRoot 'skills\memory-ops') -BackupDirectory $backup)
+            foreach ($entry in (Get-ProfilePackages -ProfileName $selected.Name -Manifest $packages)) {
+                Invoke-CheckedCommand -Command $candidate -Arguments @('install', [string]$entry.source) -WorkingDirectory $cwd -SanitizeEnvironment -Environment $profileEnv
+                Assert-InstalledProfilePackage -ProfileRoot $profileRoot -Entry $entry
+            }
+        }
+        foreach ($tool in $external.codeProfile) {
+            if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
+                Invoke-CheckedCommand -Command $uv -Arguments @('tool', 'install', '--python', [string]$tool.pythonVersion, '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
+            } else {
+                Invoke-CheckedCommand -Command $npm -Arguments @('install', '--global', '--prefix', $prefix, '--no-audit', '--no-fund', "$($tool.package)@$($tool.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
+                Assert-InstalledPackageVersion -NodeModulesRoot (Join-Path $prefix 'node_modules') -PackageName ([string]$tool.package) -Expected ([string]$tool.version)
+                if ($tool.PSObject.Properties.Name -contains 'windowsSpawnFix' -and [string]$tool.windowsSpawnFix -eq 'stage-real-executable') {
+                    $sourceExecutable = Join-Path (Join-Path (Join-Path $prefix 'node_modules') ([string]$tool.package).Replace('/', [IO.Path]::DirectorySeparatorChar)) 'ast-grep.exe'
+                    $targetExecutable = Join-Path $prefix 'ast-grep.exe'
+                    if (-not (Test-Path -LiteralPath $sourceExecutable -PathType Leaf) -or (Test-Path -LiteralPath $targetExecutable)) { throw 'Private ast-grep executable cannot be staged safely.' }
+                    Copy-Item -LiteralPath $sourceExecutable -Destination $targetExecutable
+                }
+            }
+        }
+        Invoke-CheckedCommand -Command ((Get-Process -Id $PID).Path) -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'apply-patches.ps1'), '-Profile', $Profile, '-Mode', 'Apply', '-PiRoot', $root, '-RepoRoot', $RepoRoot) -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
+        Write-Host 'LAB installation complete; runtime isolation and external probes NOT TESTED.'
+        exit 0
     }
 
     $mode = if ($Apply) { 'APPLY' } else { 'PLAN' }
@@ -314,6 +405,10 @@ try {
         $destination = Join-Path $profileRoot 'settings.json'
         $copyStatus = Install-ProfileFile -Source $template -Destination $destination -BackupDirectory $backupRoot -BackupName 'settings.json' -Replace:$ReplaceProfileConfigs
         Write-Host "$copyStatus $destination"
+        foreach ($file in @(@('config\pi-goal-x-settings.json', 'pi-goal-x-settings.json'), @('config\goal-autonomy.AGENTS.md', 'AGENTS.md'))) {
+            $status = Install-ProfileFile -Source (Join-Path $RepoRoot $file[0]) -Destination (Join-Path $profileRoot $file[1]) -BackupDirectory $backupRoot -BackupName $file[1] -Replace:$ReplaceProfileConfigs
+            Write-Host "$status $(Join-Path $profileRoot $file[1])"
+        }
 
         $modelsTemplate = Join-Path $RepoRoot 'config\models.polza-memory.example.json'
         $modelsDestination = Join-Path $profileRoot 'models.json'
@@ -354,7 +449,7 @@ try {
         Assert-ExactCommandVersion -Command 'uv' -Arguments @('--version') -Expected ([string]$uvLock.version) -Label 'uv'
         foreach ($tool in $external.codeProfile) {
             if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
-                Invoke-CheckedCommand -Command 'uv' -Arguments @('tool', 'install', '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -SanitizeEnvironment
+                Invoke-CheckedCommand -Command 'uv' -Arguments @('tool', 'install', '--python', [string]$tool.pythonVersion, '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -SanitizeEnvironment
             } else {
                 Invoke-CheckedCommand -Command 'npm' -Arguments @('install', '--global', '--no-audit', '--no-fund', "$($tool.package)@$($tool.version)") -SanitizeEnvironment
             }

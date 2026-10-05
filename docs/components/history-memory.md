@@ -79,7 +79,7 @@ Memory DB содержит персональные preferences/identity и proj
 
 ### Проверка
 
-Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. Runtime-scope test делает реальный model call. Структурные тесты `test-memory-pushturn.mjs`, `test-memory-embedder.mjs` и `test-memory-sessionid.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
+Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. На Pi1.0.2 Code/Task реально проверены synthetic remember/search в **FTS fallback** и local-mock lifecycle без внешнего model call; cold HF download был заблокирован. Это не semantic embedding и не consolidation acceptance. Реальный consolidation/model call требует отдельного разрешения. Структурные тесты `test-memory-pushturn.mjs`, `test-memory-embedder.mjs` и `test-memory-sessionid.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 

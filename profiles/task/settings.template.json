@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.87.0",
+  "lastChangelogVersion": "1.0.2",
   "theme": "dark",
   "defaultProvider": "ollama-cloud",
   "defaultModel": "deepseek-v4.1-flash",
@@ -10,7 +10,10 @@
   "cacheWarming": "streaming",
   "packages": [
     "npm:pi-ollama-cloud@0.12.1",
-    "npm:pi-trace-extension@0.1.16",
+    {
+      "source": "npm:pi-trace-extension@0.1.16",
+      "extensions": []
+    },
     "npm:pi-context-inspector@1.1.1",
     "npm:@juicesharp/rpiv-todo@2.10.1",
     "https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42",

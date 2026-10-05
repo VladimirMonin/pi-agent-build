@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import pathlib
 import shutil
@@ -24,6 +25,35 @@ REL_FILES = (
     pathlib.Path("dist/index.js"),
 )
 BACKUP_ROOT = pathlib.Path()
+STOCK_HASHES = (
+    '625fdbefd346e8b2b820be6319eea8bd66779bced277dca81a2fa3974355b912',
+    '2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a',
+    'e89d2d9d69380559ed735c378fdab2d43a3d8e546bfcab941ee69c0895b6f545',
+)
+TIMER_OLD = '''        const runSync = () => Promise.race([
+          sessionIndex.sync(
+            (msg) => ctx.ui.setStatus("session-search", msg),
+            notifySyncError(ctx)
+          ),
+          new Promise(
+            (resolve2) => scheduleTimer(() => resolve2(null), SYNC_TIMEOUT_MS)
+          )
+        ]);'''
+TIMER_NEW = '''        const runSync = () => {
+          let timeout;
+          return Promise.race([
+            sessionIndex.sync(
+              (msg) => ctx.ui.setStatus("session-search", msg),
+              notifySyncError(ctx)
+            ),
+            new Promise((resolve2) => {
+              timeout = scheduleTimer(() => resolve2(null), SYNC_TIMEOUT_MS);
+            })
+          ]).finally(() => {
+            clearTimeout(timeout);
+            pendingTimers.delete(timeout);
+          });
+        };'''
 
 CONFIG_OLD = '''function globalConfigDir(): string {
   return join(homedir(), ".pi", "session-search");
@@ -135,11 +165,13 @@ def read_files(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
     return {rel: (root / rel).read_bytes() for rel in REL_FILES}
 
 
-def canonical_files() -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
+def canonical_files(runtime_only: bool = False, *, timers: bool = True) -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
     missing = [str(rel) for rel in REL_FILES if not (STORE / rel).is_file()]
     if missing:
         raise RuntimeError(f"immutable pristine files missing: {missing}")
     stock = read_files(STORE)
+    if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
+        raise RuntimeError("immutable stock hash mismatch")
     c = stock[REL_FILES[0]].decode("utf-8")
     p = stock[REL_FILES[1]].decode("utf-8")
     d = stock[REL_FILES[2]].decode("utf-8")
@@ -147,6 +179,10 @@ def canonical_files() -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, byt
     p = replace_once(p, PARSER_OLD, PARSER_NEW, "src/parser.ts")
     d = replace_once(d, DIST_CONFIG_OLD, DIST_CONFIG_NEW, "dist config")
     d = replace_once(d, DIST_PARSER_OLD, DIST_PARSER_NEW, "dist parser")
+    if runtime_only:
+        c, p, d = (stock[r].decode("utf-8") for r in REL_FILES)
+    if timers:
+        d = replace_once(d, TIMER_OLD, TIMER_NEW, "dist sync timeout")
     canonical = {
         REL_FILES[0]: c.encode("utf-8"),
         REL_FILES[1]: p.encode("utf-8"),
@@ -155,13 +191,15 @@ def canonical_files() -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, byt
     return stock, canonical
 
 
-def classify(root: pathlib.Path) -> tuple[str, dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
-    stock, canonical = canonical_files()
+def classify(root: pathlib.Path, runtime_only: bool = False) -> tuple[str, dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
+    stock, canonical = canonical_files(runtime_only)
     current = read_files(root)
     if current == canonical:
         return "patched", stock, canonical
     if current == stock:
         return "stock", stock, canonical
+    if not runtime_only and current == canonical_files(timers=False)[1]:
+        return "legacy-canonical", stock, canonical
     return "unknown", stock, canonical
 
 
@@ -175,14 +213,14 @@ def runtime_backup(root: pathlib.Path, label: str) -> pathlib.Path:
     return target
 
 
-def apply(root: pathlib.Path) -> None:
-    status, _stock, canonical = classify(root)
+def apply(root: pathlib.Path, runtime_only: bool = False) -> None:
+    status, _stock, canonical = classify(root, runtime_only)
     if status == "patched":
         print("ALREADY PATCHED")
         return
-    if status != "stock":
+    if status not in {"stock", "legacy-canonical"}:
         raise RuntimeError("installed files differ from immutable stock and canonical patch")
-    print(f"runtime backup: {runtime_backup(root, 'stock')}")
+    print(f"runtime backup: {runtime_backup(root, status)}")
     for rel, body in canonical.items():
         (root / rel).write_bytes(body)
     subprocess.run(["node", "--check", str(root / REL_FILES[2])], check=True)
@@ -191,12 +229,12 @@ def apply(root: pathlib.Path) -> None:
     print("PATCH APPLIED")
 
 
-def restore(root: pathlib.Path) -> None:
-    status, stock, _canonical = classify(root)
+def restore(root: pathlib.Path, runtime_only: bool = False) -> None:
+    status, stock, _canonical = classify(root, runtime_only)
     if status == "stock":
         print("ALREADY STOCK")
         return
-    if status != "patched":
+    if status not in {"patched", "legacy-canonical"}:
         raise RuntimeError("installed files are neither immutable stock nor canonical patch")
     print(f"runtime backup: {runtime_backup(root, 'patched')}")
     for rel, body in stock.items():
@@ -209,6 +247,7 @@ def restore(root: pathlib.Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--agent-dir", required=True)
+    ap.add_argument("--runtime-only", action="store_true", help="Code: timer cleanup only; preserve stock paths")
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--apply", action="store_true")
@@ -223,14 +262,14 @@ def main() -> int:
     try:
         assert_version(root)
         if args.check:
-            status, _stock, _canonical = classify(root)
+            status, _stock, _canonical = classify(root, args.runtime_only)
             print(f"version={VERSION} state={status}")
-            print("ALREADY PATCHED" if status == "patched" else "PATCH REQUIRED" if status == "stock" else "UNKNOWN STATE")
-            return 0 if status == "patched" else 1 if status == "stock" else 2
+            print("ALREADY PATCHED" if status == "patched" else "PATCH REQUIRED" if status in {"stock", "legacy-canonical"} else "UNKNOWN STATE")
+            return 0 if status == "patched" else 1 if status in {"stock", "legacy-canonical"} else 2
         if args.apply:
-            apply(root)
+            apply(root, args.runtime_only)
         else:
-            restore(root)
+            restore(root, args.runtime_only)
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

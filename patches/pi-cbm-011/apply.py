@@ -199,7 +199,7 @@ function normalizeCbm011Result(toolName: string, value: unknown): unknown {
   const data: CbmRecord = { ...value };
 
   if (toolName === "search_graph" || toolName === "search_code") {
-    if (!Array.isArray(data.results) && Array.isArray(data.cols) && Array.isArray(data.rows)) {
+    if (!Array.isArray(data.results) && Array.isArray(data.cols) && (Array.isArray(data.rows) || Array.isArray(data.groups))) {
       data.results = expandTable(data);
     }
   } else if (toolName === "trace_path") {
@@ -341,6 +341,14 @@ def build_patched(pristine_text: str) -> tuple[str, list[str]]:
     return text, problems
 
 
+def previous_patched(expected: str) -> str:
+    """Exact previous canonical body: grouped search results were not expanded."""
+    current = "Array.isArray(data.cols) && (Array.isArray(data.rows) || Array.isArray(data.groups))"
+    if expected.count(current) != 1:
+        raise RuntimeError("grouped-result migration anchor mismatch")
+    return expected.replace(current, "Array.isArray(data.cols) && Array.isArray(data.rows)", 1)
+
+
 # --------------------------------------------------------------------------- #
 # commands
 # --------------------------------------------------------------------------- #
@@ -400,6 +408,10 @@ def cmd_check() -> int:
     if text in (expected, expected.replace("\r\n", "\n")):
         print("  ALREADY PATCHED. Nothing to do.")
         return 0
+    previous = previous_patched(expected)
+    if text in (previous, previous.replace("\r\n", "\n")):
+        print("  PATCH REQUIRED: exact previous canonical lacks grouped search results.")
+        return 1
     if text == base:
         print(f"  PATCH REQUIRED: CBM {cv} defaults graph tools to tree output.")
         return 1
@@ -449,7 +461,8 @@ def cmd_apply() -> int:
     if text in (new_text, new_text.replace("\r\n", "\n")):
         print("  file already in canonical patched state (idempotent)")
         return 0
-    if text != base:
+    previous = previous_patched(new_text)
+    if text not in (base, previous, previous.replace("\r\n", "\n")):
         print("  REFUSING: installed file differs from immutable stock and canonical patch")
         return 2
 
@@ -493,7 +506,8 @@ def cmd_restore() -> int:
     if text == base:
         print("  file is already stock — nothing to restore")
         return 0
-    if text not in (expected, expected.replace("\r\n", "\n")):
+    previous = previous_patched(expected)
+    if text not in (expected, expected.replace("\r\n", "\n"), previous, previous.replace("\r\n", "\n")):
         print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
 

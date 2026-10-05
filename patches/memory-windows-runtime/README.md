@@ -2,7 +2,7 @@
 
 Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
 
-## Шесть исправлений
+## Семь исправлений
 
 ### Windows spawn
 
@@ -33,6 +33,12 @@ Patch читает реальный id через `ctx.sessionManager?.getSessio
 ### Scope фактов и целые записи
 
 Stock 1.5.0 пропускает чужие `project.*` факты через embedding hits и соседей и обрезает блок памяти посреди записи. `injection.py` добавляет единую проверку scope для каждого источника фактов, резервирует места для местных уроков и наполняет бюджет 8000 символов **целыми строками**. Избыточные записи пропускаются. Для worktree с общей биркой фактов задайте `memory.factProjectAliases` в **приватных** `settings.json` профилей; пример без личных путей в [документации](../../docs/fixes/memory-injection.md). Записи БД patcher не меняет.
+
+### Очистка таймеров embedder
+
+`withTimeout` очищает timer в `finally` после resolve **и** reject. Настоящий timeout и исходная ошибка сохраняются; forced exit, unref и отключение extension не используются. Точный предыдущий canonical с injector принимается для backed-up upgrade, marker-shaped неизвестные bytes — нет.
+
+Focused regression: `python patches/session-search-profile/tests/test_runtime.py` проверяет оба production timer body и миграцию canonical.
 
 ## Использование
 

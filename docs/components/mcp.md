@@ -66,3 +66,11 @@ npm uninstall -g @upstash/context7-mcp
 npm uninstall -g @brave/brave-search-mcp-server
 uv tool uninstall mcp-server-fetch
 ```
+
+## Решение для кандидата Pi 0.99.1
+
+`pi-mcp-adapter@2.36.0` **сохранён**. Последняя WVM assessment выполнена после private source-only query corrections, source review и doc/diff/safety gates: configured parent gateway connect33tools и read-only public `settings_schema` version1 PASS. Предыдущие `fetch failed` и прежние schema receipts сохранены как история; source/managed approval не открывает controlled native runner gate. Ни success, ни availability failure parent gateway не являются transport diagnosis кандидата. **Legacy SSE и streamable HTTP в отдельных candidate-конфигурациях NOT TESTED**: отдельно идентифицированные endpoints/configs не испытаны, working configs/credentials не копировались. Надпись gateway «legacy notification path» сама по себе не устанавливает MCP transport; public schema-call не доказывает builtin parity.
+
+Для замены должны быть доказаны: единственный `/mcp`, lazy discovery/schema exposure, proxy/direct tools и `mcpScript`, auth без экспорта credentials, ошибки/output guard и реальные требуемые WVM tools на обоих transports. Паритет builtin по этим функциям **NOT TESTED**, эксперимент не запускался; два владельца `/mcp` не добавлялись. Официальная [документация 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/mcp.md#configure-servers) описывает stdio/streamable HTTP, но не обещает legacy SSE. Это static contract, не наш runtime PASS.
+
+Итог — **NO-GO для полного релиза/переключения**, bounded candidate branch может быть опубликована по отдельному разрешению владельца. Доказательства/риски: [доска](../plans/pi-0.99.1-execution-board.md), [матрица](../plans/pi-0.99.1-compat-matrix.md); сырые WVM результаты только в private evidence.

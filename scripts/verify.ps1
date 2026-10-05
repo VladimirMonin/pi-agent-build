@@ -7,6 +7,8 @@ param(
 
     [string]$RepoRoot = '',
 
+    [string]$LabRoot = '',
+
     [switch]$RepositoryOnly,
 
     [switch]$ExternalOnly,
@@ -56,6 +58,17 @@ function Compare-ProfileTemplate {
     if (($expected -join "`n") -ne ($actual -join "`n")) {
         Fail "$ProfileName template package list differs from pi-packages.lock.json"
     } else { Pass "$ProfileName template package list and exact versions" }
+    foreach ($entry in $expectedEntries) {
+        if ($entry.PSObject.Properties.Name -notcontains 'enabledExtensions') { continue }
+        $selected = @($settings.packages | Where-Object { (Get-EntrySource $_) -eq [string]$entry.source })
+        if ($selected.Count -ne 1 -or $selected[0] -is [string] -or
+            $selected[0].PSObject.Properties.Name -notcontains 'extensions' -or
+            ($selected[0].extensions -isnot [array]) -or
+            @($selected[0].extensions).Count -ne @($entry.enabledExtensions).Count -or
+            (@($selected[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
+            Fail "$ProfileName $($entry.package) extension filter differs from manifest"
+        } else { Pass "$ProfileName $($entry.package) canonical extension filter" }
+    }
     $goal = @($expectedEntries | Where-Object { $_.package -eq 'pi-goal-x' })
     $intercom = @($expectedEntries | Where-Object { $_.package -eq 'pi-intercom' })
     if ($goal.Count -ne 1 -or $intercom.Count -ne 1 -or
@@ -220,9 +233,21 @@ function Test-InstalledProfile {
     $settingsPath = Join-Path $profileRoot 'settings.json'
     if (-not (Test-RequiredPath -Path $settingsPath -Label "$($Selected.Name) settings")) { return }
     try { $settings = Read-JsonFile $settingsPath; Pass "$($Selected.Name) settings JSON" } catch { Fail $_.Exception.Message; return }
-    $memoryRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot)
-    if (-not $memoryRoute.Found -or $memoryRoute.ExitCode -ne 0) { Fail "$($Selected.Name) $($memoryRoute.Output)" }
-    else { Pass "$($Selected.Name) memory consolidation route (static provider, credential configured)" }
+    if ($LabRoot) {
+        try {
+            $models = Read-JsonFile (Join-Path $profileRoot 'models.json')
+            $model = [string]$settings.memory.consolidationModel
+            $parts = $model.Split('/', 2)
+            $provider = if ($parts.Count -eq 2) { $models.providers.PSObject.Properties[$parts[0]].Value } else { $null }
+            if (-not $provider -or @($provider.models | Where-Object { [string]$_.id -eq $parts[1] }).Count -ne 1 -or
+                [string]$provider.apiKey -notmatch '^\$[A-Za-z_][A-Za-z0-9_]*$') { throw 'static memory route or secret-free provider reference missing' }
+            Pass "$($Selected.Name) lab static memory route (credential NOT TESTED)"
+        } catch { Fail "$($Selected.Name) lab static memory route invalid" }
+    } else {
+        $memoryRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot)
+        if (-not $memoryRoute.Found -or $memoryRoute.ExitCode -ne 0) { Fail "$($Selected.Name) $($memoryRoute.Output)" }
+        else { Pass "$($Selected.Name) memory consolidation route (static provider, credential configured)" }
+    }
     $goalEntries = @($PackageManifest.profiles.common | Where-Object { $_.package -eq 'pi-goal-x' })
     $packageItems = if ($settings.PSObject.Properties.Name -contains 'packages' -and $null -ne $settings.packages) { @($settings.packages) } else { @() }
     $sources = @($packageItems | ForEach-Object { Get-EntrySource $_ })
@@ -243,6 +268,16 @@ function Test-InstalledProfile {
     else { Fail "$($Selected.Name) installed package sources differ from pinned manifest; run install.ps1 -Apply -SyncSettingsOnly" }
     foreach ($entry in $entries) {
         $source = [string]$entry.source
+        if ($entry.PSObject.Properties.Name -contains 'enabledExtensions') {
+            $selectedEntry = @($packageItems | Where-Object { (Get-EntrySource $_) -eq $source })
+            if ($selectedEntry.Count -ne 1 -or $selectedEntry[0] -is [string] -or
+                $selectedEntry[0].PSObject.Properties.Name -notcontains 'extensions' -or
+                $selectedEntry[0].extensions -isnot [array] -or
+                @($selectedEntry[0].extensions).Count -ne @($entry.enabledExtensions).Count -or
+                (@($selectedEntry[0].extensions) -join "`n") -ne (@($entry.enabledExtensions) -join "`n")) {
+                Fail "$($Selected.Name) $($entry.package) installed extension filter differs from manifest"
+            } else { Pass "$($Selected.Name) $($entry.package) installed extension filter" }
+        }
         if ($source.StartsWith('npm:')) {
             $relative = ([string]$entry.package).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
             $packageJson = Join-Path (Join-Path (Join-Path $profileRoot 'npm\node_modules') $relative) 'package.json'
@@ -322,6 +357,43 @@ try {
     }
 
     $profiles = Get-SelectedProfiles -Profile $Profile
+    if ($LabRoot) {
+        if ($RepositoryOnly -or $ExternalOnly -or $SkipPatchChecks -or $SkipExternalChecks -or $PSBoundParameters.ContainsKey('PiRoot') -or $Profile -ne 'Both') {
+            throw 'Lab verifier requires both profiles and refuses skip, repository-only, external-only, or explicit PiRoot switches.'
+        }
+        $lab = Assert-PrivateLabRoot -LabRoot $LabRoot -RepoRoot $RepoRoot
+        $PiRoot = Join-Path $lab 'pi-root'
+        $prefix = Join-Path $lab 'npm-prefix'
+        $candidate = Join-Path $prefix 'pi.cmd'
+        Assert-LabInstalledState -LabRoot $lab -RepoRoot $RepoRoot -Mcp
+        $piPackage = Join-Path (Join-Path (Join-Path $prefix 'node_modules') ([string]$runtime.runtime.pi.package).Replace('/', [IO.Path]::DirectorySeparatorChar)) 'package.json'
+        if (Test-RequiredPath -Path $candidate -Label 'private Pi launcher' -Type Leaf) {
+            try {
+                $metadata = Read-JsonFile $piPackage
+                if ([string]$metadata.version -eq [string]$runtime.runtime.pi.version -and [string]$metadata.name -eq [string]$runtime.runtime.pi.package) {
+                    Pass "private Pi package $($metadata.version)"
+                } else { Fail 'private Pi package metadata differs from runtime lock' }
+            } catch { Fail 'private Pi package metadata missing or invalid' }
+            try {
+                $environment = Get-LabToolEnvironment -LabRoot $lab -NpmPrefix $prefix
+                $versionResult = Get-CommandOutput -Command $candidate -Arguments @('--version') -SanitizeEnvironment -Environment $environment
+                if ($versionResult.Found -and $versionResult.ExitCode -eq 0 -and (Get-VersionFromText $versionResult.Output) -eq [string]$runtime.runtime.pi.version) {
+                    Pass 'private Pi launcher exact version'
+                } else { Fail 'private Pi launcher exact version mismatch' }
+                Invoke-WithChildEnvironment -Sanitize -Environment $environment -ScriptBlock {
+                    foreach ($selected in $profiles) { Test-InstalledProfile -Selected $selected -Root $PiRoot -PackageManifest $packages }
+                    $shell = (Get-Process -Id $PID).Path
+                    & $shell -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'apply-patches.ps1') -Profile $Profile -Mode Check -PiRoot $PiRoot -RepoRoot $RepoRoot
+                    if ($LASTEXITCODE -eq 0) { Pass 'lab installed patch checks' }
+                    else { Fail "lab patch checks exited $LASTEXITCODE" }
+                }
+            } catch { Fail "lab verification failed: $($_.Exception.Message)" }
+        }
+        Warn 'NOT TESTED: WVM, optional MCP/tools-call, real provider transport and native Linux/macOS; private stdio probes are not an OS sandbox'
+        Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings"
+        if ($script:Failures -gt 0) { exit 1 }
+        exit 0
+    }
     if ($ExternalOnly) {
         if ($RepositoryOnly) { throw '-ExternalOnly cannot be combined with -RepositoryOnly.' }
         if (-not $SkipExternalChecks) { Test-ExternalTools -Manifest $external -Profiles $profiles }

@@ -165,6 +165,134 @@ function Get-SanitizedChildEnvironment {
     return $result
 }
 
+function Assert-PrivateLabRoot {
+    param([string]$LabRoot, [string]$RepoRoot)
+    if ($LabRoot -notmatch '^[A-Za-z]:[\\/]' -or $LabRoot -match '[\\/]\.\.[\\/]') { throw 'LabRoot must be an absolute local path without parent traversal.' }
+    $lab = [IO.Path]::GetFullPath($LabRoot).TrimEnd([char[]]@('\', '/'))
+    $repo = [IO.Path]::GetFullPath($RepoRoot).TrimEnd([char[]]@('\', '/'))
+    if (-not (Test-Path -LiteralPath $lab -PathType Container) -or $lab.Equals($repo, [StringComparison]::OrdinalIgnoreCase) -or
+        $lab.StartsWith(($repo + '\'), [StringComparison]::OrdinalIgnoreCase) -or $repo.StartsWith(($lab + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'LabRoot missing or overlapping repository.' }
+    foreach ($homePath in @($HOME, $env:USERPROFILE)) {
+        if ($homePath) {
+            $homeFull = [IO.Path]::GetFullPath($homePath).TrimEnd([char[]]@('\', '/'))
+            if ($lab.Equals($homeFull, [StringComparison]::OrdinalIgnoreCase) -or $lab.StartsWith(($homeFull + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'LabRoot overlaps live home.' }
+        }
+    }
+    $cursor = $lab
+    while ($cursor) {
+        $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'LabRoot includes reparse point.' }
+        if (Test-Path -LiteralPath (Join-Path $cursor '.git')) { throw 'LabRoot overlaps Git checkout.' }
+        $parent = [IO.Directory]::GetParent($cursor)
+        if (-not $parent) { break }
+        $cursor = $parent.FullName
+    }
+    foreach ($relative in @('pi-root', 'pi-root/agent', 'pi-root/task', 'npm-prefix', 'npm-prefix/pi.cmd', 'test-cwd')) {
+        $target = Join-Path $lab $relative
+        $item = Get-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Lab target includes reparse point.' }
+    }
+    return $lab
+}
+
+function Assert-NoLabReparseTree {
+    param([string]$Root)
+    if (-not (Test-Path -LiteralPath $Root)) { return }
+    $pending = New-Object 'System.Collections.Generic.Stack[string]'
+    $pending.Push($Root)
+    while ($pending.Count -gt 0) {
+        $current = $pending.Pop()
+        $item = Get-Item -LiteralPath $current -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Lab tree contains a reparse point.' }
+        if ($item.PSIsContainer) {
+            foreach ($child in (Get-ChildItem -LiteralPath $current -Force)) { $pending.Push($child.FullName) }
+        }
+    }
+}
+
+function Assert-LabInstalledState {
+    param([string]$LabRoot, [string]$RepoRoot, [switch]$Mcp)
+    $prefix = Join-Path $LabRoot 'npm-prefix'
+    $environment = Get-LabToolEnvironment -LabRoot $LabRoot -NpmPrefix $prefix
+    $environment['PI_LAB_LIVE_HOME'] = $HOME
+    $environment['PI_LAB_LIVE_USERPROFILE'] = [string]$env:USERPROFILE
+    $python = Assert-LabToolPath -Name 'python' -NpmPrefix $prefix
+    $node = Assert-LabToolPath -Name 'node' -NpmPrefix $prefix
+    $git = Assert-LabToolPath -Name 'git' -NpmPrefix $prefix
+    $arguments = @((Join-Path $PSScriptRoot 'lab-state.py'), '--lab-root', $LabRoot, '--repo-root', $RepoRoot, '--node', $node, '--git', $git)
+    if ($Mcp) { $arguments += '--mcp' }
+    $result = Get-CommandOutput -Command $python -Arguments $arguments -SanitizeEnvironment -Environment $environment -WorkingDirectory (Join-Path $LabRoot 'test-cwd')
+    if ($result.Output) { Write-Host $result.Output }
+    if (-not $result.Found -or $result.ExitCode -ne 0 -or -not $result.Output.Contains('VERIFIED INSTALLED-STATE: PASS')) {
+        throw 'Lab installed-state validation refused; no repair/reinstall is authorized.'
+    }
+}
+
+function Get-LabChildEnvironment {
+    param([string]$LabRoot, [string]$NpmPrefix, [string]$ProfileName = '')
+    $paths = @{
+        HOME = 'home'; USERPROFILE = 'home'; APPDATA = 'appdata'; LOCALAPPDATA = 'localappdata'
+        TEMP = 'temp'; TMP = 'temp'; PSModuleAnalysisCachePath = 'temp/ps-module-analysis-cache'; XDG_CONFIG_HOME = 'xdg-config'; XDG_DATA_HOME = 'xdg-data'
+        XDG_CACHE_HOME = 'xdg-cache'; XDG_STATE_HOME = 'xdg-state'
+        npm_config_cache = 'npm-cache'; npm_config_userconfig = 'npm-config/user.npmrc'
+        npm_config_globalconfig = 'npm-config/global.npmrc'; UV_CACHE_DIR = 'uv-cache'
+        UV_TOOL_DIR = 'uv-tools'; UV_TOOL_BIN_DIR = 'uv-bin'; PI_CBM_CACHE_DIR = 'cbm-cache'
+        CBM_CACHE_DIR = 'cbm-cache'; MCP_OAUTH_DIR = 'mcp-oauth'; PI_TRACE_PARENT_DIR = 'trace'
+        PI_GOAL_ROOT = 'goal'; PI_GOAL_GLOBAL_SETTINGS_FILE = 'goal/settings.json'
+    }
+    $envMap = @{}
+    foreach ($key in $paths.Keys) { $envMap[$key] = Join-Path $LabRoot $paths[$key] }
+    $envMap['npm_config_prefix'] = $NpmPrefix
+    $envMap['PI_AGENT_BUILD_NPM_PREFIX'] = $NpmPrefix
+    $envMap['PI_MCP_CONFIG_MODE'] = 'exclusive'
+    $envMap['PYTHONDONTWRITEBYTECODE'] = '1'
+    $scopePath = [IO.Path]::GetFullPath($LabRoot).TrimEnd([char[]]@('\', '/')).ToUpperInvariant()
+    $scopeHasher = [Security.Cryptography.SHA256]::Create()
+    try { $scopeHash = [BitConverter]::ToString($scopeHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($scopePath))).Replace('-', '').ToLowerInvariant() }
+    finally { $scopeHasher.Dispose() }
+    $envMap['PI_INTERCOM_SCOPE_ID'] = 'pi-lab-' + $scopeHash.Substring(0, 32)
+    if ($ProfileName) {
+        $envMap['PI_CODING_AGENT_DIR'] = Join-Path (Join-Path $LabRoot 'pi-root') $ProfileName
+        $envMap['PI_CODING_AGENT_SESSION_DIR'] = Join-Path (Join-Path $LabRoot 'sessions') $ProfileName
+        $envMap['PI_SESSION_DIR'] = $envMap['PI_CODING_AGENT_SESSION_DIR']
+        $envMap['PI_SESSION_ARCHIVE_DIR'] = Join-Path (Join-Path $LabRoot 'sessions-archive') $ProfileName
+    }
+    return $envMap
+}
+
+function Assert-LabToolPath {
+    param([string]$Name, [string]$NpmPrefix)
+    $tool = Get-Command $Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $tool -or -not [IO.Path]::IsPathRooted([string]$tool.Source)) { throw "Lab tool unavailable: $Name" }
+    $directory = Split-Path $tool.Source -Parent
+    foreach ($candidate in @('pi.cmd', 'pi.exe', 'pi.bat')) {
+        $path = Join-Path $directory $candidate
+        if ((Test-Path -LiteralPath $path) -and -not $directory.Equals($NpmPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Lab tool directory contains a non-lab Pi launcher: $directory"
+        }
+    }
+    return [string]$tool.Source
+}
+
+function Get-LabToolEnvironment {
+    param([string]$LabRoot, [string]$NpmPrefix, [string]$ProfileName = '')
+    $map = Get-LabChildEnvironment -LabRoot $LabRoot -NpmPrefix $NpmPrefix -ProfileName $ProfileName
+    $directories = @($NpmPrefix, "$env:SystemRoot\System32", "$env:SystemRoot", (Split-Path (Get-Process -Id $PID).Path -Parent))
+    foreach ($name in @('node', 'npm', 'git', 'python', 'uv')) {
+        $toolPath = Assert-LabToolPath -Name $name -NpmPrefix $NpmPrefix
+        $directory = Split-Path $toolPath -Parent
+        if ($directory -notin $directories) { $directories += $directory }
+    }
+    foreach ($directory in $directories) {
+        if ($directory -eq $NpmPrefix) { continue }
+        foreach ($candidate in @('pi.cmd', 'pi.exe', 'pi.bat')) {
+            if (Test-Path -LiteralPath (Join-Path $directory $candidate)) { throw 'Lab PATH includes a non-lab Pi launcher.' }
+        }
+    }
+    $map['PATH'] = $directories -join [IO.Path]::PathSeparator
+    return $map
+}
+
 function Invoke-WithChildEnvironment {
     param(
         [Parameter(Mandatory = $true)][scriptblock]$ScriptBlock,
@@ -225,19 +353,26 @@ function Get-CommandOutput {
         [Parameter(Mandatory = $true)][string]$Command,
         [string[]]$Arguments = @(),
         [switch]$SanitizeEnvironment,
-        [hashtable]$Environment = @{}
+        [hashtable]$Environment = @{},
+        [string]$WorkingDirectory = ''
     )
     $resolved = Get-Command $Command -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $resolved) { return [pscustomobject]@{ Found = $false; ExitCode = 127; Output = '' } }
     $script:ChildCommandOutput = ''
     $script:ChildCommandExitCode = 0
-    Invoke-WithChildEnvironment -Sanitize:$SanitizeEnvironment -Environment $Environment -ScriptBlock {
-        $priorPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = 'Continue'
-            $script:ChildCommandOutput = (& $resolved.Source @Arguments 2>&1 | Out-String).Trim()
-            $script:ChildCommandExitCode = $LASTEXITCODE
-        } finally { $ErrorActionPreference = $priorPreference }
+    $oldLocation = Get-Location
+    try {
+        if ($WorkingDirectory) { Set-Location -LiteralPath $WorkingDirectory }
+        Invoke-WithChildEnvironment -Sanitize:$SanitizeEnvironment -Environment $Environment -ScriptBlock {
+            $priorPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $script:ChildCommandOutput = (& $resolved.Source @Arguments 2>&1 | Out-String).Trim()
+                $script:ChildCommandExitCode = $LASTEXITCODE
+            } finally { $ErrorActionPreference = $priorPreference }
+        }
+    } finally {
+        if ($WorkingDirectory) { Set-Location -LiteralPath $oldLocation.Path }
     }
     $code = $script:ChildCommandExitCode
     if ($null -eq $code) { $code = 0 }

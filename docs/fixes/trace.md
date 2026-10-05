@@ -1,5 +1,7 @@
 # Trace: русский UI, Windows UTF-8 и профильные пути
 
+В текущей сборке Trace **installed/default-off** в Code/Task. [Проверенный opt-in/off](../trace.md) использует однократный `pi -e` без правки filters; сам patch не включает extension. Pi1.0.2 SDK/CLI mock подтверждает JSONL/HTML и natural shutdown; browser UI отдельно NT.
+
 ## Назначение
 
 Patch `trace-ru-windows-profile` поддерживает только `pi-trace-extension 0.1.16` и исправляет три независимые проблемы:

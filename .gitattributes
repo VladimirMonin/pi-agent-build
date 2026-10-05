@@ -9,6 +9,9 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
+# Patch store signatures are byte-exact; Git Bash/Windows checkouts must keep LF.
+patches/**/store/** text eol=lf
+patches/trace-ru-windows-profile/payload/** text eol=lf
 *.png binary
 *.webp binary
 *.exe binary

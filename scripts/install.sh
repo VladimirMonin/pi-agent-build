@@ -11,6 +11,7 @@
 # Options:
 #   --profile <Code|Task|Both>   default: Both
 #   --pi-root <dir>              default: $HOME/.pi
+#   --lab-root <dir>             opt in to private two-profile install (static gate only)
 #   --repo-root <dir>            default: repository root (parent of scripts/)
 #   --skip-package-install       do not install Pi/packages/external tools
 #   --skip-patches               do not run the patch orchestrator
@@ -34,6 +35,8 @@ SKIP_PACKAGE_INSTALL=0
 SKIP_PATCHES=0
 SYNC_SETTINGS_ONLY=0
 REPLACE_PROFILE_CONFIGS=0
+LAB_ROOT=""
+PI_ROOT_EXPLICIT=0
 
 usage() { sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
@@ -41,7 +44,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --apply) APPLY=1; shift ;;
-    --pi-root) PI_ROOT="$2"; shift 2 ;;
+    --pi-root) PI_ROOT="$2"; PI_ROOT_EXPLICIT=1; shift 2 ;;
+    --lab-root) LAB_ROOT="$2"; shift 2 ;;
     --repo-root) REPO_ROOT="$2"; shift 2 ;;
     --skip-package-install) SKIP_PACKAGE_INSTALL=1; shift ;;
     --skip-patches) SKIP_PATCHES=1; shift ;;
@@ -56,6 +60,16 @@ case "$PROFILE" in Code|Task|Both) ;; *) err "invalid --profile: $PROFILE"; exit
 
 REPO_ROOT="$(resolve_full_path "$REPO_ROOT")"
 PI_ROOT="$(resolve_full_path "$PI_ROOT")"
+if [ -n "$LAB_ROOT" ]; then
+  LAB_PREFIX="$LAB_ROOT/npm-prefix"
+  LAB_CWD="$LAB_ROOT/test-cwd"
+  [ "$PI_ROOT_EXPLICIT" = 0 ] || { err '--lab-root cannot be combined with --pi-root'; exit 2; }
+  PI_ROOT="$LAB_ROOT/pi-root"
+  [ "$PROFILE" = Both ] && [ "$SKIP_PACKAGE_INSTALL" = 0 ] && [ "$SKIP_PATCHES" = 0 ] && \
+    [ "$SYNC_SETTINGS_ONLY" = 0 ] && [ "$REPLACE_PROFILE_CONFIGS" = 0 ] || {
+      err 'lab install requires Both profiles and all package/patch gates; no skip or replace flags'; exit 2;
+    }
+fi
 
 RUNTIME_MANIFEST="$REPO_ROOT/manifests/runtime.lock.json"
 PACKAGES_MANIFEST="$REPO_ROOT/manifests/pi-packages.lock.json"
@@ -79,6 +93,10 @@ MODE="PLAN"; [ "$APPLY" = "1" ] && MODE="APPLY"
 log "$MODE Pi Agent installation (POSIX)"
 log "profiles: $PROFILE"
 log "Pi root: $PI_ROOT"
+if [ -n "$LAB_ROOT" ]; then
+  log "private lab root: $LAB_ROOT"
+  log 'existing install requires full private installed-state validation; no repair/reinstall'
+fi
 log "runtime: node@$NODE_VERSION, npm@$NPM_VERSION, $PI_PACKAGE@$PI_VERSION"
 
 while IFS=$'\t' read -r name dir; do
@@ -110,8 +128,94 @@ else
   log 'Pi interactive/model execution: disabled; Apply uses only the pi install package lifecycle'
 fi
 
+if [ -n "$LAB_ROOT" ]; then
+  if lab_fresh_result="$(lab_preflight fresh 2>&1)"; then
+    log "$lab_fresh_result"
+  else
+    lab_installed_state --mcp || exit 2
+    if [ "$APPLY" = "1" ]; then
+      for dir in agent task; do
+        profile_root="$PI_ROOT/$dir"
+        backup_root="$profile_root/.pi-agent-build-backups/install/$(backup_stamp)"
+        install_profile_file "$REPO_ROOT/config/pi-goal-x-settings.json" "$profile_root/pi-goal-x-settings.json" "$backup_root" 'pi-goal-x-settings.json' 0 >/dev/null
+        install_profile_file "$REPO_ROOT/config/goal-autonomy.AGENTS.md" "$profile_root/AGENTS.md" "$backup_root" 'AGENTS.md' 0 >/dev/null
+      done
+    fi
+    log "LAB $MODE: VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
+    exit 0
+  fi
+fi
+
 if [ "$APPLY" != "1" ]; then
   log "PLAN complete; no files or packages were changed. Re-run with --apply."
+  exit 0
+fi
+
+if [ -n "$LAB_ROOT" ]; then
+  # Read-only preflight on both roots before the first mkdir, npm or patch write.
+  lab_preflight fresh || exit 2
+  for tool in node npm git; do
+    command_exists "$tool" || { err "lab prerequisite missing: $tool"; exit 2; }
+  done
+  LAB_NPM_PATH="$(command -v npm)"
+  LAB_PATH="$LAB_PREFIX/bin:$(dirname "$LAB_NPM_PATH")"
+  for tool in node npm git; do
+    tool_path="$(command -v "$tool")"
+    LAB_PATH="$LAB_PATH:$(dirname "$tool_path")"
+  done
+  LAB_PATH="$LAB_PATH:/usr/bin:/bin"
+  py_path="$(command -v "$(resolve_python)")"
+  [ -f "$py_path" ] || { err 'lab Python must resolve to a real executable'; exit 2; }
+  LAB_PATH="$LAB_PATH:$(dirname "$py_path")"
+  LAB_PYTHON="$py_path"
+  # No inherited auth/redirect variables, npmrc, global Pi or uv tool writes.
+  # Private directories are created only after all static checks passed.
+  for dir in home appdata localappdata temp xdg-config xdg-cache xdg-data xdg-state \
+    npm-cache npm-config uv-cache uv-tools uv-bin sessions/agent sessions/task \
+    sessions-archive/agent sessions-archive/task cbm-cache pi-root/agent pi-root/task memory; do
+    mkdir -p "$LAB_ROOT/$dir"
+  done
+  LAB_NAME=agent LAB_PROFILE="$PI_ROOT/agent"
+  run_checked "private Pi npm install" lab_run "$LAB_NPM_PATH" install --global --prefix "$LAB_PREFIX" \
+    --no-audit --no-fund "$PI_PACKAGE@$PI_VERSION"
+  pi_meta="$LAB_PREFIX/lib/node_modules/$PI_PACKAGE/package.json"
+  [ -f "$pi_meta" ] && [ "$(json_get "$pi_meta" 'd.get("version")')" = "$PI_VERSION" ] || {
+    err "candidate Pi metadata missing/wrong version: $pi_meta"; exit 1;
+  }
+  lab_pi="$LAB_PREFIX/bin/pi"
+  [ -f "$lab_pi" ] || { err "private Pi binary missing: $lab_pi"; exit 1; }
+  for name in agent task; do
+    LAB_NAME="$name" LAB_PROFILE="$PI_ROOT/$name"
+    template="$([ "$name" = agent ] && echo code || echo task)"
+    # Only synthetic profiles; no copying/merging live configs or credentials.
+    cp "$REPO_ROOT/profiles/$template/settings.template.json" "$LAB_PROFILE/settings.json"
+    cp "$REPO_ROOT/config/pi-goal-x-settings.json" "$LAB_PROFILE/pi-goal-x-settings.json"
+    cp "$REPO_ROOT/config/goal-autonomy.AGENTS.md" "$LAB_PROFILE/AGENTS.md"
+    cp "$REPO_ROOT/config/models.polza-memory.example.json" "$LAB_PROFILE/models.json"
+    cp "$REPO_ROOT/config/ollama-cloud.example.json" "$LAB_PROFILE/ollama-cloud.json"
+    mkdir -p "$LAB_PROFILE/skills"
+    cp -R "$REPO_ROOT/skills/memory-ops" "$LAB_PROFILE/skills/memory-ops"
+    selected="$([ "$name" = agent ] && echo Code || echo Task)"
+    while IFS="$IFS_US" read -r source pkg ver _patch _taskpatch _kind _commit _tag _rel; do
+      [ -n "$source" ] || continue
+      run_checked "[$name] private pi install $source" lab_run "$lab_pi" install "$source"
+      assert_installed_package "$LAB_PROFILE" "$source" "$pkg" "$ver"
+    done < <(manifest_packages "$PACKAGES_MANIFEST" "$selected")
+  done
+  # Windows python.exe writes CRLF to pipes; the existing patch orchestrator
+  # reads patch names linewise. Keep its interpreter output LF without changing
+  # the shared non-lab orchestrator.
+  mkdir -p "$LAB_ROOT/bin"
+  printf '#!/usr/bin/env bash\nset -o pipefail\n%s "$@" | tr -d "\\r"\n' \
+    "$(printf '%q' "$LAB_PYTHON")" > "$LAB_ROOT/bin/python-lf"
+  chmod +x "$LAB_ROOT/bin/python-lf"
+  LAB_PATCH_PYTHON="$LAB_ROOT/bin/python-lf"
+  LAB_NAME=agent LAB_PROFILE="$PI_ROOT/agent"
+  run_checked 'private profile patches' lab_run "$SCRIPT_DIR/apply-patches.sh" \
+    --profile Both --mode Apply --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT"
+  printf '%s\n' "$PI_PACKAGE@$PI_VERSION" > "$LAB_PREFIX/.pi-agent-build-lab"
+  log 'NOT TESTED: external Code tools are not installed; no global fallback or portability claim.'
+  log 'Runtime isolation gate NOT TESTED: do not load credentials, models, MCP or real Pi sessions.'
   exit 0
 fi
 
@@ -210,6 +314,11 @@ while IFS=$'\t' read -r name dir; do
   copy_status="$(install_profile_file "$REPO_ROOT/profiles/$template_dir/settings.template.json" \
     "$profile_root/settings.json" "$backup_root" "settings.json" "$REPLACE_PROFILE_CONFIGS")"
   log "$copy_status $profile_root/settings.json"
+  for config_pair in 'pi-goal-x-settings.json:pi-goal-x-settings.json' 'goal-autonomy.AGENTS.md:AGENTS.md'; do
+    config_status="$(install_profile_file "$REPO_ROOT/config/${config_pair%%:*}" \
+      "$profile_root/${config_pair#*:}" "$backup_root" "${config_pair#*:}" "$REPLACE_PROFILE_CONFIGS")"
+    log "$config_status $profile_root/${config_pair#*:}"
+  done
 
   models_status="$(install_profile_file "$REPO_ROOT/config/models.polza-memory.example.json" \
     "$profile_root/models.json" "$backup_root" "models.json" "$REPLACE_PROFILE_CONFIGS")"
@@ -249,10 +358,10 @@ done < <(selected_profiles "$PROFILE")
 # apply: external Code tools
 # --------------------------------------------------------------------------- #
 if [ "$SKIP_PACKAGE_INSTALL" != "1" ] && { [ "$PROFILE" = "Code" ] || [ "$PROFILE" = "Both" ]; }; then
-  while IFS="$IFS_US" read -r pkg ver installer; do
+  while IFS="$IFS_US" read -r pkg ver installer python_version; do
     [ -n "$pkg" ] || continue
     if [ "$installer" = "uv tool" ]; then
-      run_checked "uv tool install $pkg==$ver" uv tool install --force --prerelease=allow "$pkg==$ver"
+      run_checked "uv tool install $pkg==$ver" uv tool install --python "$python_version" --force --prerelease=allow "$pkg==$ver"
     else
       run_checked "npm install -g $pkg@$ver" npm install --global --no-audit --no-fund "$pkg@$ver"
     fi
@@ -261,7 +370,7 @@ import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
 for t in m.get("codeProfile", []):
-    print(f'{t.get("package","")}\x1f{t.get("version","")}\x1f{t.get("installer","")}')
+    print(f'{t.get("package","")}\x1f{t.get("version","")}\x1f{t.get("installer","")}\x1f{t.get("pythonVersion","")}')
 PY
 )
   # NOTE: the Windows-only ast-grep.exe staging step is intentionally omitted:

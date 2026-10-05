@@ -17,7 +17,14 @@ Patch изменяет `src/config.ts`, `src/parser.ts` и собранный `d
 
 ## Использование
 
-Основной стандартный профиль patch не требует. Для Task:
+Оба режима очищают timeout начального sync в `finally` при resolve/reject, сохраняя настоящий timeout. Code сохраняет stock-пути (меняется только `dist/index.js`):
+
+```powershell
+python .\patches\session-search-profile\apply.py `
+  --agent-dir "$HOME\.pi\agent" --runtime-only --apply
+```
+
+Для Code используйте `--runtime-only` также с `--check` и `--restore`. Для Task (изоляция профиля + timeout cleanup):
 
 ```powershell
 python .\patches\session-search-profile\apply.py `
@@ -41,4 +48,6 @@ python .\patches\session-search-profile\apply.py `
 
 и выполни `/session-reindex` внутри `pi-task`.
 
-Patcher жёстко проверяет версию и byte-exact state. Pristine store в Git immutable; runtime-backups записываются под `.pi-agent-build-backups/session-search-profile` выбранного профиля. Неизвестная или смешанная структура завершается ошибкой.
+Patcher жёстко проверяет версию, SHA-256 immutable store и byte-exact state. Принимает только stock, canonical выбранного режима и точный предыдущий Task canonical для backed-up upgrade; другой режим/смешанные/неизвестные bytes отклоняются.
+
+Focused regression: `python patches/session-search-profile/tests/test_runtime.py` (resolve/reject/реальный timeout, cleanup, upgrade/idempotence/refusal, mode/path/restore). Pristine store в Git immutable; runtime-backups записываются под `.pi-agent-build-backups/session-search-profile` выбранного профиля. Неизвестная или смешанная структура завершается ошибкой.
