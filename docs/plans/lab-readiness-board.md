@@ -13,7 +13,7 @@
 - Повторный Both Apply прошёл actual VERIFIED INSTALLED-STATE NO-OP без npm/package/launcher writes. Public core SDK smoke также реально выполнен. Windows regressions24/24 и installer fake15/15 PASS; эти tests не заменяют actual runtime.
 - Trace Code/Task off→on→off PASS: 6 SDK + 6 CLI runs с local mock, actual JSONL/HTML artifacts, natural exit и неизменёнными filters; [recipe](../trace.md). Browser UI/live providers не проверялись.
 - [Goal X preset](../goal-autonomy.md) применён в живой Windows по прямому запросу владельца и входит в оба установщика: unlimited, implicit continuation, Oracle/Auditor high; real settings loader и обе установки проверены.
-- Scoped Windows SDK/CLI/RPC/functional checks и independent read-only review приняты **OK with notes**; remaining WVM LAST и main/tag/GitHub Release pending. Working Core upgrade теперь отдельно разрешён владельцем; данные/auth не мигрируются. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
+- Scoped Windows SDK/CLI/RPC/functional checks и independent read-only review приняты **OK with notes**; WVM LAST отдельно оценён: candidate SSE **NT**, HTTP **NT** (optional off, no copied endpoints/auth), adapter KEEP; остаётся main/tag/GitHub Release и разрешённое владельцем обновление рабочего Core. Working Core upgrade теперь отдельно разрешён владельцем; данные/auth не мигрируются. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
 
 ## Historical preparation — frozen Pi 1.0.0
 
