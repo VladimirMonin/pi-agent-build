@@ -170,6 +170,12 @@ function Merge-PreservedSettings {
     } else {
         $current | Add-Member -MemberType NoteProperty -Name packages -Value $mergedPackages
     }
+    if ($desired.PSObject.Properties['extensions']) {
+        $existingExtensions = if ($current.PSObject.Properties['extensions']) { @($current.extensions) } else { @() }
+        $mergedExtensions = @(@($existingExtensions) + @($desired.extensions) | Select-Object -Unique)
+        if ($current.PSObject.Properties['extensions']) { $current.extensions = $mergedExtensions }
+        else { $current | Add-Member -MemberType NoteProperty -Name extensions -Value $mergedExtensions }
+    }
     if ($null -eq $current.PSObject.Properties['memory'] -or $null -eq $current.memory) {
         $current | Add-Member -MemberType NoteProperty -Name memory -Value ([pscustomobject]@{})
     }
@@ -389,7 +395,10 @@ try {
         $pythonLock = @($external.common | Where-Object { $_.name -eq 'python' })[0]
         Assert-MinimumCommandVersion -Command 'python' -Arguments @('--version') -Minimum ([string]$pythonLock.minimumVersion) -Label 'Python'
 
-        Invoke-CheckedCommand -Command 'npm' -Arguments @('install', '--global', '--no-audit', '--no-fund', "npm@$($runtime.runtime.npm)") -SanitizeEnvironment
+        $installedNpm = Get-CommandOutput -Command 'npm' -Arguments @('--version') -SanitizeEnvironment
+        if (-not $installedNpm.Found -or $installedNpm.ExitCode -ne 0 -or (Get-VersionFromText $installedNpm.Output) -ne [string]$runtime.runtime.npm) {
+            Invoke-CheckedCommand -Command 'npm' -Arguments @('install', '--global', '--no-audit', '--no-fund', "npm@$($runtime.runtime.npm)") -SanitizeEnvironment
+        }
         Assert-ExactCommandVersion -Command 'npm' -Arguments @('--version') -Expected ([string]$runtime.runtime.npm) -Label 'npm'
         Invoke-CheckedCommand -Command 'npm' -Arguments @('install', '--global', '--no-audit', '--no-fund', "$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)") -SanitizeEnvironment
         $globalRoot = Get-CommandOutput -Command 'npm' -Arguments @('root', '--global') -SanitizeEnvironment

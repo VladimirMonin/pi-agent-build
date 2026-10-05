@@ -4,7 +4,7 @@
 
 ### Назначение
 
-Подключает MCP servers через один discovery/proxy tool вместо постоянного добавления всех schemas в context. Connections lazy по умолчанию; отдельные tools можно сделать direct.
+Подключает MCP servers через один discovery/proxy tool вместо постоянного добавления всех schemas в context. Connections lazy по умолчанию; отдельные tools можно сделать direct. Pi1.0.2 также содержит built-in MCP: в этой сборке owner остаётся adapter, оба templates явно задают `extensions:["-builtin:mcp"]`. Не загружайте обоих владельцев `/mcp`; project `+builtin:mcp` может переопределить user policy.
 
 ### Установка
 

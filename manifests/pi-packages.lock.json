@@ -23,9 +23,9 @@
         "version": "1.1.1"
       },
       {
-        "source": "npm:@juicesharp/rpiv-todo@2.10.1",
+        "source": "npm:@juicesharp/rpiv-todo@2.12.0",
         "package": "@juicesharp/rpiv-todo",
-        "version": "2.10.1"
+        "version": "2.12.0"
       },
       {
         "source": "https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42",
@@ -37,9 +37,9 @@
         "releaseTag": "v0.2.0"
       },
       {
-        "source": "npm:pi-subagents@0.70.1",
+        "source": "npm:pi-subagents@0.76.0",
         "package": "pi-subagents",
-        "version": "0.70.1"
+        "version": "0.76.0"
       },
       {
         "source": "npm:pi-goal-x@0.31.9",
@@ -81,9 +81,9 @@
     ],
     "codeOnly": [
       {
-        "source": "npm:@nicknisi/pi-ast-grep@0.2.0",
+        "source": "npm:@nicknisi/pi-ast-grep@0.2.1",
         "package": "@nicknisi/pi-ast-grep",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "external": "@ast-grep/cli@0.45.3"
       },
       {

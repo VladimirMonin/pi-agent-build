@@ -104,9 +104,9 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-ollama-cloud@0.12.1
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-trace-extension@0.1.16
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-context-inspector@1.1.1
-  PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.10.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.12.0
   PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@af36ed0e1cce25cc8c6f26461c84be47f0d4ea42
-  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.70.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.76.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-goal-x@0.31.9
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.13.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
@@ -122,7 +122,7 @@ install_common "$user_home/.pi/task"
 Три code-only пакета:
 
 ```bash
-PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:@nicknisi/pi-ast-grep@0.2.0
+PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:@nicknisi/pi-ast-grep@0.2.1
 PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:@bacnh85/pi-serena@0.9.16
 PI_CODING_AGENT_DIR="$user_home/.pi/agent" pi install npm:pi-cbm@1.2.1
 ```

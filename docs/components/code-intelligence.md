@@ -1,6 +1,6 @@
 # Code intelligence (только профиль Code)
 
-## `@nicknisi/pi-ast-grep` 0.2.0
+## `@nicknisi/pi-ast-grep` 0.2.1
 
 ### Назначение
 
@@ -11,7 +11,7 @@
 ```bash
 npm install -g @ast-grep/cli@0.45.3
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" \
-  pi install npm:@nicknisi/pi-ast-grep@0.2.0
+  pi install npm:@nicknisi/pi-ast-grep@0.2.1
 ```
 
 На Windows нужен [real executable fix](../fixes/ast-grep-windows.md).

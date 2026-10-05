@@ -1,8 +1,10 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-**Current project:** обычное обновление до exact stable **Pi 1.0.2** и release репозитория. По прямому указанию владельца — без VM, Windows Sandbox, native runner и новых isolation frameworks. Working Code/Task не переключаются. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
+**Current project:** обычное обновление до exact stable **Pi 1.0.2** и release репозитория. По прямому указанию владельца — без VM, Windows Sandbox, native runner и новых isolation frameworks. Первоначальный no-live boundary отменён последующим прямым запросом владельца: рабочая Windows теперь обновлена после выпуска, с backup и без миграции auth/DB/sessions. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
 
 ## Current state — Pi 1.0.2
+
+**Build.2 follow-up:** upstream Todo2.12.0/Subagents0.76.0/AstGrep0.2.1 исправляют host typebox peers; adapter — единственный MCP owner (`-builtin:mcp`). Владелец подтвердил чистый фактический TUI startup. Both loading13/10 с actual working Core: errors0/warnings0/fetch0; functional/local-mock и CLI/RPC EOF PASS; Windows regressions24/24. [Commands / next-update checks](../releases/pi-1.0.2-build.2.md). Исходный build.1 verifier0/0 не покрывал TUI warnings — это отдельно исправленный пробел проверки.
 
 - Owner изменил target: официальные npm/latest и GitHub releases/latest подтвердили **1.0.2**, draft/prerelease false; release опубликован 2026-10-04. Source branch `update/pi-1.0.2`; runtime manifest, оба templates и preparation sample согласованы с exact target.
 - Pi 1.0.2 реально установлен: CLI `--version`/`--help` natural exit0. Core SDK+AI peer exact1.0.2: один локальный mock response, `agent_settled`, cleanup0, natural exit0; provider/auth/live calls не проверены.
@@ -13,7 +15,7 @@
 - Повторный Both Apply прошёл actual VERIFIED INSTALLED-STATE NO-OP без npm/package/launcher writes. Public core SDK smoke также реально выполнен. Windows regressions24/24 и installer fake15/15 PASS; эти tests не заменяют actual runtime.
 - Trace Code/Task off→on→off PASS: 6 SDK + 6 CLI runs с local mock, actual JSONL/HTML artifacts, natural exit и неизменёнными filters; [recipe](../trace.md). Browser UI/live providers не проверялись.
 - [Goal X preset](../goal-autonomy.md) применён в живой Windows по прямому запросу владельца и входит в оба установщика: unlimited, implicit continuation, Oracle/Auditor high; real settings loader и обе установки проверены.
-- Scoped Windows SDK/CLI/RPC/functional checks и independent read-only review приняты **OK with notes**; WVM LAST отдельно оценён: candidate SSE **NT**, HTTP **NT** (optional off, no copied endpoints/auth), adapter KEEP; остаётся main/tag/GitHub Release и разрешённое владельцем обновление рабочего Core. Working Core upgrade теперь отдельно разрешён владельцем; данные/auth не мигрируются. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
+- Scoped Windows SDK/CLI/RPC/functional checks и independent read-only review приняты **OK with notes**; WVM LAST отдельно оценён: candidate SSE **NT**, HTTP **NT** (optional off, no copied endpoints/auth), adapter KEEP; **main / pi-v1.0.2-build.1 / GitHub Release выпущены** на `e95cd6e`, безопасный ZIP проверен по SHA256. Владелец дополнительно получил рабочий Core **1.0.2** вместо0.87.0: actual CLI/SDK1.0.2, Both verifier **failures0/warnings0**, config/payload/patch guards PASS. Данные/auth не мигрировались, executable/settings rollback сохранён приватно; existing exact npm и15/12 packages использованы без ненужной переустановки. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
 
 ## Historical preparation — frozen Pi 1.0.0
 

@@ -452,6 +452,8 @@ desired = load(template)
 
 extras = [item for item in current.get("packages", []) if identity(item) not in build_names]
 current["packages"] = list(desired["packages"]) + extras
+if "extensions" in desired:
+    current["extensions"] = list(dict.fromkeys(current.get("extensions", []) + desired["extensions"]))
 
 mem = current.setdefault("memory", {})
 mem["consolidationModel"] = desired["memory"]["consolidationModel"]

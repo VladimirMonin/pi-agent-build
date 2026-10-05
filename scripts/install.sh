@@ -289,7 +289,9 @@ if [ "$SKIP_PACKAGE_INSTALL" != "1" ]; then
     log "PASS npm $actual_npm"
   fi
 
-  run_checked "install npm@$NPM_VERSION" npm install --global --no-audit --no-fund "npm@$NPM_VERSION"
+  if [[ "$(npm --version 2>/dev/null)" != "$NPM_VERSION" ]]; then
+    run_checked "install npm@$NPM_VERSION" npm install --global --no-audit --no-fund "npm@$NPM_VERSION"
+  fi
   run_checked "install $PI_PACKAGE@$PI_VERSION" npm install --global --no-audit --no-fund "$PI_PACKAGE@$PI_VERSION"
 
   global_root="$(npm root --global)"

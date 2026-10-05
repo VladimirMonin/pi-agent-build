@@ -17,7 +17,8 @@ secrets/
 *.key
 *.pem
 
-# Pi runtime state
+# Pi runtime state (project goals/settings/mission receipts are personal, not source)
+.pi/
 sessions/
 traces/
 missions/

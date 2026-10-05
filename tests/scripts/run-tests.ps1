@@ -374,6 +374,7 @@ try {
             $json = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
             $json.packages[0] = 'npm:pi-ollama-cloud'
             $json.packages = @($json.packages) + @('npm:private-extra')
+            $json.extensions = @('./private-extension.ts')
             $json.memory | Add-Member -MemberType NoteProperty -Name factProjectAliases -Value @(@{ path = 'C:/private'; scope = 'example' })
             $json | Add-Member -MemberType NoteProperty -Name localPreference -Value 'keep'
             [IO.File]::WriteAllText($settings, (($json | ConvertTo-Json -Depth 100) + "`n"))
@@ -396,6 +397,8 @@ try {
             Assert-Equal 'npm:private-extra' ([string]$merged.packages[-1]) 'private package was lost'
             Assert-Equal 'example' ([string]$merged.memory.factProjectAliases[0].scope) 'private aliases were lost'
             Assert-Equal 'keep' ([string]$merged.localPreference) 'private settings were lost'
+            Assert-True (@($merged.extensions) -contains './private-extension.ts') 'private extension was lost'
+            Assert-True (@($merged.extensions) -contains '-builtin:mcp') 'retained adapter did not disable built-in MCP'
         } finally { $env:PATH = $oldPath; [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKey, 'Process') }
     }
 

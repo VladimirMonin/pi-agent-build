@@ -1,6 +1,8 @@
 # Pi 1.0.2 build.1 — Windows release scope
 
-Последняя stable **1.0.2** повторно подтверждена официальными npm и GitHub перед выпуском; manifest exact, без `latest` install. Два профиля: **Code / Task**. Обычная установка, без VM/native isolation frameworks. Выпуск и обновление рабочего runtime выполняются отдельно после final gates.
+**Follow-up:** [build.2](pi-1.0.2-build.2.md) устраняет обнаруженные владельцем TUI startup warnings (builtin MCP и typebox). Нижеприведённый verifier0/0 не был доказательством отсутствия startup warnings; это отдельная проверка.
+
+Последняя stable **1.0.2** повторно подтверждена официальными npm и GitHub перед выпуском; manifest exact, без `latest` install. Два профиля: **Code / Task**. Обычная установка, без VM/native isolation frameworks. Выпуск и обновление рабочего runtime выполнены отдельно после final gates: main/tag `pi-v1.0.2-build.1` → `e95cd6e`, nondraft GitHub Release с безопасным ZIP; затем рабочая Windows владельца обновлена с 0.87.0 до **1.0.2** по его прямому запросу.
 
 ## Изменения
 
@@ -27,9 +29,23 @@
 
 Fresh published payload patch lifecycle также проверен source-only: Code5/Task3 contexts, 96 actions, guards/refusals/restore; это не заменяет runtime checks. Родитель проверил полные functional/RPC receipts; независимому reviewer часть больших JSON была доступна только в truncated view, поэтому он не подтвердил каждый detail самостоятельно.
 
+## Обычное обновление существующей Windows
+
+После executable/settings backup и проверки, что все profile payloads уже совпадают с manifest, выполнены поддержанные обычные операции:
+
+```powershell
+# trusted npm11.11.0 уже установлен: не переустанавливать его и чужой npx shim
+node "<TRUSTED_NPM_CLI>" install --global --prefix "<WORKING_NPM_PREFIX>" --no-audit --no-fund @earendil-works/pi-coding-agent@1.0.2
+.\scripts\install.ps1 -Apply -Profile Both -SkipPackageInstall
+.\scripts\install.ps1 -Apply -Profile Both -SyncSettingsOnly
+.\scripts\verify.ps1 -Profile Both
+```
+
+Первый полный Apply сохранил реальный `npm EEXIST npx`; вместо `--force`/удаления чужого shim повторно использован уже exact npm11.11.0. Неизменившиеся 15/12 packages не переустанавливались; sync отдельно проверяет обоих, а patchers принимают только known states. Installer заменил известные legacy memory/session-search patches на canonical. `lastChangelogVersion` целево обновлён до1.0.2 после settings backup. Это normal profile update, не lab guard bypass. Auth/DB/sessions не изменены.
+
 ## Ограничения и безопасность
 
 - **NOT TESTED:** semantic embeddings (cold HF download blocked, FTS fallback), real paid providers, полное native subagent execution, browser/dashboard UI, native Linux/macOS, machine-B portability и OS containment. Ничего из этого не заявлено PASS.
 - `pi-mcp-adapter` **KEEP**. Последняя отдельная оценка: candidate **legacy SSE — NOT TESTED**, **streamable HTTP — NOT TESTED**. Candidate MCP config сознательно empty/off; endpoints/working MCP credentials не переносились. Parent cached gateway schemas не transport proof. WVM support не входит в этот обычный Windows выпуск и не задерживает обновление; adapter сохранён.
 - npm bulk advisory по 117 установленным core packages: critical не найден. В общей profile closure найден `protobufjs6.11.6` / [GHSA-xq3m-2v4x-88gg](https://github.com/advisories/GHSA-xq3m-2v4x-88gg): codegen при **untrusted schema/JSON descriptor**. Наблюдаемый consumer — `onnx-proto`, importing `protobufjs/minimal` и trusted compiled schema, не reflection descriptor loader. Advisory прямо исключает trusted-schema message decoding; этот precondition в проверенном embedding route не найден. Не загружайте untrusted protobuf schemas; dependency не заменялась принудительным override/bypass. Известный transitive advisory не скрыт.
-- Личные auth, memory/DB и sessions не являются fixtures и не копируются. Live Core update разрешён последующим прямым запросом владельца, с executable backup и отдельной проверкой; Goal preset уже применён независимо от него.
+- Личные auth, memory/DB и sessions не являются fixtures и не копируются. Live Core update отдельно разрешён владельцем и **выполнен**. Core/shims/settings backup вне Git, Both verifier **0 failures / 0 warnings**, actual working Core/AI SDK **1.0.2**, local mock zero fetch / zero cleanup errors. Code15 / Task12 exact payloads, canonical guarded patches и Trace `extensions:[]`; Goal preset сохранён. Активная старая сессия не перезапускается насильно: новая версия загружается при следующем запуске Pi.

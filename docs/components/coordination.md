@@ -1,6 +1,6 @@
 # Подагенты и координация
 
-## `pi-subagents` 0.70.1
+## `pi-subagents` 0.76.0
 
 ### Назначение
 
@@ -9,7 +9,7 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.70.1
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.76.0
 ```
 
 ### Конфигурация и данные

@@ -1,6 +1,6 @@
 # План задач
 
-## `@juicesharp/rpiv-todo` 2.10.1
+## `@juicesharp/rpiv-todo` 2.12.0
 
 ### Назначение
 
@@ -10,7 +10,7 @@
 
 ```bash
 PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install npm:@juicesharp/rpiv-todo@2.10.1
+  pi install npm:@juicesharp/rpiv-todo@2.12.0
 ```
 
 ### Конфигурация и данные
