@@ -127,7 +127,7 @@ README является входной страницей, но не замен�
 1. Зафиксируй Git/working baseline, источник кандидата и scope разрешений.
 2. Для upgrade прочитай [BUILD.LabUpgrade](BUILD.lab_upgrade.instructions.md); сверяй official stable target и однократно фиксируй exact version.
 3. Подготовь и проверь исходные документы/контракт стенда; создай doc commit до runtime edits.
-4. Проверь источник/лицензию, manifests и preliminary installation gate; mutation только в разрешённой лаборатории.
+4. Проверь источник/лицензию и manifests; mutation только в разрешённом установочном каталоге/профилях. Обычное обновление не требует VM, native runner или отдельного isolation framework.
 5. Обнови candidate manifest, templates и guarded patches; неизвестные source/bytes не принимаются по предположению.
 6. Проверь actual Code/Task и changed seams, включая default-off/explicit opt-in Trace; source/mock/native claims раздельны.
 7. Сопроводи код component docs, постоянными instructions и AGENTS каталогом в том же логическом срезе.
@@ -146,7 +146,7 @@ README является входной страницей, но не замен�
 - patch checks дают ожидаемые состояния;
 - verifier подтверждает структуру обоих профилей;
 - README, component docs, AGENTS/instructions и upgrade/stand docs соответствуют manifest и реальному scope;
-- два профиля и Trace defaults/opt-in проверены; обязательные native/runtime gates не заменены source/mocks;
+- два профиля и Trace defaults/opt-in проверены; actual runtime не заменён source-only checks, OS containment не заявлен без отдельно заказанной и проверенной границы;
 - optional NOT TESTED отражены в ограничениях выпуска, без расширения support claims;
 - рабочее дерево чистое;
 - commit, на который ставится тег, уже создан и проверен.

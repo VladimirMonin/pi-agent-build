@@ -1,8 +1,19 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-**Current project:** повторяемость/переносимость, затем exact stable Pi target и release репозитория. Working Code/Task не переключаются. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
+**Current project:** обычное обновление до exact stable **Pi 1.0.2** и release репозитория. По прямому указанию владельца — без VM, Windows Sandbox, native runner и новых isolation frameworks. Working Code/Task не переключаются. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
 
-## Current state
+## Current state — Pi 1.0.2
+
+- Owner изменил target: официальные npm/latest и GitHub releases/latest подтвердили **1.0.2**, draft/prerelease false; release опубликован 2026-10-04. Source branch `update/pi-1.0.2`; runtime manifest, оба templates и preparation sample согласованы с exact target.
+- Pi 1.0.2 реально установлен: CLI `--version`/`--help` natural exit0. Core SDK+AI peer exact1.0.2: один локальный mock response, `agent_settled`, cleanup0, natural exit0; provider/auth/live calls не проверены.
+- Code/Task реально загрузили 13/10 активных extensions, без load/lifecycle errors; оба прошли локальный SDK mock и natural cleanup. Trace/background filters сохранены, Trace не загрузился. Это loading/mock coverage, не полный tools/call/RPC/descendant acceptance.
+- Холодный локальный multilingual embedder попытался скачать веса Hugging Face; fetch был запрещён test fixture, память перешла в FTS-only. Blocked attempts сохранены; semantic embeddings не объявлены PASS.
+- Both installed verifier: failures0/warnings1; exact 15/12 package identities, все canonical patches и external versions PASS. CBM/Serena private stdio initialize/tools/list:17/29 tools; tools/call/LSP/indexing отдельно pending.
+- Python3.14 source-build `pyyaml==6.0.2` завершился Win32 error; recovery Serena1.7.0 с managed Python3.12.10 успешен, выбор закреплён в manifest/installers/schema. Кеш PowerShell modules, попавший в synthetic cwd, сохранён приватно; `PSModuleAnalysisCachePath` теперь явно направлен в private TEMP.
+- Повторный Both Apply прошёл actual VERIFIED INSTALLED-STATE NO-OP без npm/package/launcher writes. Public core SDK smoke также реально выполнен. Windows regressions24/24 и installer fake15/15 PASS; эти tests не заменяют actual runtime.
+- Trace explicit opt-in/off, broader functional checks, WVM LAST и main/tag/GitHub Release pending. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
+
+## Historical preparation — frozen Pi 1.0.0
 
 - Новая source branch: `lab/pi-1.0.0`, от docs candidate `53112c7`; runtime source исследовательского0.99.1 — `b31ca02`.
 - Working main/runtime baseline: `030adfa` / Pi0.87.0; его profiles/data не изменяются. Разрешён будущий перенос **repository source** в main/tag/GitHub Release, не live-profile switch.
@@ -14,7 +25,9 @@
 - Альтернативная [Windows Sandbox capsule](../../tests/lab/windows-sandbox/README.md) теперь имеет filesystem-only PLAN/PREPARE, guest-only dummy sources и 18 source/preparation checks. Network/clipboard/audio/video/printers/vGPU выключены в XML, mappings только readonly input и новый private output. Source review OK с ограничениями; actual VM/host cleanup/SDK acceptance NOT TESTED. Owner разрешил feature enable без автоматической перезагрузки: feature включена с `-NoRestart`, Windows вернула `RestartNeeded=true`; до ручной перезагрузки actual VM не запускается. Это не обход/новый PASS прежнего restricted-token runner.
 - Historical0.99.1 incidents/partial approvals остаются в [исторической доске](pi-0.99.1-execution-board.md); новая goal/release не переименовывает их в PASS.
 
-## Progress D0–D6
+## Historical progress D0–D6
+
+Эта таблица сохраняет прежний план. Machine-B/native requirements отменены владельцем для текущего обычного обновления; непройденные проверки не переименованы в PASS.
 
 | Этап | Статус | Проверяемый результат / следующий шаг |
 |---|---|---|
@@ -31,10 +44,10 @@
 | Веха | Статус |
 |---|---|
 | Исходная документация до runtime changes | PASS (initial doc changeset; stand execution pending) |
-| Portable stand/actual native boundary | TODO |
-| Exact target manifest/installer/verifier/patches | PARTIAL — exact1.0.0 source pinned; guarded source-payload patch lifecycle PASS; required private target installation/runtime compatibility pending |
+| Portable stand/actual native boundary | NOT IN CURRENT SCOPE — owner explicitly rejected OS isolation; historical proof NOT TESTED |
+| Exact target manifest/installer/verifier/patches | Pi1.0.2 installed; Both identities/patch/verifier PASS; full functional acceptance pending |
 | Trace default-off и explicit on/off оба profiles | PARTIAL — source defaults/filters implemented; actual off→on→off pending |
-| Final target sandbox Code/Task tests/no-op | TODO |
+| Final target Code/Task tests/no-op | Loading/local mock PASS; actual VERIFIED INSTALLED-STATE NO-OP PASS; broader functions pending |
 | Final user/agent update docs | TODO |
 | WVM LAST и release scope acceptance | TODO |
 | main/tag/GitHub Release | TODO |
@@ -57,9 +70,9 @@
 
 В `docs-initial-v1/source-inventory.json` parent измерил selected source bytes/SHA; reviewer recomputation этим не утверждается. Native source inventory hash: `52f589a98bb55386cf37388cdbd2f60fc2839e6c9eda96b2f00d49b2603edb65`; этот hash имеет source-only статус. Native invocation/command identity фиксируются заново в actor packet, не копируются из doc inventory как разрешение.
 
-## Контракт разрешений и неподтверждённое
+## Исторический контракт разрешений и неподтверждённое
 
-Нынешний project scope допускает необходимую private подготовку/provisioning, bounded native/mock work и repository publication. Не требовать повторного согласования уже разрешённой операции, но проверять входной gate и сохранять bounded packet перед risky launch. Shared/working mutations, real data/auth reads и automatic paid calls не входят.
+Ниже сохранён прежний scope, не текущие prerequisites. Нынешний scope — обычное обновление/Pi1.0.2, synthetic checks и repository publication, без VM/native запусков. Прежний project scope допускал private подготовку/provisioning, bounded native/mock work и repository publication. Не требовать повторного согласования уже разрешённой операции, но проверять входной gate и сохранять bounded packet перед risky launch. Shared/working mutations, real data/auth reads и automatic paid calls не входят.
 
 - Машина B ещё не выбрана/проверена. Первоначальный `stand-capabilities-v1` фиксировал Windows x64, hypervisor present, vmcompute/hns running и Sandbox **Disabled**. После явного разрешения owner feature переведена в **Enabled** командой с `-All -NoRestart`; `RestartNeeded=true`. Перезагрузка/VM/Pi/SDK не запускались. Новый boot и пригодность CLI ещё должны быть подтверждены; WSL/PATH discovery и feature enable не являются Windows-VM/replay proof.
 - Параметризованный [core SDK fixture](../../tests/lab/sdk/README.md) подготовлен по exact published 1.0.0 API (`ModelRuntime`); синтаксис/host refusal — source-only, actual SDK/root+descendant/lifecycle proof ещё отсутствует.

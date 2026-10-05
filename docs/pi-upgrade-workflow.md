@@ -12,7 +12,9 @@
 
 Working baseline и исследовательский кандидат — разные сущности. Candidate acceptance не переключает личные profiles и не закрывает автоматически историческую цель.
 
-## 2. Подготовка и permission ladder
+## 2. Подготовка и scope
+
+Для обычного обновления используй существующие installer/verifier и явно выбранный prefix, synthetic profiles и cache. VM, Windows Sandbox, native boundary, отдельная машина и новая система wrappers **не нужны**, если владелец не заказал OS containment. Схема ниже описывает доступные уровни проверки, не обязательную лестницу согласований. Не повторяй подготовку/аудиты вместо установки и конкретного исправления.
 
 | Шаг | Вход / результат | Не следует автоматически |
 |---|---|---|
@@ -84,7 +86,7 @@ PLAN installed gate может запускать private executable/MCP probes 
 
 **Целевая политика нового выпуска:** ровно Code и Task. `pi-trace-extension` сохраняется установленным, но default extension inactive в обоих. Это не третий «trace» режим и не отключение обязательных диагностических receipts стенда.
 
-**Текущее implementation status:** candidate Code/Task templates содержат pinned Trace в object form с `extensions: []`; пакет и patch не удалены. Manifest и оба verifier согласованы с default-off; synthetic installer merge сохраняет filter. Это source configuration, а не actual startup proof. Runtime off→on→off и user recipe ещё требуют accepted native boundary; не применять непроверенный recipe к working profiles. Final docs обязаны заменить этот pending note проверенными командами после соответствующего task.
+**Текущее implementation status:** candidate Code/Task templates содержат pinned Trace в object form с `extensions: []`; пакет и patch не удалены. Manifest и оба verifier согласованы с default-off; synthetic installer merge сохраняет filter. Default-off уже проверен фактической загрузкой Code/Task на Pi 1.0.2. Runtime off→on→off и user recipe ещё проверяются; они не требуют native boundary; не применять непроверенный recipe к working profiles. Final docs обязаны заменить этот pending note проверенными командами после соответствующего task.
 
 Required tests на synthetic profiles:
 
@@ -98,7 +100,7 @@ Required tests на synthetic profiles:
 
 ## 6. Native и target runtime acceptance
 
-До target Pi runtime — usable accepted stand runner/root+descendant boundary. На target измерить actual private executable/SDK/peer/env/PID linkage, callback/output/terminal и default acceptance по честному synthetic criterion. Natural root/descendant exit и owned resource cleanup обязательны.
+На target измерить actual executable/SDK/peer/env/PID linkage, callback/output/terminal и результат по честному synthetic criterion. Обычную установку не блокировать native boundary/machine-B экспериментами: OS containment не входит в такой scope и не заявляется. Natural root/descendant exit и owned resource cleanup обязательны.
 
 Оба профиля используют synthetic memory/session/trace/Goal/intercom/cache; outgoing mock context/scope checks не требуют working DB. Model/auth/live requests не включаются по факту загрузки CLI. Native/global coverage проверяется отдельным механизмом; JS guards/metadata sampling не переименовываются в OS sandbox.
 

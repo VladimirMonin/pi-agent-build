@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.0.0",
+  "lastChangelogVersion": "1.0.2",
   "theme": "dark",
   "defaultProvider": "ollama-cloud",
   "defaultModel": "deepseek-v4.1-flash",

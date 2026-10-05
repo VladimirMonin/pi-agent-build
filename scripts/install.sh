@@ -343,10 +343,10 @@ done < <(selected_profiles "$PROFILE")
 # apply: external Code tools
 # --------------------------------------------------------------------------- #
 if [ "$SKIP_PACKAGE_INSTALL" != "1" ] && { [ "$PROFILE" = "Code" ] || [ "$PROFILE" = "Both" ]; }; then
-  while IFS="$IFS_US" read -r pkg ver installer; do
+  while IFS="$IFS_US" read -r pkg ver installer python_version; do
     [ -n "$pkg" ] || continue
     if [ "$installer" = "uv tool" ]; then
-      run_checked "uv tool install $pkg==$ver" uv tool install --force --prerelease=allow "$pkg==$ver"
+      run_checked "uv tool install $pkg==$ver" uv tool install --python "$python_version" --force --prerelease=allow "$pkg==$ver"
     else
       run_checked "npm install -g $pkg@$ver" npm install --global --no-audit --no-fund "$pkg@$ver"
     fi
@@ -355,7 +355,7 @@ import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
 for t in m.get("codeProfile", []):
-    print(f'{t.get("package","")}\x1f{t.get("version","")}\x1f{t.get("installer","")}')
+    print(f'{t.get("package","")}\x1f{t.get("version","")}\x1f{t.get("installer","")}\x1f{t.get("pythonVersion","")}')
 PY
 )
   # NOTE: the Windows-only ast-grep.exe staging step is intentionally omitted:

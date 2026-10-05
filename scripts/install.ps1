@@ -278,7 +278,7 @@ try {
         }
         foreach ($tool in $external.codeProfile) {
             if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
-                Invoke-CheckedCommand -Command $uv -Arguments @('tool', 'install', '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
+                Invoke-CheckedCommand -Command $uv -Arguments @('tool', 'install', '--python', [string]$tool.pythonVersion, '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
             } else {
                 Invoke-CheckedCommand -Command $npm -Arguments @('install', '--global', '--prefix', $prefix, '--no-audit', '--no-fund', "$($tool.package)@$($tool.version)") -WorkingDirectory $cwd -SanitizeEnvironment -Environment $environment
                 Assert-InstalledPackageVersion -NodeModulesRoot (Join-Path $prefix 'node_modules') -PackageName ([string]$tool.package) -Expected ([string]$tool.version)
@@ -435,7 +435,7 @@ try {
         Assert-ExactCommandVersion -Command 'uv' -Arguments @('--version') -Expected ([string]$uvLock.version) -Label 'uv'
         foreach ($tool in $external.codeProfile) {
             if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
-                Invoke-CheckedCommand -Command 'uv' -Arguments @('tool', 'install', '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -SanitizeEnvironment
+                Invoke-CheckedCommand -Command 'uv' -Arguments @('tool', 'install', '--python', [string]$tool.pythonVersion, '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -SanitizeEnvironment
             } else {
                 Invoke-CheckedCommand -Command 'npm' -Arguments @('install', '--global', '--no-audit', '--no-fund', "$($tool.package)@$($tool.version)") -SanitizeEnvironment
             }

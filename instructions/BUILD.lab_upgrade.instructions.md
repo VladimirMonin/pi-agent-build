@@ -15,10 +15,10 @@ description: "Читай при обновлении Pi/пакетов, подг
 ## До изменения runtime
 
 1. Зафиксируй working baseline, source candidate ref, private test root и permissions текущей задачи. Не путай допуск исследования с release/profile switch.
-2. Сверь официальный stable release/npm metadata безопасным read-only способом. До первого manifest change зафиксируй exact target; не двигай цель вслед за latest во время одного цикла.
+2. Сверь официальный stable release/npm metadata безопасным read-only способом и закрепи exact target. Не двигай его автоматически вслед за latest; новый прямой запрос владельца на последнюю версию разрешает новый exact target.
 3. Подготовь связанные документы/матрицу «delta → риск → проверка» и закоммить проверенную исходную документацию до переноса runtime.
 4. Работай в отдельной ветке/worktree. Runtime-state не пишется в Git checkout. Старый lab не очищается и не становится fresh root по force.
-5. Подготовка и capabilities проверяются до provisioning; host prerequisites/shared ACL не исправляются автоматически.
+5. По умолчанию используй обычный установочный каталог и существующие scripts. Не создавай VM, Windows Sandbox, native runner или новую систему изоляции без отдельного запроса владельца. Host prerequisites/shared ACL не исправляются автоматически.
 
 ## Размещение и окружение
 
@@ -34,7 +34,7 @@ description: "Читай при обновлении Pi/пакетов, подг
 1. Read-only filesystem/config PLAN не включает скрытые executable probes. `lab-stand` preparation config не является actor/provisioning packet; prepared canonical NO-OP и installed-state gate различаются. Tests получают explicit owned private FixtureRoot, не создают runtime-state рядом с checkout. Пробы выделяются: у них есть write scope, timeout и actual coverage.
 2. PREPARE создаёт только новый owned subtree по явному scope. Private provisioning выполняется после preliminary gate и допуска установки.
 3. Source/managed tests сначала; native actors — отдельный bounded frozen packet с разрешённой командой и pre/post fingerprints.
-4. До Pi runtime требуется usable root+descendant runner proof и независимая actual raw приёмка принятой native boundary. Source review/compiler/mock не заменяют этот gate.
+4. Обычная установка не требует native boundary или второй машины. Не заявляй OS containment/full-global zero-write по отдельному каталогу, env или mock. Native boundary и её actual raw review нужны только когда владелец отдельно заказал такую защитную границу; прежние непринятые эксперименты остаются историей, не prerequisite обычного обновления.
 5. Target Code/Task подтверждают actual executable/SDK/env/PID linkage, private state routes, natural lifecycle и configured acceptance. Дочерний callback сам по себе не означает наличие принятого результата.
 6. Model catalog, mock request, auth и paid response проверяются отдельно. Не заявляй live support по metadata; платные вызовы не включаются автоматически.
 7. Required WVM transport checks выполняются последним техническим этапом после основных gates. Legacy SSE и streamable HTTP — отдельные cases; parent gateway не candidate proof. Adapter не заменяется без функционального паритета; dual /mcp owners запрещены.

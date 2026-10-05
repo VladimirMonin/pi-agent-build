@@ -2,6 +2,10 @@
 
 Назначение — подготовить и проверить version-pinned кандидата **без переключения рабочей установки**. Этот паспорт описывает контракт, не выдаёт execution permission. Workflow — [отдельный runbook](pi-upgrade-workflow.md); доказательства — [evidence contract](lab-evidence.md); актуальная реализация и результаты — [readiness board](plans/lab-readiness-board.md).
 
+## Текущий scope
+
+Обычное обновление не требует этого стенда, VM, Windows Sandbox или native runner. Для текущего кандидата используются существующие установочные scripts и отдельный prefix с synthetic Code/Task; это размещение данных, не защитная граница ОС. Исторические runner/capsule эксперименты ниже не приняты и не являются prerequisite обновления. Actual Pi 1.0.2 результаты находятся в readiness board.
+
 ## Реализовано и запланировано
 
 Реализованы filesystem-only `scripts/lab-stand.ps1` (PLAN/PREPARE/verified prepared NO-OP), [sample](../config/lab-stand.example.json) и [schema](../config/schemas/lab-stand.schema.json). Focused tests проверяют fresh root, canonical fixture bytes/type/ACL, unsafe ancestors, links, drift, relocated source и unique intercom scope. Существующие `lab-preflight.ps1`, lab-mode installer/verifier и `lab-state.py` сохраняются. **Это не принятый portable native runner**: public dummy/managed sources доступны в [tests/lab/native](../tests/lab/native/README.md), но actual boundary/SDK gate не пройден. Mock/SDK fixtures ещё готовятся; private originals/receipts не являются shipped files.
@@ -108,11 +112,11 @@ Environment создаётся из allowlist, а не `{...process.env}`. До 
 
 Не менять caller token, WinSta0/Default, существующий desktop/process/thread/shared ACL. Genuine API/cleanup errors fatal. Canary denials проверяются на harmless lab-created paths, не на working memory/auth/config/cache.
 
-Этот source сейчас имеет только historical partial run и subsequent managed/source query approvals. **Usable root+descendant proof ещё BLOCKED**; перенос source в repo не означает prelaunch approval. Raw PID/token/Job/resource/natural-exit receipt и независимая actual result приёмка обязательны перед Pi runtime. Причина старого descendant DLL_INIT_FAILED/conhost ACCESS_DENIED остаётся UNKNOWN.
+Этот source сейчас имеет только historical partial run и subsequent managed/source query approvals. **Usable root+descendant proof ещё BLOCKED**; перенос source в repo не означает prelaunch approval. Raw PID/token/Job/resource/natural-exit receipt и независимая actual result приёмка нужны для принятия именно этой экспериментальной защитной границы, не для обычного Pi runtime. Причина старого descendant DLL_INIT_FAILED/conhost ACCESS_DENIED остаётся UNKNOWN.
 
 ### Альтернативная Windows Sandbox capsule
 
-[Public capsule preparation](../tests/lab/windows-sandbox/README.md) создаёт только files/config/approved Node copy на новом prepared stand, не включает host feature и не запускает VM. Это отдельная proposed VM boundary: read-only input, один private writable export, disabled sharing/network XML. Source/filesystem checks PASS не доказывают actual isolation; guest status прямо исключает host cleanup/SDK acceptance. Existing token/USER/DACL security contract не изменён; actual VM proof/independent raw review остаются обязательными.
+[Public capsule preparation](../tests/lab/windows-sandbox/README.md) создаёт только files/config/approved Node copy на новом prepared stand, не включает host feature и не запускает VM. Это отдельная proposed VM boundary: read-only input, один private writable export, disabled sharing/network XML. Source/filesystem checks PASS не доказывают actual isolation; guest status прямо исключает host cleanup/SDK acceptance. Existing token/USER/DACL security contract не изменён; actual VM proof/independent raw review отсутствуют. Этот маршрут не используется в текущем обновлении.
 
 ## Воспроизведение на другой машине
 

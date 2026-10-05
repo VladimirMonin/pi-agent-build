@@ -232,7 +232,7 @@ function Get-LabChildEnvironment {
     param([string]$LabRoot, [string]$NpmPrefix, [string]$ProfileName = '')
     $paths = @{
         HOME = 'home'; USERPROFILE = 'home'; APPDATA = 'appdata'; LOCALAPPDATA = 'localappdata'
-        TEMP = 'temp'; TMP = 'temp'; XDG_CONFIG_HOME = 'xdg-config'; XDG_DATA_HOME = 'xdg-data'
+        TEMP = 'temp'; TMP = 'temp'; PSModuleAnalysisCachePath = 'temp/ps-module-analysis-cache'; XDG_CONFIG_HOME = 'xdg-config'; XDG_DATA_HOME = 'xdg-data'
         XDG_CACHE_HOME = 'xdg-cache'; XDG_STATE_HOME = 'xdg-state'
         npm_config_cache = 'npm-cache'; npm_config_userconfig = 'npm-config/user.npmrc'
         npm_config_globalconfig = 'npm-config/global.npmrc'; UV_CACHE_DIR = 'uv-cache'
