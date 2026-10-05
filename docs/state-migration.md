@@ -4,7 +4,7 @@
 
 ## Стенд не является переносом пользовательского состояния
 
-[Лабораторный паспорт](lab-stand.md) и [upgrade workflow](pi-upgrade-workflow.md) создают новую synthetic среду. Машина B получает repository source/fixtures и private dependency provisioning, **не** old profiles, memory, auth, sessions или stale locks. Runtime migration/backups ниже выполняются только при отдельном разрешённом working-profile switch; release репозитория его не выполняет.
+[Лабораторный паспорт](lab-stand.md) и [upgrade workflow](pi-upgrade-workflow.md) создают новую synthetic среду. Машина B получает repository source/fixtures и private dependency provisioning, **не** old profiles, memory, auth, sessions или stale locks. Runtime migration/backups ниже выполняются только при отдельном разрешённом working-profile switch; release репозитория его не выполняет. Для текущего Pi1.0.2 владелец отдельно разрешил обновление рабочего Core после выпуска и уже запросил [Goal X preset](goal-autonomy.md) в живой Windows. Goal settings изменены целевым merge; auth, память/DB и session files не переносились. Core package update не требует миграции этих данных.
 
 ## Классификация
 

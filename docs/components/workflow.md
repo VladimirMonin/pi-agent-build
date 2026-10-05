@@ -62,7 +62,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 
 ### Конфигурация и данные
 
-Настройки слоёные: `environment > <cwd>/.pi/pi-goal-x-settings.json > ${PI_CODING_AGENT_DIR:-~/.pi/agent}/pi-goal-x-settings.json > defaults`. Файлы разрежённые (sparse), неизвестные ключи сообщаются в diagnostics. Ключевые настройки: `strictExecutionContract`, `maxAutonomousRuns`, `subtaskDepth`, `stallTimeoutMinutes`, `objectiveMaxChars`, `auditorProjectResources`, `goalsRoot`, `disabled`, `hideUnfocusedBanner`.
+Настройки слоёные: `environment > <cwd>/.pi/pi-goal-x-settings.json > ${PI_CODING_AGENT_DIR:-~/.pi/agent}/pi-goal-x-settings.json > defaults`. Файлы разрежённые (sparse), неизвестные ключи сообщаются в diagnostics. Ключевые настройки: `strictExecutionContract`, `maxAutonomousRuns`, `subtaskDepth`, `stallTimeoutMinutes`, `objectiveMaxChars`, `auditorProjectResources`, `goalsRoot`, `disabled`, `hideUnfocusedBanner`. Сборка сразу устанавливает [автономный пресет](../goal-autonomy.md): absent `maxAutonomousRuns` = unlimited, `strictExecutionContract:false`, tasks depth2, Auditor/Oracle high. Existing персональные settings сохраняются.
 
 Состояние цели — project-local: `<cwd>/.pi/goals/` (`active_goal_*.md`, `goal_events.jsonl`, `.goals-pool-snapshot.json`), архив — `<cwd>/.pi/goals/archived/`. Это не общий с `~/.pi` state: цели привязаны к рабочему каталогу, а не к профилю.
 
@@ -77,7 +77,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 
 - **порядок загрузки:** `pi-goal-x` должен грузиться раньше `pi-intercom` (так закреплено в манифесте и шаблонах). При обратном порядке в headless-режиме (`pi -p`) `turn_end` печатает ошибки boundary и stale ctx; на работу цели это не влияет, но засоряет stderr. Подробности — [notes/goal-x-intercom-order.md](../notes/goal-x-intercom-order.md);
 - peer range `@earendil-works/pi-* >=0.83.0 <0.88.0`: при апгрейде Pi за пределы диапазона пакет перестанет соответствовать заявленной совместимости;
-- автономное продолжение расходует токены без явного подтверждения каждого шага — ограничивайте `maxAutonomousRuns`;
+- автономное продолжение расходует токены; текущий владелец сознательно выбрал unlimited. Агент не меняет Goal X settings без явного запроса и никогда не ставит `maxAutonomousRuns:0`; технический blocker передаётся Oracle через `blocked`, не `paused`;
 - auditor по умолчанию изолирован от project resources (`auditorProjectResources: false`); включение расширяет его поверхность;
 - состояние пишется в рабочий каталог (`.pi/goals/`), поэтому попадает под project-local файлы и не должно коммититься;
 - в делегированных subagent-сессиях (`PI_SUBAGENT_CHILD=1` / `PI_SUBAGENT_DEPTH>0`) расширение намеренно не наследует владение родительской целью.

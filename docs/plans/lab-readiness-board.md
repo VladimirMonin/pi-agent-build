@@ -6,14 +6,14 @@
 
 - Owner изменил target: официальные npm/latest и GitHub releases/latest подтвердили **1.0.2**, draft/prerelease false; release опубликован 2026-10-04. Source branch `update/pi-1.0.2`; runtime manifest, оба templates и preparation sample согласованы с exact target.
 - Pi 1.0.2 реально установлен: CLI `--version`/`--help` natural exit0. Core SDK+AI peer exact1.0.2: один локальный mock response, `agent_settled`, cleanup0, natural exit0; provider/auth/live calls не проверены.
-- Code/Task реально загрузили 13/10 активных extensions, без load/lifecycle errors; оба прошли локальный SDK mock и natural cleanup. Trace/background filters сохранены, Trace не загрузился. Это loading/mock coverage, не полный tools/call/RPC/descendant acceptance.
+- Code/Task реально загрузили 13/10 активных extensions, без load/lifecycle errors; оба прошли локальный SDK mock и natural cleanup. Trace/background filters сохранены, Trace не загрузился. Позднейший functional срез дополнительно проверил Todo CRUD, get_goal, synthetic memory FTS и subagent management в обоих; CLI RPC get_state/prompt/get_goal и exact Pi/AI1.0.2 child identity естественно завершились. Полное subagent execution/live providers NT; [release scope](../releases/pi-1.0.2.md).
 - Холодный локальный multilingual embedder попытался скачать веса Hugging Face; fetch был запрещён test fixture, память перешла в FTS-only. Blocked attempts сохранены; semantic embeddings не объявлены PASS.
 - Both installed verifier: failures0/warnings1; exact 15/12 package identities, все canonical patches и external versions PASS. CBM/Serena private stdio initialize/tools/list:17/29 tools; tools/call/LSP/indexing отдельно pending.
 - Python3.14 source-build `pyyaml==6.0.2` завершился Win32 error; recovery Serena1.7.0 с managed Python3.12.10 успешен, выбор закреплён в manifest/installers/schema. Кеш PowerShell modules, попавший в synthetic cwd, сохранён приватно; `PSModuleAnalysisCachePath` теперь явно направлен в private TEMP.
 - Повторный Both Apply прошёл actual VERIFIED INSTALLED-STATE NO-OP без npm/package/launcher writes. Public core SDK smoke также реально выполнен. Windows regressions24/24 и installer fake15/15 PASS; эти tests не заменяют actual runtime.
 - Trace Code/Task off→on→off PASS: 6 SDK + 6 CLI runs с local mock, actual JSONL/HTML artifacts, natural exit и неизменёнными filters; [recipe](../trace.md). Browser UI/live providers не проверялись.
 - [Goal X preset](../goal-autonomy.md) применён в живой Windows по прямому запросу владельца и входит в оба установщика: unlimited, implicit continuation, Oracle/Auditor high; real settings loader и обе установки проверены.
-- Broader functional checks, WVM LAST и main/tag/GitHub Release pending. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
+- Scoped Windows SDK/CLI/RPC/functional checks и independent read-only review приняты **OK with notes**; remaining WVM LAST и main/tag/GitHub Release pending. Working Core upgrade теперь отдельно разрешён владельцем; данные/auth не мигрируются. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
 
 ## Historical preparation — frozen Pi 1.0.0
 
