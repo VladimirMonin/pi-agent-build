@@ -90,6 +90,9 @@ process.exit(9);
         $env:SECRET_SENTINEL = 'synthetic-only'
         $result = Run $installer ($common + @('-Apply'))
         Check 'candidate launcher invoked from private prefix after private npm install' ($result.Code -ne 0 -and $result.Text.Contains('Command failed') -and (Test-Path (Join-Path $lab 'npm-prefix\pi.cmd')))
+        $goalSettings = Read-JsonFile (Join-Path $lab 'pi-root\agent\pi-goal-x-settings.json')
+        Check 'fresh Code profile receives unlimited implicit Goal X with Oracle and Auditor' ($goalSettings.strictExecutionContract -eq $false -and -not ($goalSettings.PSObject.Properties.Name -contains 'maxAutonomousRuns') -and $goalSettings.disabled -eq $false -and $goalSettings.oracle.enabled -eq $true -and $goalSettings.oracle.maxFailedAttemptsPerBlocker -eq 2)
+        Check 'fresh Code profile receives permanent autonomy instructions' ((Get-Content (Join-Path $lab 'pi-root\agent\AGENTS.md') -Raw).Contains('Never set maxAutonomousRuns to 0.'))
         $calls = @((Get-Content -LiteralPath (Join-Path $lab 'calls.jsonl')) | ForEach-Object { $_ | ConvertFrom-Json })
         Check 'exact Pi version installed into private npm prefix' (@($calls | Where-Object { $_.tool -eq 'npm' -and $_.args[-1] -eq "$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)" -and $_.args -contains '--prefix' }).Count -eq 1)
         Check 'candidate Pi version and install, no global pi fallback' (@($calls | Where-Object { $_.tool -eq 'pi' -and $_.args[0] -eq 'install' }).Count -eq 1)

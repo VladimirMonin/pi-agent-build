@@ -220,6 +220,14 @@ try {
         Write-Host "npm prefix: $prefix; synthetic cwd: $cwd; Code: $(Join-Path $root 'agent'); Task: $(Join-Path $root 'task')"
         if (-not $fresh) {
             Assert-LabInstalledState -LabRoot $lab -RepoRoot $RepoRoot -Mcp
+            if ($Apply) {
+                foreach ($directory in @('agent', 'task')) {
+                    $profileRoot = Join-Path $root $directory
+                    $backup = Join-Path $profileRoot '.pi-agent-build-backups\install'
+                    [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\pi-goal-x-settings.json') -Destination (Join-Path $profileRoot 'pi-goal-x-settings.json') -BackupDirectory $backup)
+                    [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\goal-autonomy.AGENTS.md') -Destination (Join-Path $profileRoot 'AGENTS.md') -BackupDirectory $backup)
+                }
+            }
             Write-Host "LAB $(if ($Apply) { 'APPLY' } else { 'PLAN' }): VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
             exit 0
         }
@@ -268,6 +276,8 @@ try {
             $profileEnv = Get-LabToolEnvironment -LabRoot $lab -NpmPrefix $prefix -ProfileName $selected.Directory
             $backup = Join-Path $profileRoot '.pi-agent-build-backups\install'
             [void](Install-ProfileFile -Source (Join-Path $RepoRoot "profiles\$($selected.Template)\settings.template.json") -Destination (Join-Path $profileRoot 'settings.json') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\pi-goal-x-settings.json') -Destination (Join-Path $profileRoot 'pi-goal-x-settings.json') -BackupDirectory $backup)
+            [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\goal-autonomy.AGENTS.md') -Destination (Join-Path $profileRoot 'AGENTS.md') -BackupDirectory $backup)
             [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\models.polza-memory.example.json') -Destination (Join-Path $profileRoot 'models.json') -BackupDirectory $backup)
             [void](Install-ProfileFile -Source (Join-Path $RepoRoot 'config\ollama-cloud.example.json') -Destination (Join-Path $profileRoot 'ollama-cloud.json') -BackupDirectory $backup)
             [void](Install-ProfileDirectory -Source (Join-Path $RepoRoot 'skills\memory-ops') -Destination (Join-Path $profileRoot 'skills\memory-ops') -BackupDirectory $backup)
@@ -395,6 +405,10 @@ try {
         $destination = Join-Path $profileRoot 'settings.json'
         $copyStatus = Install-ProfileFile -Source $template -Destination $destination -BackupDirectory $backupRoot -BackupName 'settings.json' -Replace:$ReplaceProfileConfigs
         Write-Host "$copyStatus $destination"
+        foreach ($file in @(@('config\pi-goal-x-settings.json', 'pi-goal-x-settings.json'), @('config\goal-autonomy.AGENTS.md', 'AGENTS.md'))) {
+            $status = Install-ProfileFile -Source (Join-Path $RepoRoot $file[0]) -Destination (Join-Path $profileRoot $file[1]) -BackupDirectory $backupRoot -BackupName $file[1] -Replace:$ReplaceProfileConfigs
+            Write-Host "$status $(Join-Path $profileRoot $file[1])"
+        }
 
         $modelsTemplate = Join-Path $RepoRoot 'config\models.polza-memory.example.json'
         $modelsDestination = Join-Path $profileRoot 'models.json'

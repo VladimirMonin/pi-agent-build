@@ -154,8 +154,16 @@ def installed(lab, repo, node, git):
     for name, template, expected_count in (('agent', 'code', 15), ('task', 'task', 12)):
         root = lab / 'pi-root' / name
         allowed = {'settings.json', 'models.json', 'models-store.json', 'ollama-cloud.json', 'mcp.json',
-                   'auth.json', 'skills', 'npm', 'git', '.pi-agent-build-backups', 'traces', 'session-search', 'intercom'}
+                   'auth.json', 'skills', 'npm', 'git', '.pi-agent-build-backups', 'traces', 'session-search', 'intercom',
+                   'pi-goal-x-settings.json', 'AGENTS.md'}
         require(not {p.name for p in root.iterdir()} - allowed, name + ' unknown profile content')
+        # Defaults may be absent in an older installation, but accepted files
+        # must be exactly the published assets, not arbitrary new contents.
+        for filename, source in (('pi-goal-x-settings.json', 'pi-goal-x-settings.json'),
+                                 ('AGENTS.md', 'goal-autonomy.AGENTS.md')):
+            if (root / filename).exists():
+                require((root / filename).read_bytes() == (repo / 'config' / source).read_bytes(),
+                        name + ' Goal defaults mismatch: ' + filename)
         if (root / 'intercom').exists():
             require((root / 'intercom').is_dir(), name + ' intercom runtime path is not a directory')
         require(read_json(root / 'settings.json') == read_json(repo / 'profiles' / template / 'settings.template.json'),

@@ -133,6 +133,14 @@ if [ -n "$LAB_ROOT" ]; then
     log "$lab_fresh_result"
   else
     lab_installed_state --mcp || exit 2
+    if [ "$APPLY" = "1" ]; then
+      for dir in agent task; do
+        profile_root="$PI_ROOT/$dir"
+        backup_root="$profile_root/.pi-agent-build-backups/install/$(backup_stamp)"
+        install_profile_file "$REPO_ROOT/config/pi-goal-x-settings.json" "$profile_root/pi-goal-x-settings.json" "$backup_root" 'pi-goal-x-settings.json' 0 >/dev/null
+        install_profile_file "$REPO_ROOT/config/goal-autonomy.AGENTS.md" "$profile_root/AGENTS.md" "$backup_root" 'AGENTS.md' 0 >/dev/null
+      done
+    fi
     log "LAB $MODE: VERIFIED INSTALLED-STATE NO-OP; no npm/package/launcher writes"
     exit 0
   fi
@@ -181,6 +189,8 @@ if [ -n "$LAB_ROOT" ]; then
     template="$([ "$name" = agent ] && echo code || echo task)"
     # Only synthetic profiles; no copying/merging live configs or credentials.
     cp "$REPO_ROOT/profiles/$template/settings.template.json" "$LAB_PROFILE/settings.json"
+    cp "$REPO_ROOT/config/pi-goal-x-settings.json" "$LAB_PROFILE/pi-goal-x-settings.json"
+    cp "$REPO_ROOT/config/goal-autonomy.AGENTS.md" "$LAB_PROFILE/AGENTS.md"
     cp "$REPO_ROOT/config/models.polza-memory.example.json" "$LAB_PROFILE/models.json"
     cp "$REPO_ROOT/config/ollama-cloud.example.json" "$LAB_PROFILE/ollama-cloud.json"
     mkdir -p "$LAB_PROFILE/skills"
@@ -304,6 +314,11 @@ while IFS=$'\t' read -r name dir; do
   copy_status="$(install_profile_file "$REPO_ROOT/profiles/$template_dir/settings.template.json" \
     "$profile_root/settings.json" "$backup_root" "settings.json" "$REPLACE_PROFILE_CONFIGS")"
   log "$copy_status $profile_root/settings.json"
+  for config_pair in 'pi-goal-x-settings.json:pi-goal-x-settings.json' 'goal-autonomy.AGENTS.md:AGENTS.md'; do
+    config_status="$(install_profile_file "$REPO_ROOT/config/${config_pair%%:*}" \
+      "$profile_root/${config_pair#*:}" "$backup_root" "${config_pair#*:}" "$REPLACE_PROFILE_CONFIGS")"
+    log "$config_status $profile_root/${config_pair#*:}"
+  done
 
   models_status="$(install_profile_file "$REPO_ROOT/config/models.polza-memory.example.json" \
     "$profile_root/models.json" "$backup_root" "models.json" "$REPLACE_PROFILE_CONFIGS")"

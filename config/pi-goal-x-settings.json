@@ -1,0 +1,23 @@
+{
+  "autoSelectSingleGoal": false,
+  "hideUnfocusedBanner": false,
+  "hideUnfocusedPrompt": false,
+  "disableContracts": false,
+  "strictExecutionContract": false,
+  "stallTimeoutMinutes": 0,
+  "objectiveMaxChars": 0,
+  "disableTasks": false,
+  "subtaskDepth": 2,
+  "disabled": false,
+  "provider": "openai-codex",
+  "model": "gpt-6.1-sol",
+  "thinkingLevel": "high",
+  "oracle": {
+    "enabled": true,
+    "provider": "openai-codex",
+    "model": "gpt-6.1-sol",
+    "thinkingLevel": "high",
+    "projectResources": true,
+    "maxFailedAttemptsPerBlocker": 2
+  }
+}

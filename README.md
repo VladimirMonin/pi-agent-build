@@ -24,6 +24,10 @@
 
 Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
 
+## Автономный Goal X
+
+Code/Task сразу получают [пресет](docs/goal-autonomy.md): unlimited без `maxAutonomousRuns`, implicit continuation, tasks depth 2, независимый Auditor и read-only Oracle с `openai-codex/gpt-6.1-sol`/`high`. Существующие персональные настройки сохраняются. Для модели нужен собственный Codex login; auth в сборку не входит.
+
 ## Известное ограничение: порядок `pi-goal-x` и `pi-intercom`
 
 `pi-goal-x` должен загружаться **раньше** `pi-intercom` — так закреплено в манифесте и обоих шаблонах профилей. При обратном порядке headless-прогоны (`pi -p`, `--mode json`, `--mode rpc`) печатают в stderr ошибку `turn_end` boundary и ошибку stale `ctx` при создании цели.

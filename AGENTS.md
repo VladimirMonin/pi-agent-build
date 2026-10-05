@@ -30,6 +30,13 @@
 
 **Главный принцип: рабочее, простое и понятное решение лучше архитектурно идеального решения, которое сложнее необходимого.**
 
+## Goal X — автономная работа
+
+Do not modify Goal X settings unless explicitly requested by the user. Never set maxAutonomousRuns to 0.
+For technical blockers use blocked, not paused, so Blocker Oracle can intervene.
+
+Пресет и применение: [Goal X](docs/goal-autonomy.md).
+
 ## Источники истины и начало работы
 
 1. Перед изменением состава прочитай BUILD.Master и тематические инструкции ниже.
