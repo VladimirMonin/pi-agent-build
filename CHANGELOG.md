@@ -29,6 +29,10 @@
 - Profile packages устанавливаются через штатный `pi install` в sanitized child environment; Git source закреплён immutable object id и отдельно проверяется по tag object/peeled checkout.
 - Memory patch учитывает `PI_CODING_AGENT_DIR` при чтении user-global settings, поэтому Task больше не зависит от Code `settings.json`; общая memory DB остаётся общей.
 - Memory patch также меняет локальную модель встраивания фактов на мультиязычную (384d, mean pooling, порог `0.25` не меняется, reindex не требуется).
+
+### Исправлено
+
+- Навык `memory-ops` в сборке: добавлен раздел «Типовые ложные выводы». Реальный замер обязан передавать профильный `memory`-конфиг (`factProjectAliases`, `lessonInjection`) в сборщик — без него проектные факты молча отфильтровываются и регрессионный чекер даёт ложное «missing»; `--estimate` считает потенциальную стоимость, а не нижнюю границу блока; отсутствие маркера `truncated` означает целые **выбранные** строки, а не отсутствие потерь. Там же уточнено, что version-guarded патч привязан к 1.5.0, снимается `pi update`/пересборкой и требует повторного применения (версия навыка `1.0.1-public`).
 - Уточнены prerequisites/runtime roles, semantics `verify.ps1`, отсутствие `update.ps1` и pending status корневого `AGENTS.md`.
 
 ### Безопасность
