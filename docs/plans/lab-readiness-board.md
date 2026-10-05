@@ -11,7 +11,9 @@
 - Both installed verifier: failures0/warnings1; exact 15/12 package identities, все canonical patches и external versions PASS. CBM/Serena private stdio initialize/tools/list:17/29 tools; tools/call/LSP/indexing отдельно pending.
 - Python3.14 source-build `pyyaml==6.0.2` завершился Win32 error; recovery Serena1.7.0 с managed Python3.12.10 успешен, выбор закреплён в manifest/installers/schema. Кеш PowerShell modules, попавший в synthetic cwd, сохранён приватно; `PSModuleAnalysisCachePath` теперь явно направлен в private TEMP.
 - Повторный Both Apply прошёл actual VERIFIED INSTALLED-STATE NO-OP без npm/package/launcher writes. Public core SDK smoke также реально выполнен. Windows regressions24/24 и installer fake15/15 PASS; эти tests не заменяют actual runtime.
-- Trace explicit opt-in/off, broader functional checks, WVM LAST и main/tag/GitHub Release pending. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
+- Trace Code/Task off→on→off PASS: 6 SDK + 6 CLI runs с local mock, actual JSONL/HTML artifacts, natural exit и неизменёнными filters; [recipe](../trace.md). Browser UI/live providers не проверялись.
+- [Goal X preset](../goal-autonomy.md) применён в живой Windows по прямому запросу владельца и входит в оба установщика: unlimited, implicit continuation, Oracle/Auditor high; real settings loader и обе установки проверены.
+- Broader functional checks, WVM LAST и main/tag/GitHub Release pending. Прежние OS isolation failures остаются FAIL/NOT TESTED, но больше не являются обязательными gates обычного обновления.
 
 ## Historical preparation — frozen Pi 1.0.0
 
@@ -19,7 +21,7 @@
 - Working main/runtime baseline: `030adfa` / Pi0.87.0; его profiles/data не изменяются. Разрешён будущий перенос **repository source** в main/tag/GitHub Release, не live-profile switch.
 - Перед первым runtime manifest edit официальный GitHub stable и npm dist-tags повторно сверены: **1.0.0**, draft/prerelease false. Exact target закреплён на цикл; candidate manifest и оба `lastChangelogVersion` теперь **1.0.0**. Private target installation/runtime acceptance ещё NOT TESTED.
 - Fresh exact npm source payloads прошли guarded patch lifecycle: Code5/Task3 contexts, 96 CLI actions — stock/check/apply/check, apply NO-OP, unknown drift и wrong-version refusals, byte-exact restore. Trace `--restore` раньше перезаписывал unknown current files; исправлен отказ и проверка полного backup до первой записи, 8 focused synthetic regressions PASS. Independent source review OK; supplied tests reviewer не повторял. Это не installed Pi 1.0.0/runtime acceptance.
-- Trace остаётся pinned installed package; оба canonical templates теперь используют `extensions: []`, manifest отражает installed-disabled. Windows/POSIX verifier проверяют filters, installer merge regression сохраняет off. Actual loading/off→on→off recipe ещё NOT TESTED, не support claim.
+- Trace остаётся pinned installed package; оба canonical templates теперь используют `extensions: []`, manifest отражает installed-disabled. Windows/POSIX verifier проверяют filters, installer merge regression сохраняет off. На этом историческом source-этапе actual loading/off→on→off ещё не проверялся; позднейший Pi 1.0.2 runtime result указан выше.
 - Исходные AGENTS/instructions/passport/runbook/evidence docs приняты в initial commit `833d2fe` до runtime edits. Filesystem-only preparation/schema/synthetic config fixtures реализованы; public native dummy/managed fixtures подготовлены в `tests/lab/native/`; mock/SDK и actor gate ещё не приняты.
 - Second-machine/VM replay и usable controlled native runner/actual SDK/env/default acceptance — TODO/BLOCKED по evidence. Native public source исправил номера Win32 enum и 1-byte BOOLEAN encoding class21. Последние bounded actual helpers остановились до actors; последняя причина — non-NULL opaque class22 `SecurityAttributes`, cleanup/preservation PASS в failed packet. Scalar `Flags` теперь сохраняется и сравнивается без ошибочного требования zero; подтверждённого TOKEN/CLAIM ABI для opaque payload пока нет. Native boundary остаётся непринятой.
 - Альтернативная [Windows Sandbox capsule](../../tests/lab/windows-sandbox/README.md) теперь имеет filesystem-only PLAN/PREPARE, guest-only dummy sources и 18 source/preparation checks. Network/clipboard/audio/video/printers/vGPU выключены в XML, mappings только readonly input и новый private output. Source review OK с ограничениями; actual VM/host cleanup/SDK acceptance NOT TESTED. Owner разрешил feature enable без автоматической перезагрузки: feature включена с `-NoRestart`, Windows вернула `RestartNeeded=true`; до ручной перезагрузки actual VM не запускается. Это не обход/новый PASS прежнего restricted-token runner.
@@ -46,7 +48,7 @@
 | Исходная документация до runtime changes | PASS (initial doc changeset; stand execution pending) |
 | Portable stand/actual native boundary | NOT IN CURRENT SCOPE — owner explicitly rejected OS isolation; historical proof NOT TESTED |
 | Exact target manifest/installer/verifier/patches | Pi1.0.2 installed; Both identities/patch/verifier PASS; full functional acceptance pending |
-| Trace default-off и explicit on/off оба profiles | PARTIAL — source defaults/filters implemented; actual off→on→off pending |
+| Trace default-off и explicit on/off оба profiles | PASS — Both SDK/CLI off→on→off, JSONL/HTML, natural exit; browser UI NT |
 | Final target Code/Task tests/no-op | Loading/local mock PASS; actual VERIFIED INSTALLED-STATE NO-OP PASS; broader functions pending |
 | Final user/agent update docs | TODO |
 | WVM LAST и release scope acceptance | TODO |

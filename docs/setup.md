@@ -6,7 +6,7 @@
 
 > Для обновления кандидата используйте [паспорт стенда](lab-stand.md) и [lab upgrade runbook](pi-upgrade-workflow.md), не global manual commands ниже. Read-only PLAN, private executable probes, PREPARE, install и runtime gate — разные действия. Этот документ не разрешает изменять рабочие Code/Task.
 >
-> Ручные примеры с Pi0.87.0 ниже сохранены как working-baseline procedure, не команда поставить новый target. Целевая политика следующего выпуска — Trace установлен/default-off в обоих профилях; проверенные opt-in/off recipes ещё готовятся и отражаются в workflow/board.
+> Ручные примеры с Pi0.87.0 ниже сохранены как working-baseline procedure, не команда поставить новый target. Целевая политика следующего выпуска — Trace установлен/default-off в обоих профилях; [проверенный opt-in/off recipe](trace.md) использует обычный `pi -e` без изменения canonical filters.
 
 ## До установки
 

@@ -75,7 +75,7 @@ instructions/       постоянные правила сопровождени
 
 ## Начало работы
 
-- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source и установка уже переведены на exact Pi 1.0.2; Trace default-off проверен загрузкой обоих профилей, explicit opt-in ещё проверяется.
+- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source и установка уже переведены на exact Pi 1.0.2; Trace default-off и explicit opt-in/off проверены обоими SDK/CLI; [команды](docs/trace.md).
 - Установка и точные prerequisites: [`docs/setup.md`](docs/setup.md)
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
@@ -85,7 +85,7 @@ instructions/       постоянные правила сопровождени
 
 ## Документация для агентов
 
-[`AGENTS.md`](AGENTS.md) — короткий вход и полный каталог инструкций. При upgrade читайте [`BUILD.LabUpgrade`](instructions/BUILD.lab_upgrade.instructions.md), паспорт/runbook/evidence docs и текущий readiness board. Не переносите временные machine paths, модели reviewer или run history в постоянные правила; документы не выдают permission сами по себе. Проверенные команды Trace opt-in/off появятся после соответствующего runtime task — сейчас это pending implementation, не готовый recipe.
+[`AGENTS.md`](AGENTS.md) — короткий вход и полный каталог инструкций. При upgrade читайте [`BUILD.LabUpgrade`](instructions/BUILD.lab_upgrade.instructions.md), паспорт/runbook/evidence docs и текущий readiness board. Не переносите временные machine paths, модели reviewer или run history в постоянные правила; документы не выдают permission сами по себе. [Команды Trace opt-in/off](docs/trace.md) проверены реальными Code/Task SDK и CLI runs; browser UI остаётся вне этого smoke scope.
 
 ## Лицензирование
 
