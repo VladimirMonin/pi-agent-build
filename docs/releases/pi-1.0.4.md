@@ -16,4 +16,11 @@ No plugin, external-tool, Node/npm or Goal X setting updates. No reinstall of th
 | Existing plugin configuration | Package manifests, template package arrays and filters unchanged |
 | Installed settings | Change only image-related fields, preserve other settings; restart/reload for running sessions |
 
-Checks are pending at preparation time. Prior 1.0.2 plugin evidence is historical, not fresh 1.0.4 acceptance. Terminal rendering requires a supported inline-image protocol; image settings do not add vision capability to a text-only model. Full plugin/live-provider/WVM transport acceptance is outside this focused update.
+## Results
+
+- `scripts/verify.ps1 -RepositoryOnly -RepoRoot <REPO>`: PASS, failures 0 / warnings 0; schemas, exact Pi pin, Code/Task package arrays and disabled filters.
+- `node tests/sdk/core-smoke.mjs <INSTALLED_SDK_ROOT> <FRESH_PRIVATE_OUTPUT>`: PASS on actual Pi/AI 1.0.4; one local mock response, `agent_settled`, network attempts 0, cleanup errors 0, natural exit 0.
+- Image field assertions on both templates and both installed settings: PASS. Template package arrays/filters and all non-image template preferences unchanged except `lastChangelogVersion`; package/external-tool locks and Goal X preset unchanged.
+- Public safety scan and `git diff --check`: PASS. Initial safety invocation without explicit `-Root` failed on Windows PowerShell parameter-default evaluation; corrected invocation with explicit repository root passed without script changes.
+
+Prior 1.0.2 plugin evidence is historical, not fresh 1.0.4 acceptance. Terminal rendering requires a supported inline-image protocol; image settings do not add vision capability to a text-only model. Full plugin/live-provider/WVM transport acceptance is outside this focused update.

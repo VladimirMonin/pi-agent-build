@@ -52,6 +52,12 @@ pi-task [аргументы Pi]
 
 `models.json` нужен в обоих профилях для служебного `polza-memory`: дочерняя консолидация запускается с `--no-extensions`, поэтому динамический `pi-polza` в ней недоступен. Profile-aware memory settings требуют применённого [memory patch](fixes/memory.md) в каждом профиле; без него Task снова читает Code `settings.json`.
 
+## Картинки
+
+В обоих шаблонах явно включены `images.blockImages: false` и `images.autoResize: true`: изображения разрешены для модели и уменьшаются до 2000×2000. Для terminal preview заданы `terminal.showImages: true`, `terminal.imageWidthCells: 60`, `terminal.images: "auto"`.
+
+Preview требует поддержки inline-image протокола терминалом и не управляет передачей изображения модели. Модель должна поддерживать vision. После ручного изменения живого settings выполните `/reload`; уже запущенные сабы надёжнее перезапустить. Project-local settings могут переопределять эти поля.
+
 ## Данные по компонентам
 
 | Данные | Code | Task |

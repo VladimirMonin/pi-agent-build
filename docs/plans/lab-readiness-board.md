@@ -1,6 +1,6 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-**Current project:** обычное обновление до exact stable **Pi 1.0.2** и release репозитория. По прямому указанию владельца — без VM, Windows Sandbox, native runner и новых isolation frameworks. Первоначальный no-live boundary отменён последующим прямым запросом владельца: рабочая Windows теперь обновлена после выпуска, с backup и без миграции auth/DB/sessions. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
+**Current project:** минимальное core-only обновление source pin до exact stable **Pi 1.0.4**, без обновления плагинов. Владелец уже обновил рабочий Pi; image settings явно включены в templates и живых Code/Task. Core SDK local-mock и repository verifier PASS; новый tag/release не создавался. [Scope и проверки 1.0.4](../releases/pi-1.0.4.md). Исторический проект ниже: обычное обновление до exact stable **Pi 1.0.2** и release репозитория. По прямому указанию владельца — без VM, Windows Sandbox, native runner и новых isolation frameworks. Первоначальный no-live boundary отменён последующим прямым запросом владельца: рабочая Windows теперь обновлена после выпуска, с backup и без миграции auth/DB/sessions. Основной [план D0–D6](lab-repeatability-and-portability.md); [runbook](../pi-upgrade-workflow.md); [паспорт](../lab-stand.md); [evidence](../lab-evidence.md).
 
 ## Current state — Pi 1.0.2
 

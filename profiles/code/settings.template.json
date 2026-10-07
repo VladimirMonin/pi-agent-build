@@ -1,11 +1,18 @@
 {
-  "lastChangelogVersion": "1.0.2",
+  "lastChangelogVersion": "1.0.4",
   "theme": "dark",
   "defaultProvider": "polza",
   "defaultModel": "z-ai/glm-5.3-flash",
   "hideThinkingBlock": false,
+  "images": {
+    "blockImages": false,
+    "autoResize": true
+  },
   "terminal": {
-    "showTerminalProgress": true
+    "showTerminalProgress": true,
+    "showImages": true,
+    "imageWidthCells": 60,
+    "images": "auto"
   },
   "cacheWarming": "streaming",
   "extensions": ["-builtin:mcp"],

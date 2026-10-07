@@ -1,11 +1,18 @@
 {
-  "lastChangelogVersion": "1.0.2",
+  "lastChangelogVersion": "1.0.4",
   "theme": "dark",
   "defaultProvider": "ollama-cloud",
   "defaultModel": "deepseek-v4.1-flash",
   "hideThinkingBlock": false,
+  "images": {
+    "blockImages": false,
+    "autoResize": true
+  },
   "terminal": {
-    "showTerminalProgress": true
+    "showTerminalProgress": true,
+    "showImages": true,
+    "imageWidthCells": 60,
+    "images": "auto"
   },
   "cacheWarming": "streaming",
   "extensions": ["-builtin:mcp"],

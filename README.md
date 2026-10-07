@@ -4,11 +4,11 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Текущий состав: **[Pi 1.0.2 build.3](docs/releases/pi-1.0.2-build.3.md)** — source-only интеграция опубликованного `pi-polza` **0.2.1**, включая ранее добавленный `memory-ops` **1.0.1-public**. Core, Code/Task, Goal X и Trace default-off не меняются. Прежнее build.2 loading/local-mock evidence переиспользуется только для неизменённой границы, не как свежий Both runtime нового payload. Plugin: 203/203 offline checks (включая 47 native на actual installed Pi 1.0.2 с synthetic SSE), audit/pack PASS; live acceptance новой сессии сообщена владельцем, полный background-live не подтверждён. Публикация нового build.3 — отдельный шаг; эта интеграция не устанавливает пакеты и не переключает профили. Ограничения и provenance — в release notes и [readiness board](docs/plans/lab-readiness-board.md); правила — в [AGENTS.md](AGENTS.md).
+> Текущий core pin: **[Pi 1.0.4](docs/releases/pi-1.0.4.md)** — обновлён только Pi; плагины оставлены без изменений, картинки и terminal preview включены в Code/Task. Core SDK local-mock и repository verifier PASS; полная plugin/live-provider приёмка на 1.0.4 не выполнялась. Goal X и Trace default-off не менялись, новый tag/release не создавался. Предыдущий состав и его evidence: **[Pi 1.0.2 build.3](docs/releases/pi-1.0.2-build.3.md)**. Текущее состояние — в [readiness board](docs/plans/lab-readiness-board.md); правила — в [AGENTS.md](AGENTS.md).
 
 ## Граница повторяемости
 
-Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `1.0.2`, Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
+Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `1.0.4`, Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
 
 Это даёт повторяемую установку заявленных top-level versions, но **не bit-for-bit reproducibility**. Репозиторий пока не содержит переносимых transitive lockfiles/полного dependency graph, integrity hashes всех скачиваемых artifacts, lock Python dependencies или идентичного образа ОС. Повторная установка может получить иной transitive dependency tree даже при тех же верхнеуровневых версиях. Для release artifact нужно отдельно зафиксировать transitive locks/hashes и затем проверить итоговый bundle.
 
@@ -75,7 +75,7 @@ instructions/       постоянные правила сопровождени
 
 ## Начало работы
 
-- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source и установка уже переведены на exact Pi 1.0.2; Trace default-off и explicit opt-in/off проверены обоими SDK/CLI; [команды](docs/trace.md).
+- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source pin переведён на exact Pi 1.0.4; core SDK local-mock проверен отдельно. Trace default-off и explicit opt-in/off проверены обоими SDK/CLI на предыдущем Pi 1.0.2; [команды](docs/trace.md).
 - Установка и точные prerequisites: [`docs/setup.md`](docs/setup.md)
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)
