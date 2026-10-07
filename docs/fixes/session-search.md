@@ -1,62 +1,28 @@
-# Session Search: изоляция профиля Task
+# Session Search: profile roots, worker и Windows session_read
 
-## Назначение
+Exact `pi-session-search 1.6.0` по-прежнему имеет stock config/index в `~/.pi/session-search` и sources `~/.pi/agent/sessions{,-archive}`. Task должен сохранять собственные paths; Code — прежние stock paths.
 
-Stock `pi-session-search 1.4.3` жёстко использует:
-
-- `~/.pi/session-search` для config/index;
-- `~/.pi/agent/sessions` и `sessions-archive` как sources.
-
-Из-за этого Task читает историю Code. Patch `session-search-profile` заставляет package учитывать `PI_CODING_AGENT_DIR`, сохраняя более явные `PI_SESSION_DIR`/`PI_SESSION_ARCHIVE_DIR` как overrides.
-
-Code patch не нужен: его стандартный путь и так `~/.pi/agent`. Patch применяют только к Task.
+Patch использует четыре immutable npm copies: `src/config.ts`, `src/parser.ts`, `src/index.ts`, `dist/index.js`. Выбранные roots передаются в штатные `IndexOptions → workerData`; **`dist/index-worker.js` не меняется**. Reader использует те же config/default/extra roots, Windows-safe relative containment и canonical paths вместо сломанного `startsWith(root + "/")`. Initial-sync timeout удаляется в `finally` при settlement.
 
 ## Применение
 
 ```bash
-python patches/session-search-profile/apply.py \
-  --agent-dir "<TASK_PROFILE_DIR>" --check
-python patches/session-search-profile/apply.py \
-  --agent-dir "<TASK_PROFILE_DIR>" --apply
+# Code — сохранить stock config/index
+python patches/session-search-profile/apply.py --agent-dir "<CODE_PROFILE_DIR>" --runtime-only --apply
+# Task — использовать профильные config/index/sources
+python patches/session-search-profile/apply.py --agent-dir "<TASK_PROFILE_DIR>" --apply
 ```
 
-Поддерживается ровно `1.4.3`; меняются `src/config.ts`, `src/parser.ts`, `dist/index.js`. Перед первой правкой pristine copies сохраняются в patch store, после записи запускается `node --check`.
+С тем же режимом доступны `--check` и byte-exact `--restore`. Только exact stock/canonical принимаются; неизвестное/смешанное состояние и другая версия отвергаются до writes. Backups пишутся под выбранным профилем, immutable store не изменяется.
 
 ## Конфигурация и данные
 
-После patch Task использует:
+Task сохраняет `<TASK_PROFILE>/session-search/{config.json,index}`, `sessions` и `sessions-archive`. Project `localPath` не меняется. Config `sessionDir/archiveDir` имеет приоритет; default roots учитывают `PI_SESSION_DIR`, затем `PI_CODING_AGENT_SESSION_DIR`, и archive `PI_SESSION_ARCHIVE_DIR`. Extra roots разрешены и indexer, и reader.
 
-```text
-~/.pi/task/session-search/config.json
-~/.pi/task/session-search/index/
-~/.pi/task/sessions/
-~/.pi/task/sessions-archive/
-```
-
-Старый общий index автоматически не переносится. Создайте Task config заново и выполните `/session-reindex`.
-
-## Tools/команды
-
-Tool surface не меняется: `session_search`, `session_list`, `session_read`, `/session-sync`, `/session-reindex`, `/session-embeddings-setup`, skill `session-history`.
-
-## Риски
-
-Full reindex может отправить приватный текст внешнему embedder и стоить денег. Partial patch state блокируется. Reinstall package стирает правку. Explicit `PI_SESSION_DIR` всё ещё может сознательно нарушить изоляцию.
+Индексы и Polza embedding config остаются на прежних путях. **Не выполнять forced `/session-reindex` при этом обновлении.** Не переносить чужие sessions/index и не менять model/dimensions/fusion попутно. Package restore не возвращает преобразованные upstream индексы; исходные session files не трогаются.
 
 ## Проверка
 
-```bash
-python patches/session-search-profile/apply.py \
-  --agent-dir "<TASK_PROFILE_DIR>" --check
-```
+`python patches/session-search-profile/tests/test_runtime.py`: mode/restore/refusal и реальный timer settlement. Native synthetic smoke: отдельные Code/Task workers стартуют и закрываются; собственные sessions/archive/extra roots ищутся и читаются, чужой путь и symlink escape отклоняются. Synthetic FTS проверка не подтверждает paid hybrid backend; live-provider evidence указывается отдельно в release notes.
 
-Ожидается `ALREADY PATCHED`. В Task выполните `/session-reindex`, затем `session_list`; создайте контрольные sessions с разными marker в Code/Task и подтвердите отсутствие перекрёстных результатов.
-
-## Удаление/откат
-
-```bash
-python patches/session-search-profile/apply.py \
-  --agent-dir "<TASK_PROFILE_DIR>" --restore
-```
-
-Restore byte-exact требует сохранённых pristine files. После отката Task снова видит Code paths; удалите/архивируйте профильный Task index отдельно, если он больше не нужен.
+Tools/commands остаются `session_search`, `session_list`, `session_read`, `/session-sync`, `/session-reindex`, `/session-embeddings-setup` и `session-history`. Reinstall стирает patch — примените снова и перезапустите Pi. Полный context/session text может быть приватным: raw receipts вне Git.

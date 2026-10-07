@@ -722,10 +722,11 @@ try {
         $storeFiles = @(
             (Join-Path $RepoRoot 'patches\serena-tools\store\index.ts.orig-0.9.20'),
             (Join-Path $RepoRoot 'patches\pi-cbm-011\store\client.ts.orig-1.2.1'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\src\config.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\src\parser.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\dist\index.js'),
-            (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.9.20')
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\config.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\parser.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index.js'),
+            (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.9.20'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index.ts')
         )
         $before = Get-FileHashes $storeFiles
         $python = (Get-Command python).Source
@@ -807,9 +808,9 @@ try {
 
         $sessionAgent = Join-Path $root 'session-profile'
         $sessionPkg = Join-Path $sessionAgent 'npm\node_modules\pi-session-search'
-        [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.4.3"}')
-        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js')) {
-            $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3') $rel
+        [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.6.0"}')
+        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts')) {
+            $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0') $rel
             $dst = Join-Path $sessionPkg $rel
             New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
             Copy-Item -LiteralPath $src -Destination $dst

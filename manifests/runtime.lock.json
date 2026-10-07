@@ -15,7 +15,7 @@
   },
   "compatibility": {
     "minimumNode": "24.0.0",
-    "reason": "pi-session-search 1.4.3 requires Node 24 or newer"
+    "reason": "pi-session-search 1.6.0 requires Node 24 or newer"
   },
   "releaseTagFormat": "pi-v<pi-version>-build.<number>"
 }

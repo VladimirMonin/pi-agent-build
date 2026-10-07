@@ -32,7 +32,7 @@
       "source": "npm:pi-background-tasks@2.6.2",
       "extensions": []
     },
-    "npm:pi-session-search@1.4.3",
+    "npm:pi-session-search@1.6.0",
     "npm:@samfp/pi-memory@1.5.0",
     "npm:pi-mcp-adapter@2.36.0"
   ],

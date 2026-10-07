@@ -47,14 +47,14 @@ class RuntimeTests(unittest.TestCase):
             stock, canonical = s.canonical_files(runtime)
             if runtime:
                 self.assertEqual(canonical[s.REL_FILES[0]], stock[s.REL_FILES[0]])
-                self.assertEqual(canonical[s.REL_FILES[1]], stock[s.REL_FILES[1]])
-                self.assertNotIn(b'local-profile-patch', canonical[s.REL_FILES[2]])
+                self.assertIn(b'PI_CODING_AGENT_SESSION_DIR', canonical[s.REL_FILES[1]])
+                self.assertIn(b'relative(canonicalRoot, resolvedPath)', canonical[s.REL_FILES[2]])
             else:
                 self.assertIn(b'PI_CODING_AGENT_DIR', canonical[s.REL_FILES[0]])
             with tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 s.configure_paths(root)
-                for rel, body in (stock if runtime else s.canonical_files(timers=False)[1]).items():
+                for rel, body in stock.items():
                     (root / rel).parent.mkdir(parents=True, exist_ok=True)
                     (root / rel).write_bytes(body)
                 s.apply(root, runtime)
@@ -82,7 +82,7 @@ global.clearTimeout = h => {live.delete(h); nativeClear(h);};
 MEMORY
 const pendingTimers = new Set();
 function scheduleTimer(fn, ms) {const h = setTimeout(() => {pendingTimers.delete(h); fn();}, ms); pendingTimers.add(h); return h;}
-let operation; const sessionIndex = {sync: () => operation};
+let operation; const index = {sync: () => operation};
 const ctx = {ui:{setStatus(){}}}; const notifySyncError = () => () => {};
 const SYNC_TIMEOUT_MS = 20;
 SEARCH

@@ -1,6 +1,6 @@
 # История сессий и долговременная память
 
-## `pi-session-search` 1.4.3
+## `pi-session-search` 1.6.0
 
 ### Назначение
 
@@ -9,10 +9,10 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-session-search@1.4.3
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-session-search@1.6.0
 ```
 
-Требуется Node `24+`. Для Task примените [profile patch](../fixes/session-search.md).
+Требуется Node `24+`. Indexing работает на Worker Thread. Примените [profile/runtime patch](../fixes/session-search.md): Code с `--runtime-only`, Task без этого флага.
 
 ### Конфигурация и данные
 
@@ -32,7 +32,7 @@ Index и embeddings содержат производные от приватн�
 
 ### Проверка
 
-`/session-sync`, затем `session_list` и точный keyword query. После embeddings — `/session-reindex` и semantic query. В Task убедитесь, что Code sessions/index не подмешаны.
+`/session-sync`, затем `session_list` и точный keyword query. Для ранее настроенных embeddings достаточно короткой semantic query: обновление1.6 не требует forced `/session-reindex`. В Task убедитесь, что Code sessions/index не подмешаны; `session_read` должен читать Windows paths и отклонять чужие roots.
 
 ### Удаление/откат
 

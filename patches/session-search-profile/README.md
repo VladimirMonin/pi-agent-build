@@ -1,53 +1,29 @@
-# pi-session-search 1.4.3: изоляция именованного профиля
+# pi-session-search 1.6.0: profile roots и Windows session_read
 
-Поддерживаемая версия: `pi-session-search@1.4.3`.
+Поддерживается ровно `pi-session-search@1.6.0`. Immutable store содержит exact npm `src/config.ts`, `src/parser.ts`, `src/index.ts` и `dist/index.js`; hashes проверяются до любых writes.
 
-Stock-пакет жёстко использует стандартные пути `~/.pi/agent/sessions` и `~/.pi/session-search`. Из-за этого именованный Task-профиль через `PI_CODING_AGENT_DIR` читает и индексирует историю Code-профиля.
+Task сохраняет `<TASK_PROFILE>/session-search/{config.json,index}`, `sessions` и `sessions-archive`. Code сохраняет stock `~/.pi/session-search` и стандартные sources. Project `localPath` и явные config overrides не меняются.
 
-Patch изменяет `src/config.ts`, `src/parser.ts` и собранный `dist/index.js`:
+Оба режима:
 
-```text
-<PI_CODING_AGENT_DIR>/sessions
-<PI_CODING_AGENT_DIR>/sessions-archive
-<PI_CODING_AGENT_DIR>/session-search/config.json
-<PI_CODING_AGENT_DIR>/session-search/index/
-```
-
-Явные `PI_SESSION_DIR` и `PI_SESSION_ARCHIVE_DIR` сохраняют приоритет.
+- учитывают `PI_SESSION_DIR`, затем `PI_CODING_AGENT_SESSION_DIR`; archive override `PI_SESSION_ARCHIVE_DIR` сохраняется;
+- передают выбранные sources в `IndexOptions → workerData`, поэтому **worker bundle не патчится**;
+- `session_read` использует те же configured/default/extra roots, Windows-safe `path.relative` containment и canonical paths для защиты от symlink/junction escape;
+- очищают проигравший initial-sync timeout в `finally` при resolve/reject, сохраняя настоящий timeout.
 
 ## Использование
 
-Оба режима очищают timeout начального sync в `finally` при resolve/reject, сохраняя настоящий timeout. Code сохраняет stock-пути (меняется только `dist/index.js`):
-
 ```powershell
-python .\patches\session-search-profile\apply.py `
-  --agent-dir "$HOME\.pi\agent" --runtime-only --apply
+# Code: stock config/index paths
+python .\patches\session-search-profile\apply.py --agent-dir "$HOME\.pi\agent" --runtime-only --apply
+# Task: profile config/index paths
+python .\patches\session-search-profile\apply.py --agent-dir "$HOME\.pi\task" --apply
 ```
 
-Для Code используйте `--runtime-only` также с `--check` и `--restore`. Для Task (изоляция профиля + timeout cleanup):
+Для `--check`/`--restore` используйте тот же режим. Check: 0=canonical, 1=stock, 2=unknown/mixed/wrong-version/hash mismatch. Apply идемпотентен; restore byte-exact из Git store. Backups только под выбранным профилем `.pi-agent-build-backups/session-search-profile`.
 
-```powershell
-python .\patches\session-search-profile\apply.py `
-  --agent-dir "$HOME\.pi\task" --check
-python .\patches\session-search-profile\apply.py `
-  --agent-dir "$HOME\.pi\task" --apply
-```
+## Проверка и данные
 
-Откат:
+`python patches/session-search-profile/tests/test_runtime.py` проверяет режимы, drift refusal, restore и реальные resolve/reject/timeout settlement. Windows script regression проверяет immutable stores. Native short smoke на synthetic sessions: actual worker стартует/закрывается, Code/Task ищут и читают свои sessions/archive/extra roots; посторонние пути и symlink escape отклоняются.
 
-```powershell
-python .\patches\session-search-profile\apply.py `
-  --agent-dir "$HOME\.pi\task" --restore
-```
-
-После применения размести конфигурацию embeddings именно в:
-
-```text
-~/.pi/task/session-search/config.json
-```
-
-и выполни `/session-reindex` внутри `pi-task`.
-
-Patcher жёстко проверяет версию, SHA-256 immutable store и byte-exact state. Принимает только stock, canonical выбранного режима и точный предыдущий Task canonical для backed-up upgrade; другой режим/смешанные/неизвестные bytes отклоняются.
-
-Focused regression: `python patches/session-search-profile/tests/test_runtime.py` (resolve/reject/реальный timeout, cleanup, upgrade/idempotence/refusal, mode/path/restore). Pristine store в Git immutable; runtime-backups записываются под `.pi-agent-build-backups/session-search-profile` выбранного профиля. Неизвестная или смешанная структура завершается ошибкой.
+Индексы/config/Polza model остаются на прежних путях. **Обновление не требует forced `/session-reindex`** и не меняет fusion/embeddings. Paid semantic checks здесь не выполняются. Reinstall стирает patch: примените его снова и перезапустите Pi. Package restore не откатывает данные индекса; не удаляйте их или исходные sessions попутно.

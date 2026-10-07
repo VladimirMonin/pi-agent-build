@@ -47,6 +47,11 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.4]
+
+- Session Search1.4.3 → **1.6.0** Both: новый exact patch, explicit roots через штатный workerData, Windows-safe reader containment, initial-sync timer cleanup. Worker bundle не патчится; index/config/model/fusion сохранены, forced reindex не требуется.
+- Native synthetic Code/Task workers/search/read/escape rejection PASS; real Polza hybrid canary PASS (2 embedding requests). Fresh installed loading13/10 errors0/warnings0/fetch0, regressions24/24, verifier0/0. [Scope и личная установка](docs/releases/pi-1.0.4-build.4.md).
+
 ## [pi-v1.0.4-build.3]
 
 - Context Inspector1.1.1 → **1.3.0** в Code/Task: resize-aware overlay/paging и optional external-editor snapshot; без локального patch.

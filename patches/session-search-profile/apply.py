@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-"""Make pi-session-search 1.4.3 respect PI_CODING_AGENT_DIR.
-
-The repository store is immutable. Apply and restore accept only byte-exact
-stock/canonical states and keep runtime backups under the selected profile.
-"""
+"""Exact pi-session-search 1.6.0 profile roots, containment and timer patch."""
 from __future__ import annotations
-
 import argparse
 import datetime as dt
 import hashlib
@@ -15,212 +10,159 @@ import shutil
 import subprocess
 import sys
 
-VERSION = "1.4.3"
-MARKER = "local-profile-patch"
+VERSION = "1.6.0"
 HERE = pathlib.Path(__file__).resolve().parent
 STORE = HERE / "store" / VERSION
-REL_FILES = (
-    pathlib.Path("src/config.ts"),
-    pathlib.Path("src/parser.ts"),
-    pathlib.Path("dist/index.js"),
+REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/index.js", "src/index.ts")))
+STOCK_HASHES = (
+    "e6103a7010615e059a01a3954d3135092b46e197cec6ce878ae84271c9211427",
+    "2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a",
+    "9d011f994d6de8bb873ba242a9b705ab560046a4eae3c66c75068c98aa29090b",
+    "e2e36ee96ca972d8e98bc9dec857ca1ac883c1063f8f8ca11786713d3f1574bc",
 )
 BACKUP_ROOT = pathlib.Path()
-STOCK_HASHES = (
-    '625fdbefd346e8b2b820be6319eea8bd66779bced277dca81a2fa3974355b912',
-    '2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a',
-    'e89d2d9d69380559ed735c378fdab2d43a3d8e546bfcab941ee69c0895b6f545',
-)
-TIMER_OLD = '''        const runSync = () => Promise.race([
-          sessionIndex.sync(
-            (msg) => ctx.ui.setStatus("session-search", msg),
-            notifySyncError(ctx)
-          ),
-          new Promise(
-            (resolve2) => scheduleTimer(() => resolve2(null), SYNC_TIMEOUT_MS)
-          )
-        ]);'''
-TIMER_NEW = '''        const runSync = () => {
-          let timeout;
-          return Promise.race([
-            sessionIndex.sync(
-              (msg) => ctx.ui.setStatus("session-search", msg),
-              notifySyncError(ctx)
-            ),
-            new Promise((resolve2) => {
-              timeout = scheduleTimer(() => resolve2(null), SYNC_TIMEOUT_MS);
-            })
-          ]).finally(() => {
-            clearTimeout(timeout);
-            pendingTimers.delete(timeout);
-          });
-        };'''
-
-CONFIG_OLD = '''function globalConfigDir(): string {
-  return join(homedir(), ".pi", "session-search");
-}'''
-CONFIG_NEW = '''function globalConfigDir(): string {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return agentDir
-    ? join(agentDir, "session-search") // local-profile-patch
-    : join(homedir(), ".pi", "session-search");
-}'''
-
-PARSER_OLD = '''function getDefaultSessionDir(): string {
-  return (
-    process.env.PI_SESSION_DIR ||
-    join(process.env.HOME || "~", ".pi", "agent", "sessions")
-  );
-}
-
-/**
- * Return the default session archive directory.
- * Honours `PI_SESSION_ARCHIVE_DIR` env var, falling back to the standard
- * global location.
- */
-function getDefaultArchiveDir(): string {
-  return (
-    process.env.PI_SESSION_ARCHIVE_DIR ||
-    join(process.env.HOME || "~", ".pi", "agent", "sessions-archive")
-  );
-}'''
-PARSER_NEW = '''function getDefaultSessionDir(): string {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return (
-    process.env.PI_SESSION_DIR ||
-    (agentDir
-      ? join(agentDir, "sessions") // local-profile-patch
-      : join(process.env.HOME || "~", ".pi", "agent", "sessions"))
-  );
-}
-
-/**
- * Return the default session archive directory.
- * Honours `PI_SESSION_ARCHIVE_DIR` env var, falling back to the standard
- * global location.
- */
-function getDefaultArchiveDir(): string {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return (
-    process.env.PI_SESSION_ARCHIVE_DIR ||
-    (agentDir
-      ? join(agentDir, "sessions-archive") // local-profile-patch
-      : join(process.env.HOME || "~", ".pi", "agent", "sessions-archive"))
-  );
-}'''
-
-DIST_CONFIG_OLD = '''function globalConfigDir() {
-  return join(homedir(), ".pi", "session-search");
-}'''
-DIST_CONFIG_NEW = '''function globalConfigDir() {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return agentDir ? join(agentDir, "session-search") : join(homedir(), ".pi", "session-search"); // local-profile-patch
-}'''
-
-DIST_PARSER_OLD = '''function getDefaultSessionDir() {
-  return process.env.PI_SESSION_DIR || join2(process.env.HOME || "~", ".pi", "agent", "sessions");
-}
-function getDefaultArchiveDir() {
-  return process.env.PI_SESSION_ARCHIVE_DIR || join2(process.env.HOME || "~", ".pi", "agent", "sessions-archive");
-}'''
-DIST_PARSER_NEW = '''function getDefaultSessionDir() {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return process.env.PI_SESSION_DIR || (agentDir ? join2(agentDir, "sessions") : join2(process.env.HOME || "~", ".pi", "agent", "sessions")); // local-profile-patch
-}
-function getDefaultArchiveDir() {
-  const agentDir = process.env.PI_CODING_AGENT_DIR?.trim();
-  return process.env.PI_SESSION_ARCHIVE_DIR || (agentDir ? join2(agentDir, "sessions-archive") : join2(process.env.HOME || "~", ".pi", "agent", "sessions-archive")); // local-profile-patch
-}'''
+TIMER_NEW = '''const runSync = () => {
+        let timeout;
+        return Promise.race([
+          index.sync({onProgress: (msg) => ctx.ui.setStatus("session-search", msg), onError: notifySyncError(ctx)}),
+          new Promise((resolve) => { timeout = scheduleTimer(() => resolve(null), SYNC_TIMEOUT_MS); })
+        ]).finally(() => {
+          clearTimeout(timeout);
+          pendingTimers.delete(timeout);
+        });
+      };'''
 
 
-def package_root(agent_dir: pathlib.Path) -> pathlib.Path:
+def package_root(agent_dir):
     return agent_dir / "npm" / "node_modules" / "pi-session-search"
 
 
-def configure_paths(agent_dir: pathlib.Path) -> None:
+def configure_paths(agent_dir):
     global BACKUP_ROOT
     BACKUP_ROOT = agent_dir / ".pi-agent-build-backups" / "session-search-profile"
 
 
-def assert_version(root: pathlib.Path) -> None:
-    package_file = root / "package.json"
-    if not package_file.is_file():
-        raise RuntimeError(f"package.json missing: {package_file}")
-    package = json.loads(package_file.read_text(encoding="utf-8"))
-    actual = package.get("version")
-    if actual != VERSION:
-        raise RuntimeError(f"unsupported pi-session-search {actual}; expected exactly {VERSION}")
-    missing = [str(rel) for rel in REL_FILES if not (root / rel).is_file()]
-    if missing:
-        raise RuntimeError(f"installed files missing: {missing}")
+def assert_version(root):
+    version = json.loads((root / "package.json").read_text(encoding="utf-8")).get("version")
+    if version != VERSION:
+        raise RuntimeError(f"unsupported {version}; expected exactly {VERSION}")
 
 
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected one anchor, found {count}")
+def replace_once(text, old, new, label):
+    if text.count(old) != 1:
+        raise RuntimeError(f"{label}: expected exactly one anchor")
     return text.replace(old, new, 1)
 
 
-def read_files(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
+def read_files(root):
     return {rel: (root / rel).read_bytes() for rel in REL_FILES}
 
 
-def canonical_files(runtime_only: bool = False, *, timers: bool = True) -> tuple[dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
-    missing = [str(rel) for rel in REL_FILES if not (STORE / rel).is_file()]
-    if missing:
-        raise RuntimeError(f"immutable pristine files missing: {missing}")
+def replace_body(text, start, end, body):
+    if text.count(start) != 1 or text.count(end) != 1:
+        raise RuntimeError(f"ambiguous anchors: {start}")
+    a = text.index(start)
+    b = text.index(end, a)
+    return text[:a] + body + text[b:]
+
+
+def patch_parser(text, runtime_only, dist=False):
+    join = "join2" if dist else "join"
+    typed = "" if dist else ": string"
+    exported = "" if dist else "export "
+    def body(name, override, leaf, modern=""):
+        fallback = f'{join}(process.env.HOME || "~", ".pi", "agent", "{leaf}")'
+        if not runtime_only:
+            fallback = f'(process.env.PI_CODING_AGENT_DIR?.trim() ? {join}(process.env.PI_CODING_AGENT_DIR.trim(), "{leaf}") : {fallback})'
+        modern = f"process.env.{modern} || " if modern else ""
+        return f'{exported}function {name}(){typed} {{\n  return process.env.{override} || {modern}{fallback}; // local-profile-patch\n}}'
+    # Source contains documentation between these functions: replace bodies only.
+    for name, override, leaf, modern in [
+        ("getDefaultSessionDir", "PI_SESSION_DIR", "sessions", "PI_CODING_AGENT_SESSION_DIR"),
+        ("getDefaultArchiveDir", "PI_SESSION_ARCHIVE_DIR", "sessions-archive", ""),
+    ]:
+        start = f"function {name}(){typed} {{"
+        if text.count(start) != 1:
+            raise RuntimeError(f"missing parser anchor: {name}")
+        a = text.index(start)
+        b = text.index("\n}", a) + 2
+        text = text[:a] + body(name, override, leaf, modern) + text[b:]
+    return text
+
+
+def patch_index(text, source=False):
+    if source:
+        text = replace_once(text, 'import { existsSync } from "node:fs";', 'import { existsSync, realpathSync } from "node:fs";', "fs import")
+        text = replace_once(text, 'import { resolve } from "node:path";', 'import { resolve, relative, isAbsolute, sep } from "node:path";\nimport { getDefaultSessionDir, getDefaultArchiveDir } from "./parser";', "path import")
+    else:
+        text = replace_once(text, 'import { existsSync as existsSync4 } from "node:fs";', 'import { existsSync as existsSync4, realpathSync } from "node:fs";', "dist fs")
+        text = replace_once(text, 'import { resolve } from "node:path";', 'import { resolve, relative, isAbsolute, sep } from "node:path";', "dist path")
+    for key, fn in [("sessionDir", "getDefaultSessionDir"), ("archiveDir", "getDefaultArchiveDir")]:
+        text = replace_once(text, f"{key}: config?.{key},", f"{key}: config?.{key} ?? {fn}(),", "worker roots")
+    home_anchor = '      const home = process.env.HOME || "";' if not source else '      const home = process.env.HOME || "";'
+    # Replace the complete read-path guard; index and reader use identical roots.
+    a = text.index(home_anchor, text.index('name: "session_read"'))
+    end = '      const limit = Math.min(params.limit ?? 50, 100);'
+    b = text.index(end, a)
+    exists = "existsSync" if source else "existsSync4"
+    guard = f'''      const allowedRoots = [
+        resolve(currentConfig?.sessionDir ?? getDefaultSessionDir()),
+        resolve(currentConfig?.archiveDir ?? getDefaultArchiveDir()),
+        ...(currentConfig?.extraSessionDirs ?? []).map((d) => resolve(d)),
+        ...(currentConfig?.extraArchiveDirs ?? []).map((d) => resolve(d))
+      ];
+      const resolvedPath = {exists}(filePath) ? realpathSync(filePath) : resolve(filePath);
+      if (!allowedRoots.some((root) => {{
+        const canonicalRoot = {exists}(root) ? realpathSync(root) : resolve(root);
+        const rel = relative(canonicalRoot, resolvedPath);
+        return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
+      }})) {{
+        return textResult(`Access denied: path "${{filePath}}" is outside the allowed session directories.`);
+      }}
+'''
+    text = text[:a] + guard + text[b:]
+    timer = TIMER_NEW
+    if source:
+        timer = timer.replace("let timeout;", "let timeout: ReturnType<typeof setTimeout> | undefined;").replace("new Promise((resolve)", "new Promise<null>((resolve)")
+    return replace_body(text, "const runSync = () =>", "const initialSync = async () =>", timer + "\n\n      ")
+
+
+def canonical_files(runtime_only=False):
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
         raise RuntimeError("immutable stock hash mismatch")
-    c = stock[REL_FILES[0]].decode("utf-8")
-    p = stock[REL_FILES[1]].decode("utf-8")
-    d = stock[REL_FILES[2]].decode("utf-8")
-    c = replace_once(c, CONFIG_OLD, CONFIG_NEW, "src/config.ts")
-    p = replace_once(p, PARSER_OLD, PARSER_NEW, "src/parser.ts")
-    d = replace_once(d, DIST_CONFIG_OLD, DIST_CONFIG_NEW, "dist config")
-    d = replace_once(d, DIST_PARSER_OLD, DIST_PARSER_NEW, "dist parser")
-    if runtime_only:
-        c, p, d = (stock[r].decode("utf-8") for r in REL_FILES)
-    if timers:
-        d = replace_once(d, TIMER_OLD, TIMER_NEW, "dist sync timeout")
-    canonical = {
-        REL_FILES[0]: c.encode("utf-8"),
-        REL_FILES[1]: p.encode("utf-8"),
-        REL_FILES[2]: d.encode("utf-8"),
-    }
-    return stock, canonical
+    c, p, d, i = (stock[r].decode("utf-8") for r in REL_FILES)
+    if not runtime_only:
+        c = replace_once(c, 'return join(homedir(), ".pi", "session-search");', 'return process.env.PI_CODING_AGENT_DIR?.trim() ? join(process.env.PI_CODING_AGENT_DIR.trim(), "session-search") : join(homedir(), ".pi", "session-search"); // local-profile-patch', "config")
+        d = replace_once(d, 'return join(homedir(), ".pi", "session-search");', 'return process.env.PI_CODING_AGENT_DIR?.trim() ? join(process.env.PI_CODING_AGENT_DIR.trim(), "session-search") : join(homedir(), ".pi", "session-search"); // local-profile-patch', "dist config")
+    p = patch_parser(p, runtime_only)
+    d = patch_index(patch_parser(d, runtime_only, True))
+    i = patch_index(i, True)
+    return stock, dict(zip(REL_FILES, (v.encode("utf-8") for v in (c, p, d, i))))
 
 
-def classify(root: pathlib.Path, runtime_only: bool = False) -> tuple[str, dict[pathlib.Path, bytes], dict[pathlib.Path, bytes]]:
+def classify(root, runtime_only=False):
     stock, canonical = canonical_files(runtime_only)
     current = read_files(root)
-    if current == canonical:
-        return "patched", stock, canonical
-    if current == stock:
-        return "stock", stock, canonical
-    if not runtime_only and current == canonical_files(timers=False)[1]:
-        return "legacy-canonical", stock, canonical
-    return "unknown", stock, canonical
+    return ("patched" if current == canonical else "stock" if current == stock else "unknown"), stock, canonical
 
 
-def runtime_backup(root: pathlib.Path, label: str) -> pathlib.Path:
-    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    target = BACKUP_ROOT / f"{label}-{stamp}"
+def runtime_backup(root, label):
+    dst = BACKUP_ROOT / f"{label}-{dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f')}"
     for rel in REL_FILES:
-        dst = target / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(root / rel, dst)
-    return target
+        (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / rel, dst / rel)
+    return dst
 
 
-def apply(root: pathlib.Path, runtime_only: bool = False) -> None:
-    status, _stock, canonical = classify(root, runtime_only)
-    if status == "patched":
+def apply(root, runtime_only=False):
+    state, stock, canonical = classify(root, runtime_only)
+    if state == "patched":
         print("ALREADY PATCHED")
         return
-    if status not in {"stock", "legacy-canonical"}:
-        raise RuntimeError("installed files differ from immutable stock and canonical patch")
-    print(f"runtime backup: {runtime_backup(root, status)}")
+    if state != "stock":
+        raise RuntimeError("unknown/mixed installed state")
+    print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
         (root / rel).write_bytes(body)
     subprocess.run(["node", "--check", str(root / REL_FILES[2])], check=True)
@@ -229,14 +171,14 @@ def apply(root: pathlib.Path, runtime_only: bool = False) -> None:
     print("PATCH APPLIED")
 
 
-def restore(root: pathlib.Path, runtime_only: bool = False) -> None:
-    status, stock, _canonical = classify(root, runtime_only)
-    if status == "stock":
+def restore(root, runtime_only=False):
+    state, stock, canonical = classify(root, runtime_only)
+    if state == "stock":
         print("ALREADY STOCK")
         return
-    if status not in {"patched", "legacy-canonical"}:
-        raise RuntimeError("installed files are neither immutable stock nor canonical patch")
-    print(f"runtime backup: {runtime_backup(root, 'patched')}")
+    if state != "patched":
+        raise RuntimeError("unknown/mixed installed state")
+    print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
         (root / rel).write_bytes(body)
     if read_files(root) != stock:
@@ -244,37 +186,28 @@ def restore(root: pathlib.Path, runtime_only: bool = False) -> None:
     print("RESTORED BYTE-EXACT")
 
 
-def main() -> int:
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--agent-dir", required=True)
-    ap.add_argument("--runtime-only", action="store_true", help="Code: timer cleanup only; preserve stock paths")
+    ap.add_argument("--runtime-only", action="store_true", help="Code: retain stock config/index paths")
     mode = ap.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--check", action="store_true")
-    mode.add_argument("--apply", action="store_true")
-    mode.add_argument("--restore", action="store_true")
+    for flag in ("check", "apply", "restore"):
+        mode.add_argument("--" + flag, action="store_true")
     args = ap.parse_args()
-    agent_dir = pathlib.Path(args.agent_dir).expanduser().resolve()
-    configure_paths(agent_dir)
-    root = package_root(agent_dir)
-    if not root.is_dir():
-        print(f"ERROR: package not found: {root}", file=sys.stderr)
-        return 2
+    agent = pathlib.Path(args.agent_dir).expanduser().resolve()
+    configure_paths(agent)
+    root = package_root(agent)
     try:
         assert_version(root)
         if args.check:
-            status, _stock, _canonical = classify(root, args.runtime_only)
-            print(f"version={VERSION} state={status}")
-            print("ALREADY PATCHED" if status == "patched" else "PATCH REQUIRED" if status in {"stock", "legacy-canonical"} else "UNKNOWN STATE")
-            return 0 if status == "patched" else 1 if status in {"stock", "legacy-canonical"} else 2
-        if args.apply:
-            apply(root, args.runtime_only)
-        else:
-            restore(root, args.runtime_only)
+            state, _, _ = classify(root, args.runtime_only)
+            print(f"version={VERSION} state={state}")
+            return {"patched": 0, "stock": 1, "unknown": 2}[state]
+        (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
