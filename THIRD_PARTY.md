@@ -20,7 +20,7 @@
 |---:|---|---:|---|---|
 | 1 | `pi-ollama-cloud` | 0.12.1 | MIT¹ | <https://github.com/fgrehm/pi-ollama-cloud> |
 | 2 | `pi-trace-extension` | 0.1.16 | MIT | <https://github.com/npxcnency-ux/pi-trace-extension> |
-| 3 | `pi-context-inspector` | 1.1.1 | MIT | <https://github.com/yuriteixeira/pi-context-inspector> |
+| 3 | `pi-context-inspector` | 1.3.0 | MIT | <https://github.com/yuriteixeira/pi-context-inspector> |
 | 4 | `@juicesharp/rpiv-todo` | 2.10.1 | MIT | <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo> |
 | 5 | `pi-polza` | 0.2.1 | MIT | <https://github.com/VladimirMonin/pi-polza> |
 | 6 | `pi-subagents` | 0.76.1 | MIT | <https://github.com/nicobailon/pi-subagents> |
@@ -31,7 +31,7 @@
 | 11 | `pi-mcp-adapter` | 2.36.0 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
 | 12 | `pi-goal-x` | 0.32.3 | MIT | <https://github.com/tmonk/pi-goal-x> |
 | 13 | `@nicknisi/pi-ast-grep` | 0.2.0 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
-| 14 | `@bacnh85/pi-serena` | 0.9.16 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
+| 14 | `@bacnh85/pi-serena` | 0.9.20 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
 | 15 | `pi-cbm` | 1.2.1 | MIT | <https://github.com/alexykn/pi-cbm> |
 
 ¹ npm metadata `pi-ollama-cloud@0.12.1` не содержит поля `license`, но опубликованный tarball содержит MIT License; repository metadata указывает commit `81ba9009b68534e14ef6d16027765c8a14007ebe`.

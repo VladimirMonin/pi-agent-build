@@ -47,6 +47,12 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.3]
+
+- Context Inspector1.1.1 → **1.3.0** в Code/Task: resize-aware overlay/paging и optional external-editor snapshot; без локального patch.
+- Code Serena wrapper0.9.16 → **0.9.20**: exact rebase двух hidden tools, truthful guidance, обе immutable pristine copies с provenance. Serena Agent1.7.0/Pyright остаются.
+- Both loading13/10 errors0/warnings0/fetch0; native Serena symbol и synthetic Inspector UI checks PASS; Windows regressions24/24, verifier0/0. Native visual TUI/editor/clipboard NOT TESTED. [Scope и установка](docs/releases/pi-1.0.4-build.3.md).
+
 ## [pi-v1.0.4-build.2]
 
 ### Изменено

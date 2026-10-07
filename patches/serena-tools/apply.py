@@ -26,9 +26,9 @@ the runtime does not have is the whole point of this patch.
 
 WHAT IT DOES
 ------------
-Comments out only the two pi.registerTool({...}) blocks, leaving visible
-markers in place. Nothing else is touched: not worker.ts, not the Python
-bridge, not Serena, not .serena/project.yml.
+Comments out the two pi.registerTool({...}) blocks and removes the absent
+find_implementations capability from SERENA_FIRST_GUIDANCE. Nothing else is
+touched: not worker.ts, not the Python bridge, not Serena, not .serena/project.yml.
 
 HOW RESTORE STAYS EXACT
 -----------------------
@@ -68,15 +68,17 @@ HERE = Path(__file__).resolve().parent
 STORE = HERE / "store"
 PKG_DIR = Path()
 TARGET = Path()
+GUIDANCE_TARGET = Path()
 PKG_JSON = Path()
 BACKUP_ROOT = Path()
 
 
 def configure_paths(agent_dir: Path) -> None:
     """Resolve all writable/runtime paths from the selected Pi profile."""
-    global PKG_DIR, TARGET, PKG_JSON, BACKUP_ROOT
+    global PKG_DIR, TARGET, GUIDANCE_TARGET, PKG_JSON, BACKUP_ROOT
     PKG_DIR = agent_dir / "npm" / "node_modules" / "@bacnh85" / "pi-serena"
     TARGET = PKG_DIR / "extensions" / "index.ts"
+    GUIDANCE_TARGET = PKG_DIR / "extensions" / "lib" / "guidance.ts"
     PKG_JSON = PKG_DIR / "package.json"
     BACKUP_ROOT = agent_dir / ".pi-agent-build-backups" / "serena-tools"
 
@@ -93,7 +95,7 @@ PATCHED_TOOLS = {
     ),
 }
 
-AUTHORED_AGAINST = "0.9.16"
+AUTHORED_AGAINST = "0.9.20"
 STOCK_BLOCK_COUNT = 20
 PATCHED_BLOCK_COUNT = STOCK_BLOCK_COUNT - len(PATCHED_TOOLS)
 
@@ -193,11 +195,27 @@ def comment_out(text: str, tool_name: str) -> tuple[str, int]:
     return text, len(spans)
 
 
+def guidance_state() -> tuple[str, str, str] | None:
+    """Read the exact stock, canonical patch, and installed guidance bodies."""
+    pristine = STORE / f"guidance.ts.orig-{AUTHORED_AGAINST}"
+    if not pristine.exists() or not GUIDANCE_TARGET.exists():
+        print("  REFUSING: immutable or installed guidance.ts is missing")
+        return None
+    base = read_raw(pristine)
+    anchor = "serena_find_declaration / serena_find_implementations for definitions, interfaces, and implementations."
+    if base.count(anchor) != 1:
+        print("  REFUSING: immutable guidance anchor differs")
+        return None
+    expected = base.replace(anchor, "serena_find_declaration for definitions.")
+    return base, expected, read_raw(GUIDANCE_TARGET)
+
+
 def make_backup(tag: str) -> Path:
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     dst = BACKUP_ROOT / f"pi-serena-index.ts.{tag}-{ts}"
     shutil.copy2(TARGET, dst)
+    shutil.copy2(GUIDANCE_TARGET, BACKUP_ROOT / f"pi-serena-guidance.ts.{tag}-{ts}")
     return dst
 
 
@@ -246,11 +264,15 @@ def cmd_check() -> int:
     active = count_registrations(text)
     print(f"  active registerTool blocks: {active}")
     print(f"  immutable pristine: {pristine.name}")
-    if text == expected:
-        print("  ALREADY PATCHED. Nothing to do.")
+    guidance = guidance_state()
+    if guidance is None:
+        return 2
+    guidance_base, guidance_expected, guidance_text = guidance
+    if text == expected and guidance_text == guidance_expected:
+        print("  ALREADY PATCHED (tools + guidance). Nothing to do.")
         return 0
-    if text == base:
-        print(f"  PATCH REQUIRED for: {', '.join(PATCHED_TOOLS)}")
+    if text == base and guidance_text == guidance_base:
+        print(f"  PATCH REQUIRED for tools + guidance: {', '.join(PATCHED_TOOLS)}")
         return 1
     print("  UNKNOWN STATE: installed file differs from both immutable stock and canonical patch.")
     return 2
@@ -277,17 +299,22 @@ def cmd_apply() -> int:
         return 2
 
     text = read_raw(TARGET)
-    if text == new_text:
-        print("  file already in canonical patched state (idempotent)")
+    guidance = guidance_state()
+    if guidance is None:
+        return 2
+    guidance_base, guidance_expected, guidance_text = guidance
+    if text == new_text and guidance_text == guidance_expected:
+        print("  files already in canonical patched state (idempotent)")
         return 0
-    if text != base:
+    if text != base or guidance_text != guidance_base:
         print("  REFUSING: installed file differs from immutable stock and canonical patch")
         return 2
 
     backup = make_backup("stock")
     print(f"  runtime backup: {backup}")
     write_raw(TARGET, new_text)
-    if read_raw(TARGET) != new_text:
+    write_raw(GUIDANCE_TARGET, guidance_expected)
+    if read_raw(TARGET) != new_text or read_raw(GUIDANCE_TARGET) != guidance_expected:
         print("  post-write verification failed")
         return 2
     print(f"  active registerTool blocks: {count_registrations(base)} -> {count_registrations(new_text)}")
@@ -314,16 +341,21 @@ def cmd_restore() -> int:
         print("  immutable pristine store does not match patch anchors")
         return 2
     text = read_raw(TARGET)
-    if text == base:
-        print("  file is already stock — nothing to restore")
+    guidance = guidance_state()
+    if guidance is None:
+        return 2
+    guidance_base, guidance_expected, guidance_text = guidance
+    if text == base and guidance_text == guidance_base:
+        print("  files are already stock — nothing to restore")
         return 0
-    if text != expected:
+    if text != expected or guidance_text != guidance_expected:
         print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
     backup = make_backup("patched")
     print(f"  backup of patched state: {backup}")
     shutil.copy2(pristine, TARGET)
-    if read_raw(TARGET) != base:
+    write_raw(GUIDANCE_TARGET, guidance_base)
+    if read_raw(TARGET) != base or read_raw(GUIDANCE_TARGET) != guidance_base:
         print("  post-restore verification failed")
         return 2
     print(f"  restored from immutable pristine: {pristine.name}")

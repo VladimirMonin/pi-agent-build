@@ -1,7 +1,7 @@
 Upstream license declaration
 ============================
 
-Package: @bacnh85/pi-serena 0.9.16
+Package: @bacnh85/pi-serena 0.9.20
 Declared SPDX license: MIT
 
 The published npm tarball and the source tree at the package's published

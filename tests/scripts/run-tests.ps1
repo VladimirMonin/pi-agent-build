@@ -720,11 +720,12 @@ try {
 
     Test-Case 'Serena CBM and session patchers keep tracked stores immutable and refuse drift' {
         $storeFiles = @(
-            (Join-Path $RepoRoot 'patches\serena-tools\store\index.ts.orig-0.9.16'),
+            (Join-Path $RepoRoot 'patches\serena-tools\store\index.ts.orig-0.9.20'),
             (Join-Path $RepoRoot 'patches\pi-cbm-011\store\client.ts.orig-1.2.1'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\src\config.ts'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\src\parser.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\dist\index.js')
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.4.3\dist\index.js'),
+            (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.9.20')
         )
         $before = Get-FileHashes $storeFiles
         $python = (Get-Command python).Source
@@ -732,13 +733,33 @@ try {
 
         $serenaAgent = Join-Path $root 'serena-profile'
         $serenaPkg = Join-Path $serenaAgent 'npm\node_modules\@bacnh85\pi-serena'
-        New-Item -ItemType Directory -Path (Join-Path $serenaPkg 'extensions') -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $serenaPkg 'package.json'), '{"version":"0.9.16"}')
+        New-Item -ItemType Directory -Path (Join-Path $serenaPkg 'extensions\lib') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $serenaPkg 'package.json'), '{"version":"0.9.20"}')
         Copy-Item -LiteralPath $storeFiles[0] -Destination (Join-Path $serenaPkg 'extensions\index.ts')
+        Copy-Item -LiteralPath $storeFiles[5] -Destination (Join-Path $serenaPkg 'extensions\lib\guidance.ts')
         $serenaPatcher = Join-Path $RepoRoot 'patches\serena-tools\apply.py'
         $serena = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
         Assert-Equal 0 $serena.ExitCode "Serena apply failed: $($serena.Output)"
         Assert-True (Test-Path -LiteralPath (Join-Path $serenaAgent '.pi-agent-build-backups\serena-tools')) 'Serena runtime backup missing'
+        $serenaGuidance = Join-Path $serenaPkg 'extensions\lib\guidance.ts'
+        Assert-True (-not ([IO.File]::ReadAllText($serenaGuidance).Contains('serena_find_implementations'))) 'Serena guidance still advertises a hidden tool'
+        $serenaHashes = Get-FileHashes @((Join-Path $serenaPkg 'extensions\index.ts'), $serenaGuidance)
+        $serenaAgain = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
+        Assert-Equal 0 $serenaAgain.ExitCode 'Serena second apply failed'
+        Assert-HashesEqual $serenaHashes (Get-FileHashes @((Join-Path $serenaPkg 'extensions\index.ts'), $serenaGuidance)) 'Serena idempotent apply changed bytes'
+        [IO.File]::AppendAllText($serenaGuidance, '// drift')
+        $guidanceDrift = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
+        Assert-Equal 2 $guidanceDrift.ExitCode 'Serena guidance drift must fail closed'
+        Copy-Item -LiteralPath $storeFiles[5] -Destination $serenaGuidance -Force
+        $mixedSerena = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--check')
+        Assert-Equal 2 $mixedSerena.ExitCode 'Serena mixed tools/guidance state must fail closed'
+        Copy-Item -LiteralPath $storeFiles[0] -Destination (Join-Path $serenaPkg 'extensions\index.ts') -Force
+        $serenaApply = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
+        Assert-Equal 0 $serenaApply.ExitCode 'Serena reapply failed'
+        $serenaRestore = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--restore')
+        Assert-Equal 0 $serenaRestore.ExitCode 'Serena restore failed'
+        Assert-Equal (Get-FileHash $storeFiles[0]).Hash (Get-FileHash (Join-Path $serenaPkg 'extensions\index.ts')).Hash 'Serena index restore differs'
+        Assert-Equal (Get-FileHash $storeFiles[5]).Hash (Get-FileHash $serenaGuidance).Hash 'Serena guidance restore differs'
         [IO.File]::WriteAllText((Join-Path $serenaPkg 'extensions\index.ts'), 'unknown Serena source')
         $serenaDrift = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
         Assert-Equal 2 $serenaDrift.ExitCode 'Serena apply did not refuse unknown source'

@@ -43,7 +43,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-trace-extension
 
 Trace data остаётся и удаляется отдельно. Подробности: [fix trace](../fixes/trace.md).
 
-## `pi-context-inspector` 1.1.1
+## `pi-context-inspector` 1.3.0
 
 ### Назначение
 
@@ -52,7 +52,7 @@ Trace data остаётся и удаляется отдельно. Подроб
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-context-inspector@1.1.1
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-context-inspector@1.3.0
 ```
 
 ### Конфигурация и данные
@@ -61,11 +61,11 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-context-inspector@1.1.1
 
 ### Команды, tools и skills
 
-Только `/context`: tabs Stats/System/Tools/Messages/Full; `Tab`, `/`, `n`/`N`, `y`, `q`/Esc. Model-facing tools/skills нет. Команда работает только в TUI и требует хотя бы один завершённый turn для usage data.
+Только `/context`: tabs Stats/System/Tools/Messages/Full; `Tab`, `/`, `n`/`N`, `y`, `q`/Esc. Overlay и PageUp/PageDown учитывают текущую высоту терминала после resize. В content tabs `e` открывает временный snapshot через `$EDITOR`; изменения snapshot не меняют session. Model-facing tools/skills нет. Команда работает только в TUI и требует хотя бы один завершённый turn для usage data.
 
 ### Риски
 
-Tabs и clipboard могут раскрыть полный system prompt, tool schemas и приватные messages. Не копируйте Full в issue/log без redaction.
+Tabs, clipboard и editor snapshot могут раскрыть полный system prompt, tool schemas и приватные messages. Не копируйте Full в issue/log без redaction. `$EDITOR` optional: `notepad` или `code --wait`; parser1.3 не поддерживает quoted executable paths с пробелами. Сборка не меняет EDITOR и не добавляет локальный patch.
 
 ### Проверка
 

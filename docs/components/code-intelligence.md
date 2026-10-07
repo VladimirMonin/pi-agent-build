@@ -44,7 +44,7 @@ npm uninstall -g @ast-grep/cli
 
 Удалите staged `ast-grep.exe` только если его не использует другой software.
 
-## `@bacnh85/pi-serena` 0.9.16 + `serena-agent` 1.7.0
+## `@bacnh85/pi-serena` 0.9.20 + `serena-agent` 1.7.0
 
 ### Назначение
 
@@ -55,7 +55,7 @@ Pi wrapper регистрирует semantic symbol/refactoring tools, а persis
 ```bash
 uv tool install --prerelease=allow "serena-agent==1.7.0"
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" \
-  pi install npm:@bacnh85/pi-serena@0.9.16
+  pi install npm:@bacnh85/pi-serena@0.9.20
 python patches/serena-tools/apply.py --agent-dir "<CODE_PROFILE_DIR>" --apply
 ```
 
@@ -65,7 +65,7 @@ Project Serena config/cache — `.serena/`; в 1.7.0 актуален `language_
 
 ### Команды, tools и skills
 
-Команды `/serena-dashboard [project]`, `/serena-restart`. После patch доступно 18 `serena_*` tools: status/list, symbols overview/find/references/declaration, symbol/content edits, rename/safe-delete, pattern search, diagnostics, restarts, config и onboarding. `serena_find_implementations` и `serena_check_onboarding_performed` скрыты. Skills package не поставляет.
+Команды `/serena-dashboard [project]`, `/serena-restart`. После patch доступно 18 `serena_*` tools: status/list, symbols overview/find/references/declaration, symbol/content edits, rename/safe-delete, pattern search, diagnostics, restarts, config и onboarding. `serena_find_implementations` и `serena_check_onboarding_performed` скрыты; guidance не рекомендует отсутствующий implementation tool. Skills package не поставляет.
 
 ### Риски
 

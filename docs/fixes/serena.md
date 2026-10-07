@@ -2,12 +2,12 @@
 
 ## Назначение
 
-Связка `@bacnh85/pi-serena 0.9.16` + `serena-agent 1.7.0` рекламирует два неработающих tools:
+Связка `@bacnh85/pi-serena 0.9.20` + `serena-agent 1.7.0` рекламирует два неработающих tools:
 
 - `serena_check_onboarding_performed`: удалён из Serena; onboarding теперь agent mode;
 - `serena_find_implementations`: текущий Python/Pyright backend не объявляет LSP `implementationProvider` и отвечает `-32601 Unhandled method`.
 
-Patch скрывает эти tools из model surface, не подменяя implementations на references и не меняя Serena/worker/project config.
+Patch скрывает эти tools из model surface и убирает `find_implementations` из `SERENA_FIRST_GUIDANCE`, не подменяя implementations на references и не меняя Serena/worker/project config.
 
 ## Применение
 
@@ -18,7 +18,7 @@ python patches/serena-tools/apply.py \
   --agent-dir "<CODE_PROFILE_DIR>" --apply
 ```
 
-Patcher сохраняет pristine `index.ts`, затем детерминированно комментирует два `pi.registerTool` blocks. Он работает с bytes, чтобы не разрушить CRLF, и создаёт runtime backup.
+Patcher использует immutable pristine `index.ts` и `guidance.ts` exact0.9.20 из Git, детерминированно комментирует два registration blocks и исправляет guidance. Backups обоих установленных файлов пишутся только под выбранным профилем. Stock/canonical принимаются byte-exact; unknown/mixed state отвергается.
 
 ## Конфигурация и данные
 
@@ -43,4 +43,4 @@ python patches/serena-tools/apply.py \
   --agent-dir "<CODE_PROFILE_DIR>" --restore
 ```
 
-Restore byte-exact возвращает pristine wrapper и оба registrations. Делайте это только после проверки backend capabilities и upstream API. Затем `/reload`.
+Restore byte-exact возвращает pristine wrapper, оба registrations и stock guidance. Делайте это только после проверки backend capabilities и upstream API. Затем `/reload`.
