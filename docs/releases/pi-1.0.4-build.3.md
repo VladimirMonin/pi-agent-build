@@ -20,6 +20,6 @@ Native visual TUI, настоящий clipboard и optional editor launch — **
 
 ## Установка себе
 
-После публикации установить только exact выбранные пакеты штатным Pi lifecycle: Inspector в Code/Task, Serena только в Code; затем применить `serena-tools` к Code. Не использовать полный installer или `update --all`, не заменять settings/auth/memory/sessions. Свежий loader process проверяется отдельно от живого TUI. Открытые Pi-сессии полностью перезапускает владелец.
+**Установка завершена:** штатный Pi lifecycle поставил exact Inspector1.3.0 в Code/Task и Serena0.9.20 только в Code; `serena-tools` применён к Code. Свежая загрузка actual installed payloads: Code13/Task10, errors0/warnings0/fetch0. Assertions подтвердили сохранение прочих settings/package versions, models/Goal X settings и sampled unrelated patch bytes. Не использовать полный installer или `update --all`, не заменять settings/auth/memory/sessions. Свежий loader process проверяется отдельно от живого TUI. Открытые Pi-сессии полностью перезапускает владелец.
 
 Private candidate, raw logs и synthetic state находятся вне Git; не публикуются. Публичный runtime support не расширяется за пределы перечисленных проверок.
