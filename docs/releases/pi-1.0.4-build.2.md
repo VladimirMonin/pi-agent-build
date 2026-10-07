@@ -44,4 +44,10 @@ Remove-Item Env:PI_CODING_AGENT_DIR
 
 Если задан custom `intercom/config.json` → `brokerCommand`, он должен указывать на executable, а не `.cmd` shim. После установки нужен **полный перезапуск Pi и старых сабов**, не горячий `/reload` Subagents. Публикация исходников сама по себе рабочие пакеты не обновляет.
 
+## Живая установка после выпуска
+
+Эти же три exact specs установлены в Code/Task штатным Pi package lifecycle. Non-package settings, версии остальных пакетов, Goal X settings и проверенные unchanged patch bytes сохранены; одна копия текущего project `.pi/goals` оставлена приватно. Fresh-process loading фактически установленных payloads через synthetic settings/private HOME: Code13/Task10, errors0/warnings0/fetch0.
+
+Старый Intercom0.13 Windows broker мешал npm rename (`EBUSY`) и перезапускался открытыми сессиями. Остановлены только его процессы, прежний package directory перемещён в private update root; повторный штатный `pi install` успешен. Уже открытые Pi/сабы требуют полного перезапуска владельцем; живой model turn этой сессии не выдаётся за проверку нового payload.
+
 Следующий отдельный срез — Serena по [короткому плану](../plans/plugin-updates.md); в этом релизе её версия не менялась.
