@@ -47,6 +47,14 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.1]
+
+### Изменено
+
+- Только Pi core: exact pin **1.0.2 → 1.0.4**, без обновления плагинов, внешних инструментов и Node/npm.
+- В Code/Task явно разрешены картинки для модели (`blockImages: false`), auto-resize и terminal preview (`showImages: true`, ширина 60, протокол auto).
+- Core SDK local-mock на actual Pi/AI 1.0.4, repository verifier и safety scan — PASS. Полная plugin/live-provider приёмка и визуальная проверка terminal preview не выполнялись. [Scope, обновление и ограничения](docs/releases/pi-1.0.4.md).
+
 ## [pi-v1.0.2-build.3]
 
 ### Изменено

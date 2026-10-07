@@ -4,7 +4,7 @@
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
-> Текущий core pin: **[Pi 1.0.4](docs/releases/pi-1.0.4.md)** — обновлён только Pi; плагины оставлены без изменений, картинки и terminal preview включены в Code/Task. Core SDK local-mock и repository verifier PASS; полная plugin/live-provider приёмка на 1.0.4 не выполнялась. Goal X и Trace default-off не менялись, новый tag/release не создавался. Предыдущий состав и его evidence: **[Pi 1.0.2 build.3](docs/releases/pi-1.0.2-build.3.md)**. Текущее состояние — в [readiness board](docs/plans/lab-readiness-board.md); правила — в [AGENTS.md](AGENTS.md).
+> Текущий минирелиз: **[Pi 1.0.4 build.1](docs/releases/pi-1.0.4.md)** — обновлён только Pi; плагины оставлены без изменений, картинки и terminal preview включены в Code/Task. Core SDK local-mock и repository verifier PASS; полная plugin/live-provider приёмка на 1.0.4 не выполнялась. Goal X и Trace default-off не менялись. Release tag: `pi-v1.0.4-build.1`. Предыдущий состав и его evidence: **[Pi 1.0.2 build.3](docs/releases/pi-1.0.2-build.3.md)**. Текущее состояние — в [readiness board](docs/plans/lab-readiness-board.md); правила — в [AGENTS.md](AGENTS.md).
 
 ## Граница повторяемости
 
