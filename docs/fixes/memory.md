@@ -1,109 +1,29 @@
-# Memory: профильные settings, Windows spawn, порядок реплик и scoped-инъекция
+# Memory1.6: runtime, scope и automatic vector recall
 
-## Назначение
+Exact `@samfp/pi-memory@1.6.0` поддерживается единым [patcher](../../patches/memory-windows-runtime/README.md).
 
-Patch `memory-windows-runtime` поддерживает `@samfp/pi-memory 1.5.0`.
-Дефект инъекции (бирки Windows, чужие факты и обрезание блока) и приватные alias описаны в [memory-injection.md](memory-injection.md). Его обобщённое исправление теперь входит в этот же version-guarded patcher; upstream 1.5.0 остаётся дефектным.
+Сохраняются четыре runtime fixes: Windows Node/настоящий CLI выбранного npm prefix, session-local ordered turns, profile settings из `PI_CODING_AGENT_DIR`, session ID из `sessionManager.getSessionId()`. Последний привязывает lessons к сессии; source facts upstream остаётся `consolidation`.
 
-Текущий patch:
+[Scope/aliases/целые записи](memory-injection.md) перенесены на1.6. Automatic injection использует upstream hybrid/RRF search с configurable embedder, а не stock FTS-only injector. Ephemeral context hook остаётся upstream: повторная инъекция при tool continuation, без записи в system prompt/history/consolidation. `injectionMode`, `embedding`, profile aliases и остальные настройки сохраняются.
 
-- заменяет жёсткий `~/.pi/agent/settings.json` на `<PI_CODING_AGENT_DIR>/settings.json`, чтобы Task использовал свой блок `memory`/`pi-memory`;
-- на Windows заменяет запуск npm `.cmd` через `spawn(shell:false)` на прямой запуск Pi CLI текущим Node, устраняя `ENOENT`;
-- хранит ordered `pendingTurns` в session-local lexical scope и строит пары User/Assistant по реальному порядку, а не по двум рассинхронизированным массивам;
-- заменяет англоязычную модель встраивания `Xenova/all-MiniLM-L6-v2` на мультиязычную `Xenova/paraphrase-multilingual-MiniLM-L12-v2`, чтобы семантический поиск фактов работал на русском;
-- читает id сессии через `ctx.sessionManager.getSessionId()`, потому что `ExtensionContext` не содержит полей `sessionId`/`session` и stock-выражение всегда давало `session:unknown`;
-- исправляет старую ошибочную patch-версию, где `pushTurn` оказался module-scope и падал на `agent_end` с `pending*Messages is not defined`;
-- фильтрует каждый источник project-фактов, ставит местные уроки в начало и не обрезает текст отдельных записей внутри лимита 8000 символов.
+## Модели и данные
 
-## Применение
+- Консолидация: неизменённый `polza-memory/deepseek/deepseek-v4.1-flash`.
+- Recall facts: Polza `qwen/qwen3-embedding-8b`,1024d, upstream openai-compatible backend.
+- Session Search использует свой независимый embedder/config/index.
 
-У этого patcher нет `--apply`: отсутствие `--check`/`--restore` означает apply.
+Xenova1.5 и его timeout patch больше не используются. До изменения vectors сделана одна consistent SQLite backup API-копия вне Git. Facts/lessons/events не удаляются. Старые384d vectors не сравниваются с новыми1024d; upstream backfill постепенно заменяет missing/wrong-dimension vectors после нового session start. Это не обещание немедленного полного reindex личной БД. При смене модели на другую с теми же dimensions старые vectors нужно отдельно перестроить: равная длина не означает одинаковое пространство.
 
-```bash
-python patches/memory-windows-runtime/apply.py \
-  --agent-dir "<PROFILE_DIR>" --check
-python patches/memory-windows-runtime/apply.py \
-  --agent-dir "<PROFILE_DIR>"
+## Проверка и применение
+
+```text
+python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR> --check
+python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR>
+python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR> --restore
 ```
 
-Примените к обоим профилям. Patcher пересобирает canonical output из vendored pristine `1.5.0`, принимает только byte-exact stock/previous canonical patch или **один точно сверенный локальный injector v1** с приватными alias. Неизвестные bundle не перезаписываются; полный installer отказывает **до** `pi install`. Для unknown сначала сохраните файл и разберите происхождение; штатный reinstall допустим лишь после отдельного согласования потери локальных правок.
+Exit0 — canonical;1 — exact stock требует apply;2 — refusal. Apply/restore сохраняют прежний bundle в выбранном профиле, unknown/mixed state не перезаписывается. Restore возвращает stock1.6, но не откатывает vectors/settings. Reinstall стирает patch.
 
-## Конфигурация и данные
+Native SDK mock checks Both проверили scope/aliases, automatic vectors, ephemeral hook, ordered consolidation, Windows Node/CLI/profile и session ID; платный Polza canary проверил русский paraphrase без keyword match на synthetic facts. Commands/scope: [build.6](../releases/pi-1.0.4-build.6.md).
 
-Patch меняет `dist/index.js`; memory DB и сами settings не преобразует. Если один проект открыт из разных каталогов, добавьте `memory.factProjectAliases` **в приватные profile settings** (см. memory-injection.md), а не публикуйте пути в manifest. При заданном `PI_CODING_AGENT_DIR` user-global config читается из `settings.json` активного профиля, без переменной сохраняется stock fallback `~/.pi/agent/settings.json`. На Windows путь к global Pi CLI строится от `PI_AGENT_BUILD_NPM_PREFIX`, который задают rendered launchers; fallback — `%APPDATA%\npm`. Служебный child по-прежнему запускается с `--no-extensions --no-tools --no-session`; static `polza-memory` описан отдельно.
-
-### Embedder памяти
-
-`@samfp/pi-memory` использует **два независимых** механизма: консолидацию фактов внешней LLM (`polza-memory/deepseek/deepseek-v4.1-flash`) и **локальный** embedder для семантического поиска по фактам. Поля для смены embedder в конфиге нет — модель зашита в `dist/index.js`, поэтому её меняет patch.
-
-Мультиязычная MiniLM сохраняет **384 измерения** и mean pooling, поэтому старые векторы и `SEMANTIC_THRESHOLD = 0.25` остаются валидными: reindex не нужен. Модель скачивается один раз (~130 МБ) в кэш `@xenova/transformers` и работает offline, без API-ключа. Это **не** тот embedder, что использует `pi-session-search` (там Polza `qwen/qwen3-embedding-8b`, 1024d) — см. [Polza memory](../polza-memory.md).
-
-### Прогрев кэша embedder'а
-
-Плагин загружает модель лениво с жёстким таймаутом 30 с. На холодном кэше скачивание по медленному каналу может его превысить, и тогда плагин молча откатывается на FTS-only поиск. Скорость сети разная, поэтому модель нужно скачать заранее:
-
-```bash
-node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"
-```
-
-У каждого профиля **свой** кэш `@xenova/transformers`, поэтому прогрев делается для обоих. Helper читает id модели из пропатченного `dist`, использует таймаут 10 минут с 3 повторами и не валит установку при сбое. `scripts/install.sh --apply` вызывает его автоматически после patches; `scripts/verify.sh` сообщает `WARN`, если кэш отсутствует.
-
-### Идентификатор сессии в консолидации
-
-Stock-пакет берёт id сессии как `ctx.sessionId ?? ctx.session?.id`. Но `ExtensionContext` (см. `dist/core/extensions/types.d.ts`) не содержит ни поля `sessionId`, ни `session` — только read-only `sessionManager`. Оба обращения дают `undefined`, поэтому каждая консолидированная запись помечается источником `session:unknown`.
-
-Patch читает реальный id через `ctx.sessionManager?.getSessionId?.()`, сохраняя прежние fallback'и на случай отсутствия session manager. На **факты** это не влияет — у них `source` жёстко `consolidation`; корректную привязку получают **lessons**, где `source = session:<id>`. Проверено на живом ExtensionRunner и end-to-end консолидацией: запись получает `source = session:<реальный id>`.
-
-## Tools/команды
-
-Интерфейс package не меняется: `memory_*` и `/memory-consolidate`. Patch касается lifecycle/consolidation internals.
-
-## Риски
-
-Любой reinstall package стирает правку. `node --check` недостаточен: module-scope bug синтаксически валиден. Runtime test вызывает модель и может стоить денег. Полный consolidation prompt передаётся child Pi через аргумент `-p` и виден в process command line локальным наблюдателям. Restore возвращает stock с Windows-дефектом, общей привязкой settings к Code и англоязычным embedder'ом. Смена размерности embedder'а (например, на 1024d) потребовала бы полного reindex и подъёма порога — текущий patch этого не делает намеренно.
-
-## Проверка
-
-```bash
-python patches/memory-windows-runtime/apply.py \
-  --agent-dir "<PROFILE_DIR>" --check
-```
-
-Ожидается `verdict: RUNTIME-SAFE`; этот verdict также требует marker profile-aware settings.
-
-Структурная проверка для произвольного профиля:
-
-```bash
-node patches/memory-windows-runtime/tests/test-memory-pushturn.mjs \
-  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
-node patches/memory-windows-runtime/tests/test-memory-embedder.mjs \
-  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
-node patches/memory-windows-runtime/tests/test-memory-sessionid.mjs \
-  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
-node patches/memory-windows-runtime/tests/test-memory-injection.mjs \
-  "<PROFILE_DIR>/npm/node_modules/@samfp/pi-memory/dist/index.js"
-```
-
-Реальный ExtensionRunner smoke (платный/model-dependent):
-
-```bash
-node patches/memory-windows-runtime/tests/test-memory-runtime-scope.mjs code
-node patches/memory-windows-runtime/tests/test-memory-runtime-scope.mjs task
-```
-
-Дополнительно выполните `memory_stats` и осознанный `/memory-consolidate`; отсутствие visible error само по себе не доказывает запись.
-
-Убедитесь, что кэш модели прогрет (иначе первый семантический поиск уйдёт в FTS-only):
-
-```bash
-node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"
-```
-
-## Удаление/откат
-
-```bash
-python patches/memory-windows-runtime/apply.py \
-  --agent-dir "<PROFILE_DIR>" --restore
-```
-
-Restore пишет vendored pristine `1.5.0`. После package update сначала `--check`: новый version/layout требует нового аудита, а не принудительного применения старого patch.
+Полный перезапуск открытых Code/Task выполняет владелец; старые процессы сохраняют старые closures. Consolidation prompt передаётся child через `-p` и виден локальным наблюдателям process command line. Не используйте секреты как memory/test fixtures.

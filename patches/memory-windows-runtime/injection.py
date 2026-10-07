@@ -1,10 +1,10 @@
-"""Pure, guarded projection of pi-memory 1.5.0's injector into a scoped, whole-record variant.
+"""Guarded pi-memory 1.6.0 injector: scope, whole records and upstream hybrid recall.
 
-No private project names, paths, memory values, or installed bundle bytes belong here.
-The caller first validates the immutable stock 1.5.0 SHA before invoking this module.
+No private project names, paths, memory values, or credentials belong here.
+The caller first validates the immutable stock 1.6.0 SHA before invoking this module.
 """
 
-INJECTION_MARKER = "// pi-memory scoped injection v2"
+INJECTION_MARKER = "// pi-memory scoped injection v3"
 
 
 def replace_once(text: str, old: str, new: str) -> str:
@@ -22,7 +22,7 @@ def replace_region(text: str, start: str, end: str, replacement: str) -> str:
     return text[:a] + replacement + text[b:]
 
 
-HELPERS = r'''// pi-memory scoped injection v2: normalize fact scopes independently of legacy lesson tags.
+HELPERS = r'''// pi-memory scoped injection v3: normalize fact scopes independently of legacy lesson tags.
 function projectFactScope(cwd, config) {
   if (!cwd) return "";
   const path = cwd.replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();
@@ -62,12 +62,16 @@ function fitMemorySections(groups) {
 }
 '''
 
-SELECTIVE = r'''async function buildSelectiveBlock(store, prompt, cwd, config) {
+SELECTIVE = r'''async function buildSelectiveBlock(store, prompt, cwd, config, recall = []) {
   const mode = config?.lessonInjection ?? "all";
   const slug = cwd ? projectSlug(cwd) : "";
   const factScope = projectFactScope(cwd, config);
   const belongsHere = (key) => !key.startsWith("project.") || key.split(".")[1] === factScope;
-  const results = store.searchSemantic(prompt, SEARCH_LIMIT);
+  const results = [...recall];
+  const recallKeys = new Set(results.map((r) => r.key));
+  for (const r of store.searchSemantic(prompt, SEARCH_LIMIT)) {
+    if (!recallKeys.has(r.key)) { results.push(r); recallKeys.add(r.key); }
+  }
   if (factScope) {
     const seenProject = new Set(results.map((r) => r.key));
     for (const r of store.searchSemantic(factScope, 5)) {
@@ -76,28 +80,8 @@ SELECTIVE = r'''async function buildSelectiveBlock(store, prompt, cwd, config) {
   }
   const filteredResults = results.filter((r) => belongsHere(r.key));
   const seen = new Set(filteredResults.map((r) => r.key));
-  const SEMANTIC_THRESHOLD = 0.25;
-  const SEMANTIC_LIMIT = 8;
-  const allEmbs = store.getAllEmbeddings();
-  const promptVec = await embed(prompt);
-  const semanticKeys = new Set();
-  if (promptVec) {
-    const semanticHits = allEmbs.flatMap(({ key, embedding }) => {
-      const vec = fromBlob(embedding);
-      if (!vec) return [];
-      const score = similarity(promptVec, vec);
-      return score >= SEMANTIC_THRESHOLD ? [{ key, score }] : [];
-    }).sort((a, b) => b.score - a.score).slice(0, SEMANTIC_LIMIT);
-    for (const { key } of semanticHits) {
-      if (!belongsHere(key)) continue;
-      semanticKeys.add(key);
-      if (!seen.has(key)) {
-        const entry = store.getSemantic(key);
-        if (entry && belongsHere(entry.key)) { filteredResults.push(entry); seen.add(key); }
-      }
-    }
-    backfillEmbeddings(store, allEmbs.filter((r) => !r.embedding)).catch(() => {});
-  }
+  // Upstream searchMemory supplies hybrid/RRF results; no Xenova backend here.
+  const semanticKeys = new Set(recall.filter((r) => belongsHere(r.key)).map((r) => r.key));
   const expandedPrefixes = new Set();
   for (const r of [...filteredResults]) {
     const prefix = keyDomainPrefix(r.key);
@@ -114,8 +98,8 @@ SELECTIVE = r'''async function buildSelectiveBlock(store, prompt, cwd, config) {
   // Exact embedding hits keep their relevance order; FTS hits and siblings follow.
   const ranks = new Map([...semanticKeys].map((key, i) => [key, i]));
   filteredResults.sort((a, b) => (ranks.get(a.key) ?? 1e6) - (ranks.get(b.key) ?? 1e6));
-  const lessons = mode === "selective" ? getRelevantLessons(store, prompt, cwd)
-    : store.listLessons(void 0, 50, slug || void 0);
+  const lessons = mode === "selective" ? getRelevantLessons(store, prompt, cwd, config)
+    : store.listLessons(void 0, 50, slug || void 0).filter((l) => l.project == null || l.project === slug || l.project === factScope);
   const localFirst = (a, b) => Number(b.project === slug) - Number(a.project === slug)
     || Number(b.source === "user") - Number(a.source === "user");
   const negatives = lessons.filter((l) => l.negative).sort(localFirst)
@@ -137,7 +121,7 @@ SELECTIVE = r'''async function buildSelectiveBlock(store, prompt, cwd, config) {
 }
 '''
 
-LESSONS = r'''function getRelevantLessons(store, prompt, cwd) {
+LESSONS = r'''function getRelevantLessons(store, prompt, cwd, config) {
   const seen = new Set();
   const result = [];
   function add(items) {
@@ -152,7 +136,8 @@ LESSONS = r'''function getRelevantLessons(store, prompt, cwd) {
   if (slug) add(store.searchLessons(slug, 5));
   add(store.listLessons("general", 10));
   const normalized = cwd ? cwd.replaceAll("\\", "/").split("/").filter(Boolean).pop().toLowerCase() : "";
-  return result.filter((l) => l.project == null || l.project === slug || l.project === normalized)
+  const factScope = projectFactScope(cwd, config);
+  return result.filter((l) => l.project == null || l.project === slug || l.project === normalized || l.project === factScope)
     .slice(0, LESSON_SEARCH_LIMIT);
 }
 '''
@@ -162,7 +147,8 @@ FALLBACK = r'''function buildFallbackBlock(store, cwd, config) {
   const factScope = projectFactScope(cwd, config);
   const projects = store.listSemantic("project.", 50)
     .filter((entry) => entry.key.split(".")[1] === factScope);
-  const lessons = store.listLessons(void 0, 50, slug || void 0);
+  const lessons = store.listLessons(void 0, 50, slug || void 0)
+    .filter((l) => l.project == null || l.project === slug || l.project === factScope);
   const localFirst = (a, b) => Number(b.project === slug) - Number(a.project === slug)
     || Number(b.source === "user") - Number(a.source === "user");
   const groups = [
@@ -190,6 +176,8 @@ def apply_injection(text: str) -> str:
     if INJECTION_MARKER in text:
         raise RuntimeError("injector already patched")
     text = replace_once(text, "function projectSlug(cwd) {", HELPERS + "function projectSlug(cwd) {")
+    text = replace_once(text, "async function buildContextBlock(store, cwd, prompt, config) {", "async function buildContextBlock(store, cwd, prompt, config, recall = []) {")
+    text = replace_once(text, "return buildSelectiveBlock(store, prompt, cwd, config);", "return buildSelectiveBlock(store, prompt, cwd, config, recall);")
     text = replace_once(text, "  return buildFallbackBlock(store, cwd);", "  return buildFallbackBlock(store, cwd, config);")
     text = replace_region(text, "async function buildSelectiveBlock(store, prompt, cwd, config) {",
                           "function getRelevantLessons(store, prompt, cwd) {", SELECTIVE)
@@ -198,8 +186,8 @@ def apply_injection(text: str) -> str:
     text = replace_region(text, "function buildFallbackBlock(store, cwd) {",
                           "var STALE_WARNING_DAYS = 30;", FALLBACK)
     text = replace_once(text,
-        'var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection"];',
-        'var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection", "factProjectAliases"];')
+        'var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection", "injectionMode", "embedding"];',
+        'var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection", "injectionMode", "embedding", "factProjectAliases"];')
     text = replace_once(text,
         "function mergeMemorySettings(config, memorySettings) {",
         "function mergeMemorySettings(config, memorySettings, allowAliases = false) {")
@@ -207,13 +195,9 @@ def apply_injection(text: str) -> str:
         "    mergeMemorySettings(config, settings?.memory);",
         "    mergeMemorySettings(config, settings?.memory, true);")
     text = replace_once(text,
-        '''  if (typeof m.consolidationModel === "string" && m.consolidationModel.trim()) {
-    config.consolidationModel = m.consolidationModel.trim();
-  }
+        '''  config.embedding = parseEmbeddingSettings(m.embedding) ?? config.embedding;
 }''',
-        '''  if (typeof m.consolidationModel === "string" && m.consolidationModel.trim()) {
-    config.consolidationModel = m.consolidationModel.trim();
-  }
+        '''  config.embedding = parseEmbeddingSettings(m.embedding) ?? config.embedding;
   if (allowAliases && Array.isArray(m.factProjectAliases)) {
     config.factProjectAliases = m.factProjectAliases.filter((alias) => alias &&
       typeof alias.path === "string" && typeof alias.scope === "string");
@@ -225,7 +209,7 @@ def apply_injection(text: str) -> str:
 def is_injection_safe(text: str) -> bool:
     return (INJECTION_MARKER in text and "function projectFactScope(cwd, config)" in text
             and "function fitMemorySections(groups)" in text
-            and "if (!belongsHere(key)) continue;" in text
+            and "recall.filter((r) => belongsHere(r.key))" in text
             and "if (belongsHere(sibling.key)" in text
             and "return buildFallbackBlock(store, cwd, config);" in text
             and '"factProjectAliases"' in text

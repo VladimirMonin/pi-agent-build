@@ -1,93 +1,43 @@
-# pi-memory 1.5.0: runtime и изоляция инъекции памяти
+# pi-memory 1.6.0: runtime и автоматический scoped recall
 
-Поддерживаемая версия: `@samfp/pi-memory@1.5.0`.
+Поддерживается только `@samfp/pi-memory@1.6.0`, exact pristine SHA-256 и canonical output. Неизвестные версии, mixed/marker-shaped изменения не перезаписываются.
 
-## Семь исправлений
+## Что меняет patch
 
-### Windows spawn
+- Windows: child запускается текущим Node через настоящий Pi `cli.js` выбранного `PI_AGENT_BUILD_NPM_PREFIX`, не через `.cmd` shim.
+- Session-local `pendingTurns`/`pushTurn`: консолидация сопоставляет реальные User/Assistant turns; helper остаётся в lexical scope pending arrays.
+- Settings выбранного `PI_CODING_AGENT_DIR`, включая upstream `embedding` и `injectionMode`; DeepSeek-консолидация не меняется.
+- Session ID из `ctx.sessionManager.getSessionId()`; source сессии получают lessons (facts upstream сохраняет как `consolidation`).
+- Facts/lessons scope, приватные `memory.factProjectAliases`, section quotas и бюджет 8000 символов из целых записей.
+- Automatic injection вызывает upstream `searchMemory`: configurable embedder, hybrid/RRF, diagnostics и dimension-aware backfill. Stock1.6 automatic injection использует только FTS; patch возвращает vector recall.
 
-Stock-пакет запускает дочерний `pi` через `spawn("pi", ..., shell:false)`. На Windows глобальный npm предоставляет `.cmd`-shim, который такой вызов не запускает. Patch использует текущий `process.execPath`, `PI_AGENT_BUILD_NPM_PREFIX` от launcher и реальный `cli.js` Pi.
+Upstream ephemeral `context` hook сохранён: память доступна в tool continuation, но не добавляется в system prompt, session history или consolidation transcript. Старый Xenova backend и его timeout patch удалены.
 
-### Правильное сопоставление реплик
-
-Stock-пакет ведёт два независимых массива user/assistant messages и сопоставляет их по индексу. При tool turns, ошибках или неполных ответах пары смещаются. Patch сохраняет session-local упорядоченный поток `pendingTurns` и строит consolidation input по реальному порядку.
-
-Важно: `pushTurn` обязан находиться внутри `index_default` рядом с pending state. Ранняя версия patch размещала helper в module scope и падала на `agent_end`; простого `node --check` недостаточно.
-
-### Настройки выбранного профиля
-
-Stock-пакет всегда читает `~/.pi/agent/settings.json`. Patch строит путь к `settings.json` из `PI_CODING_AGENT_DIR`, поэтому Task-only запуск использует настройки Task-профиля. Общий `~/.pi/memory/memory.db` не переносится.
-
-### Русскоязычный локальный embedder
-
-Stock-пакет считает embeddings моделью `Xenova/all-MiniLM-L6-v2` — англоязычной. На русских фактах она даёт плохую разделимость: перефразированный запрос часто ближе к постороннему факту, чем к нужному, а порог `SEMANTIC_THRESHOLD = 0.25` пропускает почти весь шум. Patch заменяет модель на `Xenova/paraphrase-multilingual-MiniLM-L12-v2`.
-
-Модель остаётся локальной (offline, без API-ключа), сохраняет **384 измерения** и mean pooling, поэтому существующие векторы и порог остаются валидными — reindex не требуется. На контрольном наборе (12 русских фактов, 8 перефразированных запросов) точность top-1 выросла с 4/8 до 7/8.
-
-### Идентификатор сессии в консолидации
-
-Stock-пакет берёт id сессии как `ctx.sessionId ?? ctx.session?.id`. Но `ExtensionContext` не содержит ни поля `sessionId`, ни `session` — только read-only `sessionManager`. Поэтому выражение всегда даёт `undefined`, и каждая консолидированная запись помечается источником `session:unknown`.
-
-Patch читает реальный id через `ctx.sessionManager?.getSessionId?.()` с сохранением прежних fallback'ов. Проверено на живом ExtensionRunner: `getSessionId()` возвращает реальный id, а консолидация записывает `source = session:<id>`. На факты это не влияет (у них `source` всегда `consolidation`), но lessons получают корректную привязку к сессии.
-
-### Scope фактов и целые записи
-
-Stock 1.5.0 пропускает чужие `project.*` факты через embedding hits и соседей и обрезает блок памяти посреди записи. `injection.py` добавляет единую проверку scope для каждого источника фактов, резервирует места для местных уроков и наполняет бюджет 8000 символов **целыми строками**. Избыточные записи пропускаются. Для worktree с общей биркой фактов задайте `memory.factProjectAliases` в **приватных** `settings.json` профилей; пример без личных путей в [документации](../../docs/fixes/memory-injection.md). Записи БД patcher не меняет.
-
-### Очистка таймеров embedder
-
-`withTimeout` очищает timer в `finally` после resolve **и** reject. Настоящий timeout и исходная ошибка сохраняются; forced exit, unref и отключение extension не используются. Точный предыдущий canonical с injector принимается для backed-up upgrade, marker-shaped неизвестные bytes — нет.
-
-Focused regression: `python patches/session-search-profile/tests/test_runtime.py` проверяет оба production timer body и миграцию canonical.
-
-## Использование
+## Применение
 
 ```powershell
-python .\patches\memory-windows-runtime\apply.py `
-  --agent-dir "$HOME\.pi\agent" --check
-python .\patches\memory-windows-runtime\apply.py `
-  --agent-dir "$HOME\.pi\agent"
+python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --check
+python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>"
+python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --restore
 ```
 
-У patcher нет отдельного `--apply`: запись выполняется при отсутствии `--check`/`--restore`.
+Без `--check`/`--restore` выполняется apply. Exit: `0` canonical; `1` pristine требует apply; `2` неизвестное состояние/ошибка. Backup bundle создаётся внутри выбранного профиля; restore возвращает byte-exact stock1.6, **не откатывает SQLite или настройки**.
 
-Применить к обоим профилям. Допустимый итог `--check`:
+## Backend и данные
 
-```text
-verdict: RUNTIME-SAFE
-```
+В личных Code/Task выбран Polza `qwen/qwen3-embedding-8b`,1024d через upstream `memory.embedding`. Консолидация остаётся `polza-memory/deepseek/deepseek-v4.1-flash`. Без embedding config работает keyword fallback, не полноценный русский vector recall.
 
-Контракт exit code: `0` — canonical patch уже применён; `1` — byte-exact stock/предыдущая версия patch или byte-exact локальный injector v1 **с приватными alias** требует применения; `2` — fatal/unknown/marker-shaped drift, неверная версия `package.json` либо отсутствуют alias для переноса локального v1, запись запрещена. Всегда есть backup прежнего bundle перед миграцией. Полный installer проверяет существующий bundle до `pi install`, чтобы не стереть `UNKNOWN`.
+До смены живых vectors нужна согласованная SQLite backup API-копия вне Git. Старые384d и новые1024d **не сравниваются**; upstream backfill постепенно обновляет missing/wrong-dimension vectors. Одинаковая размерность не доказывает одинаковое embedding space: при такой смене нужен отдельный rebuild. Не удаляйте facts/lessons/events и не копируйте keys в public fixtures. Patcher сам SQLite/settings не изменяет. Полностью перезапустите старые Pi-сессии перед использованием новой версии.
 
 ## Проверки
 
-```powershell
-node .\patches\memory-windows-runtime\tests\test-memory-pushturn.mjs `
-  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
-node .\patches\memory-windows-runtime\tests\test-memory-pairing.mjs
-node .\patches\memory-windows-runtime\tests\test-memory-embedder.mjs `
-  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
-node .\patches\memory-windows-runtime\tests\test-memory-sessionid.mjs `
-  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
-node .\patches\memory-windows-runtime\tests\test-memory-injection.mjs `
-  "$HOME\.pi\agent\npm\node_modules\@samfp\pi-memory\dist\index.js"
+Structural: `test-memory-{pushturn,pairing,embedder,sessionid,injection,settings-path}.mjs <patched-dist>`; lifecycle/drift: `python patches/session-search-profile/tests/test_runtime.py` и Windows script regressions.
+
+Native SDK с synthetic SQLite и local mock embedder (без платной LLM):
+
+```text
+node tests/sdk/memory-smoke.mjs <sdk-root> <synthetic-root> code
+node tests/sdk/memory-smoke.mjs <sdk-root> <synthetic-root> task
 ```
 
-`test-memory-embedder.mjs` подтверждает выбор мультиязычной модели, 384d, mean pooling, отсутствие сетевых вызовов в `embed()` и неизменность порога.
-
-`test-memory-sessionid.mjs` подтверждает, что id сессии читается из `sessionManager.getSessionId()`, stock-выражение не осталось, а fallback `session:unknown` сохранён.
-
-`test-memory-runtime-scope.mjs` выполняет настоящий одноразовый запрос модели. Он не входит в бесплатную автоматическую проверку и запускается только владельцем осознанно.
-
-## Откат
-
-```powershell
-python .\patches\memory-windows-runtime\apply.py `
-  --agent-dir "$HOME\.pi\agent" --restore
-```
-
-Patcher сверяет SHA-256 stock-файла и отказывается перезаписывать неизвестное состояние.
-
-## После обновления
-
-Повторить `--check` для Code и Task. Не применять stock `1.5.0` patch к новой версии без нового анализа.
+Synthetic root должен содержать собственные `code`/`task` профили с установленным package. Рабочие профили не fixtures. Native smoke проверяет automatic recall, aliases/scope, ephemeral hook, ordered consolidation и настоящий Windows Node child со synthetic CLI, не DeepSeek provider. Real Polza Russian paraphrase canary описан в [build.6](../../docs/releases/pi-1.0.4-build.6.md).

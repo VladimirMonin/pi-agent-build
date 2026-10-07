@@ -9,7 +9,7 @@ function region(start, end) {
   if (a < 0 || b < 0) throw new Error(`missing injector region: ${start}`);
   return src.slice(a, b);
 }
-const helpers = region("// pi-memory scoped injection v2", "function projectSlug(cwd) {");
+const helpers = region("// pi-memory scoped injection v3", "function projectSlug(cwd) {");
 const context = region("async function buildContextBlock(", "async function buildSelectiveBlock(");
 const selective = region("async function buildSelectiveBlock(", "function getRelevantLessons(");
 const lessons = region("function getRelevantLessons(", "function buildFallbackBlock(");
@@ -20,13 +20,10 @@ const compiled = new Function("store", "cwd", "prompt", "config", `
   const formatSection = (title, items) => '## ' + title + '\\n' + items.map((x) => '- ' + x).join('\\n');
   const formatSemantic = (r) => r.key.split('.').slice(1).join('.') + ': ' + r.value;
   const keyDomainPrefix = (key) => key.split('.').length >= 3 ? key.split('.').slice(0, 2).join('.') + '.' : '';
-  const embed = async () => new Float32Array([1]);
-  const fromBlob = (v) => v;
-  const similarity = () => 1;
-  const backfillEmbeddings = async () => {};
+  const recall = store.getAllEmbeddings().map((r) => store.getSemantic(r.key));
   const projectSlug = (path) => path.toLowerCase();
   ${helpers}\n${context}\n${selective}\n${lessons}\n${fallback}
-  return buildContextBlock(store, cwd, prompt, config);
+  return buildContextBlock(store, cwd, prompt, config, recall);
 `);
 function ensure(ok, message) { if (!ok) throw new Error(message); }
 const root = String.raw`C:\example\main`, tree = String.raw`C:\example\trees\branch`;

@@ -27,7 +27,7 @@
 | 7 | `pi-intercom` | 0.16.1 | MIT | <https://www.npmjs.com/package/pi-intercom/v/0.16.1> |
 | 8 | `pi-background-tasks` | 2.6.2 | ISC | <https://github.com/ismailsaleekh/pi-background-tasks> |
 | 9 | `pi-session-search` | 1.6.0 | MIT | <https://github.com/samfoy/pi-session-search> |
-| 10 | `@samfp/pi-memory` | 1.5.0 | MIT | <https://github.com/samfoy/pi-memory> |
+| 10 | `@samfp/pi-memory` | 1.6.0 | MIT | <https://github.com/samfoy/pi-memory> |
 | 11 | `pi-mcp-adapter` | 5.1.0 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
 | 12 | `pi-goal-x` | 0.32.3 | MIT | <https://github.com/tmonk/pi-goal-x> |
 | 13 | `@nicknisi/pi-ast-grep` | 0.2.0 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |

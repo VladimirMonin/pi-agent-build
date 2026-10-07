@@ -1,13 +1,41 @@
 // src/index.ts
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // src/store.ts
 import { createRequire } from "node:module";
 import { mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
+
+// src/vector.ts
+function cosine(a, b) {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    dot += x * y;
+    magA += x * x;
+    magB += y * y;
+  }
+  if (magA === 0 || magB === 0) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+function fromBlob(b) {
+  if (!b || b.byteLength === 0 || b.byteLength % 4 !== 0) return null;
+  if (b.byteOffset % 4 === 0) {
+    return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+  }
+  const copy = Uint8Array.prototype.slice.call(b);
+  return new Float32Array(copy.buffer, copy.byteOffset, copy.byteLength / 4);
+}
+
+// src/store.ts
 var _require = createRequire(import.meta.url);
 var isBun = typeof globalThis.Bun !== "undefined";
 var DatabaseSync = isBun ? _require("bun:sqlite").Database : _require("node:sqlite").DatabaseSync;
@@ -163,6 +191,76 @@ var MemoryStore = class {
    */
   getAllEmbeddings() {
     return this.db.prepare("SELECT key, embedding FROM semantic ORDER BY updated_at DESC").all();
+  }
+  /**
+   * Rank stored entries by cosine similarity against a query vector.
+   *
+   * Entries without an embedding are skipped rather than scored 0, so a
+   * partially-embedded store -- the normal case, since embeddings are written
+   * lazily as facts arrive -- does not drag un-embedded entries below lexical
+   * results they would have won on merit.
+   *
+   * `minScore` drops weak matches, so RRF is not handed noise to reward for
+   * being "found by two paths".
+   *
+   * The default is calibrated against amazon.titan-embed-text-v2:0 at 512
+   * dimensions, measured rather than assumed:
+   *
+   *   paraphrases of a stored fact   0.219 - 0.248
+   *   loosely related text           0.235
+   *   unrelated text                -0.025 - 0.082
+   *
+   * Titan's usable range is much narrower than raw cosine suggests, so 0.15
+   * sits mid-gap with roughly equal margin on both sides. A higher-contrast
+   * model may want a higher floor; pass `minScore` explicitly if you change
+   * providers.
+   */
+  searchSemanticByVector(queryVector, limit = 10, minScore = 0.15) {
+    const scored = [];
+    for (const row of this.getAllEmbeddings()) {
+      const vec = fromBlob(row.embedding);
+      if (!vec) continue;
+      const score = cosine(queryVector, vec);
+      if (score >= minScore) scored.push({ key: row.key, score });
+    }
+    if (scored.length === 0) return [];
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, limit);
+    const placeholders = top.map(() => "?").join(",");
+    const rows = this.db.prepare(`SELECT * FROM semantic WHERE key IN (${placeholders})`).all(...top.map((t) => t.key));
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    return top.map((t) => byKey.get(t.key)).filter((r) => r !== void 0);
+  }
+  /** How much of the store is embedded. Surfaced by memory_stats. */
+  embeddingCoverage() {
+    const rows = this.getAllEmbeddings();
+    return {
+      embedded: rows.filter((r) => fromBlob(r.embedding) !== null).length,
+      total: rows.length
+    };
+  }
+  /**
+   * Entries needing an embedding: absent, unreadable, or -- when `dimensions`
+   * is given -- the wrong width.
+   *
+   * The width check matters for stores written before #31: that backend used
+   * 384-dim MiniLM vectors, while a Bedrock Titan config produces 512. Since
+   * cosine() returns 0 for mismatched lengths, a stale-width vector is not
+   * merely useless, it is invisible -- and without this check it would never be
+   * replaced, because the column is non-null.
+   */
+  entriesNeedingEmbedding(dimensions, limit = 500) {
+    const stale = [];
+    for (const row of this.getAllEmbeddings()) {
+      const vec = fromBlob(row.embedding);
+      if (vec === null || dimensions !== void 0 && vec.length !== dimensions) {
+        stale.push(row.key);
+        if (stale.length >= limit) break;
+      }
+    }
+    if (stale.length === 0) return [];
+    const placeholders = stale.map(() => "?").join(",");
+    return this.db.prepare(`SELECT key, value FROM semantic WHERE key IN (${placeholders})`).all(...stale);
   }
   listSemantic(prefix, limit = 100) {
     if (prefix) {
@@ -342,73 +440,6 @@ function jaccard(a, b) {
   return intersection.size / union.size;
 }
 
-// src/embedder.ts
-var MODEL = "Xenova/all-MiniLM-L6-v2";
-var LOAD_TIMEOUT_MS = 3e4;
-var INFER_TIMEOUT_MS = 5e3;
-var TEXT_CHAR_LIMIT = 512;
-var _pipe = null;
-var _failed = false;
-async function getPipe() {
-  if (_failed) return null;
-  if (_pipe) return _pipe;
-  try {
-    const pkg = "@xenova/transformers";
-    const mod = await import(pkg).catch(() => null);
-    if (!mod) {
-      console.error("pi-memory: @xenova/transformers not installed, semantic search disabled");
-      _failed = true;
-      return null;
-    }
-    const { pipeline, env } = mod;
-    env.allowRemoteModels = true;
-    env.useBrowserCache = false;
-    _pipe = await withTimeout(
-      pipeline("feature-extraction", MODEL, { quantized: true }),
-      LOAD_TIMEOUT_MS,
-      "model load"
-    );
-    return _pipe;
-  } catch (err) {
-    console.error(`pi-memory: embedder unavailable (${err?.message ?? err}), using FTS-only`);
-    _failed = true;
-    return null;
-  }
-}
-async function embed(text) {
-  const pipe = await getPipe();
-  if (!pipe) return null;
-  try {
-    const out = await withTimeout(
-      pipe(text.slice(0, TEXT_CHAR_LIMIT), { pooling: "mean", normalize: true }),
-      INFER_TIMEOUT_MS,
-      "inference"
-    );
-    return new Float32Array(out.data);
-  } catch {
-    return null;
-  }
-}
-function similarity(a, b) {
-  let dot = 0;
-  const len = Math.min(a.length, b.length);
-  for (let i = 0; i < len; i++) dot += a[i] * b[i];
-  return dot;
-}
-function fromBlob(b) {
-  if (!b) return null;
-  const raw = Uint8Array.from(b);
-  return new Float32Array(raw.buffer);
-}
-function withTimeout(p, ms, label) {
-  return Promise.race([
-    p,
-    new Promise(
-      (_, reject) => setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
-    )
-  ]);
-}
-
 // src/injector.ts
 import os from "node:os";
 var MAX_CONTEXT_CHARS = 8e3;
@@ -443,61 +474,17 @@ async function buildSelectiveBlock(store, prompt, cwd, config) {
     return parts.length >= 2 && parts[1] === slug;
   }) : results;
   const seen = new Set(filteredResults.map((r) => r.key));
-  const SEMANTIC_THRESHOLD = 0.25;
-  const SEMANTIC_LIMIT = 8;
-  const allEmbs = store.getAllEmbeddings();
-  const promptVec = await embed(prompt);
-  const semanticKeys = /* @__PURE__ */ new Set();
-  if (promptVec) {
-    const semanticHits = allEmbs.flatMap(({ key, embedding }) => {
-      const vec = fromBlob(embedding);
-      if (!vec) return [];
-      const score = similarity(promptVec, vec);
-      return score >= SEMANTIC_THRESHOLD ? [{ key, score }] : [];
-    }).sort((a, b) => b.score - a.score).slice(0, SEMANTIC_LIMIT);
-    for (const { key } of semanticHits) {
-      semanticKeys.add(key);
-      if (!seen.has(key)) {
-        const entry = store.getSemantic(key);
-        if (entry) {
-          filteredResults.push(entry);
-          seen.add(key);
-        }
-      }
-    }
-    backfillEmbeddings(store, allEmbs.filter((r) => !r.embedding)).catch(() => {
-    });
-  }
   const expandedPrefixes = /* @__PURE__ */ new Set();
   for (const r of [...filteredResults]) {
     const prefix = keyDomainPrefix(r.key);
     if (!prefix || expandedPrefixes.has(prefix)) continue;
     expandedPrefixes.add(prefix);
-    const limit = semanticKeys.has(r.key) ? 20 : 5;
-    for (const sibling of store.listSemantic(prefix, limit)) {
+    for (const sibling of store.listSemantic(prefix, 5)) {
       if (!seen.has(sibling.key)) {
         filteredResults.push(sibling);
         seen.add(sibling.key);
       }
     }
-  }
-  if (semanticKeys.size > 0) {
-    const semanticPrefixes = /* @__PURE__ */ new Set();
-    for (const k of semanticKeys) {
-      const p = keyDomainPrefix(k);
-      if (p) semanticPrefixes.add(p);
-    }
-    const isSemanticRelated = (key) => {
-      if (semanticKeys.has(key)) return true;
-      const p = keyDomainPrefix(key);
-      return p ? semanticPrefixes.has(p) : false;
-    };
-    const priority = filteredResults.filter((r) => isSemanticRelated(r.key));
-    const rest = filteredResults.filter((r) => !isSemanticRelated(r.key));
-    priority.sort((a, b) => a.key.localeCompare(b.key));
-    rest.sort((a, b) => a.key.localeCompare(b.key));
-    filteredResults.length = 0;
-    filteredResults.push(...priority, ...rest);
   }
   if (filteredResults.length > 0) {
     sections.push(formatSection("Relevant Memory", filteredResults.map(formatSemantic)));
@@ -643,16 +630,6 @@ function keyDomainPrefix(key) {
   const parts = key.split(".");
   return parts.length >= 3 ? parts.slice(0, 2).join(".") : null;
 }
-async function backfillEmbeddings(store, missing) {
-  if (missing.length === 0) return;
-  for (const { key } of missing.slice(0, 10)) {
-    const entry = store.getSemantic(key);
-    if (!entry) continue;
-    const displayKey = key.split(".").slice(1).join(" ");
-    const vec = await embed(`${displayKey} ${entry.value}`);
-    if (vec) store.setEmbedding(key, vec);
-  }
-}
 function projectSlug(cwd) {
   const parts = cwd.split("/").filter(Boolean);
   const skip = /* @__PURE__ */ new Set(["workplace", "local", "home", "src", "scratch", os.userInfo().username]);
@@ -660,6 +637,366 @@ function projectSlug(cwd) {
     if (!skip.has(p.toLowerCase()) && p.length > 1) return p.toLowerCase();
   }
   return "";
+}
+
+// src/embedder.ts
+var DEFAULTS = {
+  openai: { model: "text-embedding-3-small", dimensions: 512, baseUrl: "https://api.openai.com", sendDimensions: true },
+  bedrock: {
+    model: "amazon.titan-embed-text-v2:0",
+    region: "us-east-1",
+    profile: "default",
+    dimensions: 512
+  },
+  ollama: { model: "nomic-embed-text", url: "http://localhost:11434" },
+  mistral: { model: "mistral-embed", dimensions: 1024, baseUrl: "https://api.mistral.ai", sendDimensions: false },
+  "openai-compatible": { model: "text-embedding-3-small", dimensions: 512, sendDimensions: false }
+};
+var API_KEY_ENV = {
+  openai: "OPENAI_API_KEY",
+  mistral: "MISTRAL_API_KEY"
+};
+function requireApiKey(type, configured) {
+  const envVar = API_KEY_ENV[type];
+  const key = configured || process.env[envVar] || "";
+  if (!key) throw new Error(`${type} embeddings need an API key`);
+  return key;
+}
+function createEmbedder(config) {
+  const defaults = DEFAULTS[config.type] ?? {};
+  const merged = { ...defaults, ...config };
+  switch (merged.type) {
+    case "openai":
+      return new OpenAICompatibleEmbedder(
+        requireApiKey("openai", merged.apiKey),
+        merged.model,
+        merged.dimensions,
+        merged.baseUrl || "https://api.openai.com",
+        merged.sendDimensions ?? true
+      );
+    case "mistral":
+      return new OpenAICompatibleEmbedder(
+        requireApiKey("mistral", merged.apiKey),
+        merged.model,
+        merged.dimensions,
+        merged.baseUrl || "https://api.mistral.ai",
+        merged.sendDimensions ?? false
+      );
+    case "openai-compatible": {
+      if (!merged.baseUrl) throw new Error("openai-compatible requires baseUrl");
+      return new OpenAICompatibleEmbedder(
+        merged.apiKey || "",
+        merged.model,
+        merged.dimensions,
+        merged.baseUrl,
+        merged.sendDimensions ?? false
+      );
+    }
+    case "bedrock":
+      return new BedrockEmbedder(
+        merged.profile,
+        merged.region,
+        merged.model,
+        merged.dimensions
+      );
+    case "ollama":
+      return new OllamaEmbedder(merged.url, merged.model);
+    default:
+      throw new Error(`Unknown embedder type: ${merged.type}`);
+  }
+}
+function diagnoseEmbedderError(err, config, packageRoot) {
+  const cfg = { ...DEFAULTS[config.type], ...config };
+  const e = err ?? {};
+  const message = String(e.message ?? err);
+  const firstLine = message.split("\n")[0].slice(0, 200);
+  const code = e.code ?? e.cause?.code;
+  const settings = "the memory.embedding block in settings.json";
+  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || /Cannot find (package|module)/.test(message)) {
+    if (message.includes("@aws-sdk/")) {
+      return {
+        reason: "the AWS SDK that the bedrock provider needs is not installed (it is an optional dependency, so it was omitted or its install failed)",
+        hint: `Run \`npm install --omit=dev --include=optional\` in ${packageRoot}, or switch memory.embedding.type to openai, mistral, ollama or openai-compatible, which need no SDK.`
+      };
+    }
+    return {
+      reason: `a module it needs is missing (${firstLine})`,
+      hint: "Reinstall the package: `pi install npm:@samfp/pi-memory`."
+    };
+  }
+  const needsKey = /^(\w+) embeddings need an API key$/.exec(message);
+  if (needsKey) {
+    const envVar = API_KEY_ENV[config.type] ?? "the provider's API key variable";
+    return {
+      reason: `no API key is configured for ${needsKey[1]} embeddings`,
+      hint: `Set memory.embedding.apiKey, or export ${envVar} before starting pi.`
+    };
+  }
+  if (config.type === "bedrock") {
+    const where = `profile "${cfg.profile}", region ${cfg.region}`;
+    if (e.name === "CredentialsProviderError" || /could not (resolve|load) credentials/i.test(message)) {
+      return {
+        reason: `no AWS credentials were found for ${where}`,
+        hint: `Configure that profile (for SSO: \`aws sso login --profile ${cfg.profile}\`), or set memory.embedding.profile to one that exists.`
+      };
+    }
+    if (/expired/i.test(`${e.name} ${message}`)) {
+      return {
+        reason: `the AWS credentials for ${where} have expired`,
+        hint: "Refresh them, then run /reload or start a new session."
+      };
+    }
+    if (e.name === "AccessDeniedException" || e.name === "UnrecognizedClientException" || e.$metadata?.httpStatusCode === 403) {
+      return {
+        reason: `Bedrock refused ${cfg.model} for ${where} (${e.name ?? "403"})`,
+        hint: `Check that the profile may call bedrock:InvokeModel and that access to ${cfg.model} is enabled in ${cfg.region}.`
+      };
+    }
+    if (e.name === "ValidationException" || e.name === "ResourceNotFoundException") {
+      return {
+        reason: `Bedrock rejected the request for ${cfg.model} in ${cfg.region}: ${firstLine}`,
+        hint: "Check memory.embedding.model, region and dimensions (Titan v2 accepts 256, 512 or 1024)."
+      };
+    }
+  }
+  const http = /^(?:Embeddings API|Ollama) (\d{3})\b/.exec(message);
+  if (http) {
+    const status = Number(http[1]);
+    if (status === 401 || status === 403) {
+      return {
+        reason: `the embeddings API rejected the API key (HTTP ${status})`,
+        hint: "Check memory.embedding.apiKey (or the provider's API key environment variable)."
+      };
+    }
+    if (status === 404) {
+      return config.type === "ollama" ? {
+        reason: `Ollama has no model named ${cfg.model}`,
+        hint: `Run \`ollama pull ${cfg.model}\`.`
+      } : {
+        reason: `the embeddings endpoint or model was not found (HTTP 404, model ${cfg.model})`,
+        hint: "Check memory.embedding.baseUrl and memory.embedding.model."
+      };
+    }
+    if (status === 429) {
+      return {
+        reason: "the embeddings API is rate limiting requests (HTTP 429)",
+        hint: "This is usually transient; semantic results return once the limit resets."
+      };
+    }
+  }
+  if (code === "ECONNREFUSED" || code === "ENOTFOUND" || /fetch failed/i.test(message)) {
+    const target = config.type === "ollama" ? cfg.url : cfg.baseUrl;
+    return config.type === "ollama" ? {
+      reason: `Ollama is not reachable at ${target}`,
+      hint: `Start it (\`ollama serve\`) and pull the model (\`ollama pull ${cfg.model}\`), or fix memory.embedding.url.`
+    } : {
+      reason: `the embeddings endpoint ${target ?? ""} is not reachable (${code ?? firstLine})`,
+      hint: "Check memory.embedding.baseUrl and your network connection."
+    };
+  }
+  return { reason: firstLine, hint: `Check ${settings}.` };
+}
+function truncate(text, maxChars = 12e3) {
+  return text.length > maxChars ? text.slice(0, maxChars) : text;
+}
+async function parallelMap(items, fn, concurrency, signal) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      if (signal?.aborted) throw new Error("Aborted");
+      const idx = cursor++;
+      results[idx] = await fn(items[idx]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  );
+  return results;
+}
+var OpenAICompatibleEmbedder = class {
+  constructor(apiKey, model, dimensions, baseUrl, sendDimensions) {
+    this.apiKey = apiKey;
+    this.model = model;
+    this.dimensions = dimensions;
+    this.sendDimensions = sendDimensions;
+    this.endpoint = `${baseUrl.replace(/\/$/, "")}/v1/embeddings`;
+  }
+  apiKey;
+  model;
+  dimensions;
+  sendDimensions;
+  endpoint;
+  async embed(text, signal) {
+    const [result] = await this.embedBatch([text], signal);
+    if (!result) throw new Error("Embedding failed");
+    return result;
+  }
+  async embedBatch(texts, signal) {
+    const BATCH = 100;
+    const results = new Array(texts.length).fill(null);
+    for (let i = 0; i < texts.length; i += BATCH) {
+      if (signal?.aborted) throw new Error("Aborted");
+      const batch = texts.slice(i, i + BATCH).map((t) => truncate(t));
+      const body = {
+        input: batch,
+        model: this.model
+      };
+      if (this.dimensions && this.sendDimensions) {
+        body.dimensions = this.dimensions;
+      }
+      const res = await fetch(this.endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body),
+        signal
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Embeddings API ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      const json = await res.json();
+      for (let k = 0; k < json.data.length; k++) {
+        const item = json.data[k];
+        results[i + (item.index ?? k)] = item.embedding;
+      }
+    }
+    return results;
+  }
+};
+var BedrockEmbedder = class {
+  constructor(profile, region, model, dimensions) {
+    this.profile = profile;
+    this.region = region;
+    this.model = model;
+    this.dimensions = dimensions;
+  }
+  profile;
+  region;
+  model;
+  dimensions;
+  client = null;
+  /**
+   * Loaded on first use, not in the constructor. An eager import that fails
+   * (optional AWS SDK absent) while nothing awaits it is an unhandled
+   * rejection, and that crashes pi. The rejection is cached so later calls fail fast.
+   */
+  getClient() {
+    this.client ??= (async () => {
+      const { BedrockRuntimeClient } = await import("@aws-sdk/client-bedrock-runtime");
+      const { fromIni } = await import("@aws-sdk/credential-providers");
+      return new BedrockRuntimeClient({
+        region: this.region,
+        credentials: fromIni({ profile: this.profile })
+      });
+    })();
+    return this.client;
+  }
+  async embed(text, signal) {
+    const [result] = await this.embedBatch([text], signal);
+    if (!result) throw new Error("Embedding failed");
+    return result;
+  }
+  async embedBatch(texts, signal) {
+    const client = await this.getClient();
+    return parallelMap(
+      texts,
+      async (text) => {
+        const { InvokeModelCommand } = await import("@aws-sdk/client-bedrock-runtime");
+        const body = JSON.stringify({
+          inputText: truncate(text),
+          dimensions: this.dimensions,
+          normalize: true
+        });
+        const cmd = new InvokeModelCommand({
+          modelId: this.model,
+          contentType: "application/json",
+          accept: "application/json",
+          body: new TextEncoder().encode(body)
+        });
+        const res = await client.send(cmd);
+        const parsed = JSON.parse(new TextDecoder().decode(res.body));
+        if (!parsed.embedding) throw new Error("No embedding in response");
+        return parsed.embedding;
+      },
+      10,
+      signal
+    );
+  }
+};
+var OllamaEmbedder = class {
+  constructor(url, model) {
+    this.url = url;
+    this.model = model;
+    this.url = url.replace(/\/$/, "");
+  }
+  url;
+  model;
+  async embed(text, signal) {
+    const res = await fetch(`${this.url}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: this.model, input: truncate(text) }),
+      signal
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Ollama ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    return json.embeddings[0];
+  }
+  async embedBatch(texts, signal) {
+    let firstError;
+    const results = await parallelMap(
+      texts,
+      async (text) => {
+        try {
+          return await this.embed(text, signal);
+        } catch (err) {
+          firstError ??= err;
+          return null;
+        }
+      },
+      4,
+      signal
+    );
+    if (texts.length > 0 && results.every((r) => r === null)) throw firstError;
+    return results;
+  }
+};
+
+// src/hybrid.ts
+var RRF_K = 60;
+function reciprocalRankFusion(lexical, semantic, identity, k = RRF_K) {
+  const merged = /* @__PURE__ */ new Map();
+  const contribute = (list, source) => {
+    const seen = /* @__PURE__ */ new Set();
+    list.forEach((item, rank) => {
+      const id = identity(item);
+      if (seen.has(id)) return;
+      seen.add(id);
+      const weight = 1 / (k + rank);
+      const existing = merged.get(id);
+      if (existing) {
+        existing.score += weight;
+        existing.sources.add(source);
+      } else {
+        merged.set(id, { item, score: weight, sources: /* @__PURE__ */ new Set([source]) });
+      }
+    });
+  };
+  contribute(lexical, "lexical");
+  contribute(semantic, "semantic");
+  return [...merged.values()].map(({ item, score, sources }) => ({
+    item,
+    score,
+    // Stable order so assertions and output do not depend on Set iteration.
+    sources: ["lexical", "semantic"].filter((s) => sources.has(s))
+  })).sort((a, b) => b.score - a.score);
 }
 
 // src/consolidator.ts
@@ -746,9 +1083,9 @@ function buildConsolidationPrompt(input, currentFacts, currentLessons) {
   const len = Math.min(input.userMessages.length, maxPairs);
   for (let i = 0; i < len; i++) {
     const userMsg = input.userMessages[i];
-    if (userMsg) messages.push(`User: ${truncate(userMsg, 1e3)}`);
+    if (userMsg) messages.push(`User: ${truncate2(userMsg, 1e3)}`);
     const assistantMsg = input.assistantMessages[i];
-    if (assistantMsg) messages.push(`Assistant: ${truncate(assistantMsg, 500)}`);
+    if (assistantMsg) messages.push(`Assistant: ${truncate2(assistantMsg, 500)}`);
   }
   return `${CONSOLIDATION_PROMPT}
 
@@ -830,7 +1167,7 @@ function isDerivableLesson(rule) {
   if (rl.includes("command exited with code") && rl.length < 100) return true;
   return false;
 }
-function truncate(text, max) {
+function truncate2(text, max) {
   return text.length > max ? text.slice(0, max) + "\u2026" : text;
 }
 
@@ -854,6 +1191,13 @@ function stripQuotes(v) {
   }
   return v;
 }
+var PACKAGE_ROOT = (() => {
+  try {
+    return resolve(fileURLToPath(new URL("..", import.meta.url)));
+  } catch {
+    return "the pi-memory package directory";
+  }
+})();
 var DEFAULT_MEMORY_DIR = join(homedir(), ".pi", "memory");
 var DEFAULT_DB_PATH = join(DEFAULT_MEMORY_DIR, "memory.db");
 var GLOBAL_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");
@@ -866,7 +1210,7 @@ function warnUnknownKeys(block, blockName, knownKeys) {
     `pi-memory: ignoring unknown key(s) in settings.json "${blockName}" block: ${unknown.join(", ")} (expected: ${knownKeys.join(", ")})`
   );
 }
-var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection"];
+var PI_MEMORY_KNOWN_KEYS = ["localPath", "lessonInjection", "consolidationModel", "perTurnInjection", "injectionMode", "embedding"];
 var PI_TOTAL_RECALL_KNOWN_KEYS = ["localPath"];
 function resolveDbPath(cwd) {
   try {
@@ -896,9 +1240,47 @@ function mergeMemorySettings(config, memorySettings) {
   if (typeof m.perTurnInjection === "boolean") {
     config.perTurnInjection = m.perTurnInjection;
   }
+  if (m.injectionMode === "system-prompt" || m.injectionMode === "context-hook") {
+    config.injectionMode = m.injectionMode;
+  }
   if (typeof m.consolidationModel === "string" && m.consolidationModel.trim()) {
     config.consolidationModel = m.consolidationModel.trim();
   }
+  config.embedding = parseEmbeddingSettings(m.embedding) ?? config.embedding;
+}
+var EMBEDDER_TYPES = ["openai", "bedrock", "ollama", "mistral", "openai-compatible"];
+var EMBEDDING_KNOWN_KEYS = [
+  "type",
+  "apiKey",
+  "model",
+  "baseUrl",
+  "sendDimensions",
+  "profile",
+  "region",
+  "url",
+  "dimensions"
+];
+function parseEmbeddingSettings(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const e = raw;
+  warnUnknownKeys(e, "pi-memory.embedding", EMBEDDING_KNOWN_KEYS);
+  const type = typeof e.type === "string" ? e.type.trim() : "";
+  if (!EMBEDDER_TYPES.includes(type)) {
+    console.error(
+      `pi-memory: ignoring embedding block, "type" must be one of ${EMBEDDER_TYPES.join(", ")} (got ${JSON.stringify(e.type)})`
+    );
+    return void 0;
+  }
+  const out = { type };
+  for (const k of ["apiKey", "model", "baseUrl", "profile", "region", "url"]) {
+    const v = e[k];
+    if (typeof v === "string" && v.trim()) out[k] = v.trim();
+  }
+  if (typeof e.dimensions === "number" && Number.isFinite(e.dimensions) && e.dimensions > 0) {
+    out.dimensions = e.dimensions;
+  }
+  if (typeof e.sendDimensions === "boolean") out.sendDimensions = e.sendDimensions;
+  return out;
 }
 function readSettingsConfig(cwd) {
   const config = {};
@@ -927,6 +1309,96 @@ function index_default(pi) {
   let cachedCtx = null;
   let resolvedDbPath = DEFAULT_DB_PATH;
   let injectorConfig = readSettingsConfig();
+  let embedder = null;
+  let embedFailure = null;
+  let notifiedReasons = /* @__PURE__ */ new Set();
+  function reportEmbedFailure(err, ctx = cachedCtx) {
+    const cfg = injectorConfig.embedding;
+    if (!cfg) return;
+    embedFailure = diagnoseEmbedderError(err, cfg, PACKAGE_ROOT);
+    if (notifiedReasons.has(embedFailure.reason)) return;
+    notifiedReasons.add(embedFailure.reason);
+    const text = `pi-memory: semantic search unavailable: ${embedFailure.reason}. ${embedFailure.hint} Keyword search still works.`;
+    try {
+      if (ctx?.hasUI) {
+        ctx.ui.notify(text, "warning");
+        return;
+      }
+    } catch {
+    }
+    console.error(text);
+  }
+  function getEmbedder() {
+    if (embedder !== null) return embedder || null;
+    const cfg = injectorConfig.embedding;
+    if (!cfg) {
+      embedder = false;
+      return null;
+    }
+    try {
+      embedder = createEmbedder(cfg);
+      return embedder;
+    } catch (err) {
+      reportEmbedFailure(err);
+      embedder = false;
+      return null;
+    }
+  }
+  function embedEntry(key, value, ctx) {
+    const emb = getEmbedder();
+    if (!emb || !store) return;
+    const text = `${key.split(".").slice(1).join(" ")} ${value}`.trim();
+    emb.embed(text).then((vec) => {
+      embedFailure = null;
+      if (vec && vec.length > 0 && store) store.setEmbedding(key.toLowerCase(), Float32Array.from(vec));
+    }).catch((err) => reportEmbedFailure(err, ctx));
+  }
+  const DEFAULT_EMBED_DIMENSIONS = 512;
+  async function backfillEmbeddings(ctx, max = 64, batch = 16) {
+    const emb = getEmbedder();
+    if (!emb || !store) return;
+    const dims = injectorConfig.embedding?.dimensions ?? DEFAULT_EMBED_DIMENSIONS;
+    const todo = store.entriesNeedingEmbedding(dims, max);
+    if (todo.length === 0) return;
+    for (let i = 0; i < todo.length; i += batch) {
+      const slice = todo.slice(i, i + batch);
+      const texts = slice.map((e) => `${e.key.split(".").slice(1).join(" ")} ${e.value}`.trim());
+      try {
+        const vectors = await emb.embedBatch(texts);
+        embedFailure = null;
+        vectors.forEach((vec, j) => {
+          const entry = slice[j];
+          if (vec && vec.length > 0 && entry && store) {
+            store.setEmbedding(entry.key.toLowerCase(), Float32Array.from(vec));
+          }
+        });
+      } catch (err) {
+        reportEmbedFailure(err, ctx);
+        return;
+      }
+    }
+  }
+  async function searchMemory(query, limit, ctx) {
+    if (!store) return [];
+    const pool = Math.max(limit * 2, 20);
+    const lexical = store.searchSemantic(query, pool);
+    const emb = getEmbedder();
+    if (!emb) return lexical.slice(0, limit);
+    let semantic = [];
+    try {
+      const vec = await emb.embed(query);
+      embedFailure = null;
+      if (vec && vec.length > 0) {
+        semantic = store.searchSemanticByVector(Float32Array.from(vec), pool);
+      }
+    } catch (err) {
+      reportEmbedFailure(err, ctx);
+      return lexical.slice(0, limit);
+    }
+    if (semantic.length === 0) return lexical.slice(0, limit);
+    return reciprocalRankFusion(lexical, semantic, (e) => e.key).slice(0, limit).map((r) => r.item);
+  }
+  let pendingContextBlock = null;
   pi.on("session_start", async (_event, ctx) => {
     try {
       sessionCwd = ctx.cwd;
@@ -935,6 +1407,10 @@ function index_default(pi) {
       resolvedDbPath = resolveDbPath(sessionCwd);
       injectorConfig = readSettingsConfig(sessionCwd);
       store = new MemoryStore(resolvedDbPath);
+      embedder = null;
+      embedFailure = null;
+      notifiedReasons = /* @__PURE__ */ new Set();
+      void backfillEmbeddings(ctx);
       pendingUserMessages = [];
       pendingAssistantMessages = [];
       try {
@@ -996,12 +1472,38 @@ function index_default(pi) {
     if (!store) return;
     if (injectorConfig.perTurnInjection === false) return;
     const { text } = await buildContextBlock(store, ctx.cwd, event.prompt, injectorConfig);
-    if (!text) return;
-    return {
-      systemPrompt: `${event.systemPrompt}
+    const mode = injectorConfig.injectionMode ?? "context-hook";
+    if (mode === "system-prompt") {
+      pendingContextBlock = null;
+      if (!text) return;
+      return { systemPrompt: `${event.systemPrompt}
 
-${text}`
+${text}` };
+    }
+    pendingContextBlock = text || null;
+    return;
+  });
+  pi.on("context", async (event, _ctx) => {
+    if (!store) return;
+    if (injectorConfig.perTurnInjection === false) return;
+    if ((injectorConfig.injectionMode ?? "context-hook") !== "context-hook") return;
+    if (!pendingContextBlock) return;
+    const msgs = event.messages;
+    if (!msgs || msgs.length === 0) return;
+    let idx = -1;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) return;
+    const recallMessage = {
+      role: "user",
+      content: pendingContextBlock,
+      timestamp: Date.now()
     };
+    return { messages: [...msgs.slice(0, idx), recallMessage, ...msgs.slice(idx)] };
   });
   pi.on("agent_end", async (event, _ctx) => {
     for (const msg of event.messages) {
@@ -1039,17 +1541,26 @@ ${text}`
   });
   pi.on("session_shutdown", async () => {
     if (!store) return;
-    if (cachedCtx) {
-      cachedCtx.ui.setStatus("pi-memory", "\u{1F9E0} Consolidating memory...");
-    }
-    if (pendingUserMessages.length >= 3) {
-      try {
-        await consolidateSession();
-      } catch {
+    try {
+      if (cachedCtx && pendingUserMessages.length >= 3) {
+        cachedCtx.ui.setStatus("pi-memory", "\u{1F9E0} Consolidating memory...");
       }
+      if (pendingUserMessages.length >= 3) {
+        try {
+          await consolidateSession();
+        } catch {
+        }
+      }
+    } finally {
+      if (cachedCtx) {
+        try {
+          cachedCtx.ui.setStatus("pi-memory", "");
+        } catch {
+        }
+      }
+      store.close();
+      store = null;
     }
-    store.close();
-    store = null;
   });
   async function consolidateSession() {
     if (!store) return;
@@ -1109,9 +1620,10 @@ ${text}`
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(Type.Number({ description: "Max results (default 10)" }))
     }),
-    async execute(_id, params, _signal, _update, _ctx) {
+    async execute(_id, params, _signal, _update, ctx) {
       if (!store) return ok("Memory store not initialized");
-      const results = store.searchSemantic(params.query, params.limit ?? 10);
+      const searchParams = params;
+      const results = await searchMemory(searchParams.query, searchParams.limit ?? 10, ctx);
       if (results.length === 0) {
         return ok("No matching memories found.");
       }
@@ -1133,41 +1645,37 @@ ${text}`
       category: Type.Optional(Type.String({ description: "Category for lessons (default: general)" })),
       negative: Type.Optional(Type.Boolean({ description: "True if this is something to AVOID" }))
     }),
-    async execute(_id, params, _signal, _update, _ctx) {
+    async execute(_id, params, _signal, _update, ctx) {
       if (!store) return ok("Memory store not initialized");
-      params = {
-        ...params,
-        type: stripQuotes(params.type),
-        key: stripQuotes(params.key),
-        value: stripQuotes(params.value),
-        rule: stripQuotes(params.rule),
-        category: stripQuotes(params.category)
+      const input = params;
+      const rememberParams = {
+        ...input,
+        type: stripQuotes(input.type),
+        key: stripQuotes(input.key),
+        value: stripQuotes(input.value),
+        rule: stripQuotes(input.rule),
+        category: stripQuotes(input.category)
       };
-      if (params.type !== "fact" && params.type !== "lesson") {
-        return ok(`Invalid type: ${params.type}. Must be 'fact' or 'lesson'.`);
+      if (rememberParams.type !== "fact" && rememberParams.type !== "lesson") {
+        return ok(`Invalid type: ${rememberParams.type}. Must be 'fact' or 'lesson'.`);
       }
-      if (params.type === "fact") {
-        if (!params.key || !params.value) {
+      if (rememberParams.type === "fact") {
+        if (!rememberParams.key || !rememberParams.value) {
           return ok("Both key and value required for facts");
         }
-        store.setSemantic(params.key, params.value, 0.95, "user");
-        const _key = params.key;
-        const _val = params.value;
-        embed(`${_key.split(".").slice(1).join(" ")} ${_val}`).then((vec) => {
-          if (vec) store.setEmbedding(_key, vec);
-        }).catch(() => {
-        });
-        return ok(`Remembered: ${params.key} = ${params.value}`);
+        store.setSemantic(rememberParams.key, rememberParams.value, 0.95, "user");
+        embedEntry(rememberParams.key, rememberParams.value, ctx);
+        return ok(`Remembered: ${rememberParams.key} = ${rememberParams.value}`);
       }
-      if (params.type === "lesson") {
-        if (!params.rule) {
+      if (rememberParams.type === "lesson") {
+        if (!rememberParams.rule) {
           return ok("Rule text required for lessons");
         }
-        const result = store.addLesson(params.rule, params.category ?? "general", "user", params.negative ?? false);
+        const result = store.addLesson(rememberParams.rule, rememberParams.category ?? "general", "user", rememberParams.negative ?? false);
         if (result.success) {
-          return ok(`Lesson learned: ${params.rule}`);
+          return ok(`Lesson learned: ${rememberParams.rule}`);
         }
-        return ok(`Already known (${result.reason}): ${params.rule}`);
+        return ok(`Already known (${result.reason}): ${rememberParams.rule}`);
       }
       return ok("Unknown type");
     }
@@ -1183,22 +1691,23 @@ ${text}`
     }),
     async execute(_id, params, _signal, _update, _ctx) {
       if (!store) return ok("Memory store not initialized");
-      params = {
-        ...params,
-        type: stripQuotes(params.type),
-        key: stripQuotes(params.key),
-        id: stripQuotes(params.id)
+      const input = params;
+      const forgetParams = {
+        ...input,
+        type: stripQuotes(input.type),
+        key: stripQuotes(input.key),
+        id: stripQuotes(input.id)
       };
-      if (params.type !== "fact" && params.type !== "lesson") {
-        return ok(`Invalid type: ${params.type}. Must be 'fact' or 'lesson'.`);
+      if (forgetParams.type !== "fact" && forgetParams.type !== "lesson") {
+        return ok(`Invalid type: ${forgetParams.type}. Must be 'fact' or 'lesson'.`);
       }
-      if (params.type === "fact" && params.key) {
-        const deleted = store.deleteSemantic(params.key);
-        return ok(deleted ? `Forgot: ${params.key}` : `Not found: ${params.key}`);
+      if (forgetParams.type === "fact" && forgetParams.key) {
+        const deleted = store.deleteSemantic(forgetParams.key);
+        return ok(deleted ? `Forgot: ${forgetParams.key}` : `Not found: ${forgetParams.key}`);
       }
-      if (params.type === "lesson" && params.id) {
-        const deleted = store.deleteLesson(params.id);
-        return ok(deleted ? `Forgot lesson ${params.id}` : `Not found: ${params.id}`);
+      if (forgetParams.type === "lesson" && forgetParams.id) {
+        const deleted = store.deleteLesson(forgetParams.id);
+        return ok(deleted ? `Forgot lesson ${forgetParams.id}` : `Not found: ${forgetParams.id}`);
       }
       return ok("Provide key (for facts) or id (for lessons)");
     }
@@ -1213,7 +1722,8 @@ ${text}`
     }),
     async execute(_id, params, _signal, _update, _ctx) {
       if (!store) return ok("Memory store not initialized");
-      const lessons = store.listLessons(params.category, params.limit ?? 50);
+      const lessonsParams = params;
+      const lessons = store.listLessons(lessonsParams.category, lessonsParams.limit ?? 50);
       if (lessons.length === 0) {
         return ok("No lessons learned yet.");
       }
@@ -1231,9 +1741,25 @@ ${text}`
     async execute(_id, _params, _signal, _update, _ctx) {
       if (!store) return ok("Memory store not initialized");
       const stats = store.stats();
-      const text = `Memory: ${stats.semantic} semantic facts, ${stats.lessons} active lessons, ${stats.events} events logged
-DB: ${resolvedDbPath}`;
-      return ok(text);
+      const lines = [
+        `Memory: ${stats.semantic} semantic facts, ${stats.lessons} active lessons, ${stats.events} events logged`,
+        `DB: ${resolvedDbPath}`
+      ];
+      const cfg = injectorConfig.embedding;
+      if (cfg) {
+        const cov = store.embeddingCoverage();
+        lines.push(
+          `Search: hybrid (FTS5 + ${cfg.type}${cfg.model ? `/${cfg.model}` : ""}), ${cov.embedded}/${cov.total} embedded`
+        );
+        if (embedFailure) {
+          lines.push(
+            `Semantic search is failing: ${embedFailure.reason}. ${embedFailure.hint} Results come from keyword search until this is fixed.`
+          );
+        }
+      } else {
+        lines.push("Search: FTS5 keyword only (set memory.embedding to enable semantic search)");
+      }
+      return ok(lines.join("\n"));
     }
   });
   pi.registerCommand("memory-consolidate", {

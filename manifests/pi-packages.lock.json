@@ -67,9 +67,9 @@
         "taskProfilePatch": "session-search-profile"
       },
       {
-        "source": "npm:@samfp/pi-memory@1.5.0",
+        "source": "npm:@samfp/pi-memory@1.6.0",
         "package": "@samfp/pi-memory",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "patch": "memory-windows-runtime"
       },
       {

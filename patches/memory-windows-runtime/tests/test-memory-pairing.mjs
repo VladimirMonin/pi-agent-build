@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const DIST = join(homedir(), ".pi", "agent", "npm", "node_modules",
+const DIST = process.argv[2] ?? join(homedir(), ".pi", "agent", "npm", "node_modules",
   "@samfp", "pi-memory", "dist", "index.js");
 const src = readFileSync(DIST, "utf8");
 
@@ -27,7 +27,7 @@ const fnSrc = src.slice(start, end);
 // Заглушки для имён из скоупа модуля.
 const CONSOLIDATION_PROMPT = src.match(/var CONSOLIDATION_PROMPT = `([\s\S]*?)`;/)[1];
 const truncate = (t, m) => (t.length > m ? t.slice(0, m) + "…" : t);
-const buildConsolidationPrompt = new Function("CONSOLIDATION_PROMPT", "truncate",
+const buildConsolidationPrompt = new Function("CONSOLIDATION_PROMPT", "truncate2",
   `${fnSrc}; return buildConsolidationPrompt;`)(CONSOLIDATION_PROMPT, truncate);
 
 // ── Реальная рассинхронизированная сессия (см. probe-pairing.mjs) ───────

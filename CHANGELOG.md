@@ -47,6 +47,12 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.6]
+
+- Memory1.6 установлен Code/Task; exact rebase runtime fixes, scoped whole-record automatic upstream hybrid/RRF recall и ephemeral context-hook. Xenova/warm-up удалены.
+- Polza Qwen1024d отдельно от неизменённой DeepSeek-консолидации; consistent SQLite backup вне Git. Старые384d не сравниваются с1024d, upstream backfill после restart; personal reindex не запускался.
+- Native SDK Both, installed Russian real-Polza synthetic canary (2 successful requests), structural checks, regressions24/24, verifier0/0 и safety PASS. [Scope и ограничения](docs/releases/pi-1.0.4-build.6.md).
+
 ## [pi-v1.0.4-build.5]
 
 - MCP Adapter2.36.0 → **5.1.0** Both, единственный MCP owner; existing shared config и `-builtin:mcp` сохранены.

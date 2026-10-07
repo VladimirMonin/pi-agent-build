@@ -418,28 +418,6 @@ try {
 
         foreach ($selected in $profiles) { Test-InstalledProfile -Selected $selected -Root $PiRoot -PackageManifest $packages }
 
-        # memory embedder cache: the pi-memory patch selects a local multilingual
-        # model. If it is not cached, the plugin still works but the first semantic
-        # search falls back to FTS-only until the model downloads. Network speed
-        # varies, so a missing cache is a WARN (run the warm-up helper), not a FAIL.
-        if (-not $SkipPatchChecks) {
-            foreach ($selected in $profiles) {
-                $profileRoot = Join-Path $PiRoot $selected.Directory
-                $dist = Join-Path $profileRoot 'npm\node_modules\@samfp\pi-memory\dist\index.js'
-                if (-not (Test-Path -LiteralPath $dist -PathType Leaf)) { continue }
-                $model = $null
-                foreach ($line in (Get-Content -LiteralPath $dist -Encoding UTF8)) {
-                    if ($line -match '^var MODEL = "(.+)";$') { $model = $Matches[1]; break }
-                }
-                if (-not $model) { continue }
-                $cache = Join-Path $profileRoot "npm\node_modules\@xenova\transformers\.cache\$model"
-                if (Test-Path -LiteralPath $cache -PathType Container) {
-                    Pass "$($selected.Name) memory embedder cached ($model)"
-                } else {
-                    Warn "$($selected.Name) memory embedder not cached ($model); run scripts/warm-memory-embedder.mjs $profileRoot"
-                }
-            }
-        }
 
         if (-not $SkipPatchChecks) {
             $powerShellExe = (Get-Process -Id $PID).Path

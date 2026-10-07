@@ -1,6 +1,6 @@
 # Установка сборки
 
-Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; [build.5](releases/pi-1.0.4-build.5.md) обновляет MCP Adapter5.1.0 Both; builtin:mcp остаётся выключен. [build.4](releases/pi-1.0.4-build.4.md) обновил Session Search1.6.0 Both с profile/runtime patch и без forced reindex. [build.3](releases/pi-1.0.4-build.3.md) обновил Inspector1.3.0 и Code Serena wrapper0.9.20 (Agent1.7.0 неизменён). Предыдущий [build.2](releases/pi-1.0.4-build.2.md) обновил Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; [build.6](releases/pi-1.0.4-build.6.md) обновляет Memory1.6 Both: upstream context-hook/provider/RRF, scoped whole-record automatic recall; Polza Qwen1024d выбран отдельно от DeepSeek. SQLite backup вне Git, новый русский canary PASS; нужен restart. Предыдущий [build.5](releases/pi-1.0.4-build.5.md) обновил MCP Adapter5.1.0 Both; builtin:mcp остаётся выключен. [build.4](releases/pi-1.0.4-build.4.md) обновил Session Search1.6.0 Both с profile/runtime patch и без forced reindex. [build.3](releases/pi-1.0.4-build.3.md) обновил Inspector1.3.0 и Code Serena wrapper0.9.20 (Agent1.7.0 неизменён). Предыдущий [build.2](releases/pi-1.0.4-build.2.md) обновил Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
 
@@ -111,7 +111,7 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.16.1
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-session-search@1.6.0
-  PI_CODING_AGENT_DIR="$profile" pi install npm:@samfp/pi-memory@1.5.0
+  PI_CODING_AGENT_DIR="$profile" pi install npm:@samfp/pi-memory@1.6.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-mcp-adapter@5.1.0
 }
 
@@ -202,16 +202,11 @@ Fetch `2025.4.7` требует Python `>=3.10`. Пример [`mcp.example.json
 
 Почему одновременно нужны `pi-polza` и статический `polza-memory`, описано в [Polza memory](polza-memory.md).
 
-### Прогрев локального embedder'а памяти
+### Embedder Memory1.6
 
-Patch `memory-windows-runtime` подключает локальную мультиязычную модель встраивания для семантического поиска по фактам памяти. Плагин загружает её лениво с жёстким таймаутом 30 с; на холодном кэше скачивание по медленному каналу может его превысить, и тогда плагин молча откатывается на FTS-only поиск. Скорость сети разная, поэтому модель нужно скачать заранее:
+Локальный Xenova/warm-up больше не используется. В приватных Code/Task `memory.embedding` содержит `type: "openai-compatible"`, `baseUrl: "https://polza.ai/api"`, `model: "qwen/qwen3-embedding-8b"`, `dimensions: 1024`, `sendDimensions: true` и существующий private `apiKey`. Это отдельно от DeepSeek-консолидации и Session Search config. Не публикуйте ключ и не копируйте рабочий профиль в fixtures.
 
-```bash
-node scripts/warm-memory-embedder.mjs "$user_home/.pi/agent"
-node scripts/warm-memory-embedder.mjs "$user_home/.pi/task"
-```
-
-Helper читает id модели из пропатченного `dist`, качает её в кэш `@xenova/transformers` активного профиля (у каждого профиля свой кэш, ~130 МБ) и использует щедрый таймаут с повторами. `scripts/install.sh --apply` вызывает его автоматически после применения patches; сбой прогрева только предупреждает и не прерывает установку. `scripts/verify.sh` показывает `PASS`/`WARN` по наличию кэша (WARN, а не FAIL — сеть не должна валить проверку).
+Перед переключением vectors сделайте consistent SQLite backup API-копию вне Git. После установки полностью перезапустите Code/Task: новые1024d не сравниваются со старыми384d, upstream backfill постепенно обновляет missing/wrong-dimension vectors. Без embedding config останется keyword fallback. Patch/приёмка/ограничения: [Memory](fixes/memory.md).
 
 ### MCP
 

@@ -351,36 +351,6 @@ lab_run() (
 )
 
 # --------------------------------------------------------------------------- #
-# memory embedder warm-up
-# --------------------------------------------------------------------------- #
-# warm_memory_embedder <profile_root> [timeout_ms] [retries]
-# Pre-downloads the pi-memory local embedding model into the profile's
-# @xenova/transformers cache. The plugin loads the model lazily with a 30s
-# timeout; a cold download on a slow link can exceed it and the plugin then
-# silently falls back to FTS-only search. Network speed varies, so this uses a
-# generous timeout with bounded retries and never fails the whole install.
-# Prints: warmed | already-cached | skipped | failed
-warm_memory_embedder() {
-  local profile_root="$1" timeout_ms="${2:-600000}" retries="${3:-3}"
-  local dist="$profile_root/npm/node_modules/@samfp/pi-memory/dist/index.js"
-  [ -f "$dist" ] || { printf 'skipped\n'; return 0; }
-  command_exists node || { warn "node not found; skipping memory embedder warm-up"; printf 'skipped\n'; return 0; }
-  local helper="$SCRIPT_DIR/warm-memory-embedder.mjs"
-  [ -f "$helper" ] || { warn "warm-up helper missing: $helper"; printf 'skipped\n'; return 0; }
-  local out code
-  set +e
-  out="$(node "$helper" "$profile_root" --timeout-ms "$timeout_ms" --retries "$retries" 2>&1)"
-  code=$?
-  set -e
-  [ -n "$out" ] && printf '%s\n' "$out" >&2
-  if [ "$code" = "0" ]; then
-    printf 'warmed\n'
-  else
-    warn "memory embedder warm-up failed (exit $code); semantic memory search stays FTS-only until the model downloads"
-    printf 'failed\n'
-  fi
-  return 0
-}
 
 # --------------------------------------------------------------------------- #
 # installed package assertions

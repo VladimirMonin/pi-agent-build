@@ -1,24 +1,10 @@
-# Third-party source notice: `@samfp/pi-memory` 1.5.0
+# Third-party source: `@samfp/pi-memory`1.6.0
 
-- Upstream package: `@samfp/pi-memory@1.5.0`
-- Upstream repository: <https://github.com/samfoy/pi-memory>
-- Published npm tarball: <https://registry.npmjs.org/@samfp/pi-memory/-/pi-memory-1.5.0.tgz>
-- Published `gitHead`: `9b163d53b45c5f1e082bbae57828ba7fb1325fc8`
-License evidence: the versioned tarball contains `package/LICENSE`, reproduced byte-for-text in [`LICENSE.upstream.txt`](LICENSE.upstream.txt); the repository source at the published `gitHead` contains the same `LICENSE` text.
+- Upstream: <https://github.com/samfoy/pi-memory>
+- Exact npm tarball: <https://registry.npmjs.org/@samfp/pi-memory/-/pi-memory-1.6.0.tgz>
+- Published gitHead: `65dd9b5e89c0c9c9374614be5990073545c87ab7`
+- License evidence: versioned tarball `package/LICENSE`, copied to [LICENSE.upstream.txt](LICENSE.upstream.txt), MIT.
 
-## File-level provenance
+`stock-index.js` is a byte-exact copy of `package/dist/index.js`, SHA-256 `3a7f5709239f005d54136c451c9e4a86aa27056449fcc79d1aebed14b628cb47`.
 
-| Repository file | Provenance | SHA-256 |
-|---|---|---|
-| `stock-index.js` | Exact byte copy of tarball `package/dist/index.js` | `b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58` |
-| `apply.py` | Project-authored patcher under the root MIT license; its `*_FROM` string constants quote portions of the upstream MIT-licensed `dist/index.js`, and its generated target is a modified derivative of that file | — |
-| `README.md` | Project-authored documentation under the root MIT license | — |
-| `tests/test-memory-pairing.mjs` | Project-authored test under the root MIT license | — |
-| `tests/test-memory-pushturn.mjs` | Project-authored test under the root MIT license | — |
-| `tests/test-memory-runtime-scope.mjs` | Project-authored test under the root MIT license | — |
-| `tests/test-memory-settings-path.mjs` | Project-authored profile-settings regression test under the root MIT license | — |
-| `tests/test-memory-embedder.mjs` | Project-authored multilingual-embedder regression test under the root MIT license | — |
-
-`__pycache__/` is generated runtime output, is not source, and must not be distributed as part of the patch source bundle.
-
-The vendored copy, quoted upstream fragments, and generated patched `dist/index.js` remain subject to the upstream MIT terms. Local patcher code and modifications are licensed under the repository's MIT license; that does not replace the upstream notice.
+`apply.py` and `injection.py` are project-authored MIT code; FROM anchors quote upstream MIT source. Generated patched `dist/index.js` remains a modified upstream derivative. README/tests are project-authored MIT material. Generated `__pycache__` is not source and must not be distributed. Local licensing does not replace upstream MIT notice/terms.

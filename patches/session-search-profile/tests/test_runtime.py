@@ -21,17 +21,16 @@ class RuntimeTests(unittest.TestCase):
     def test_memory_upgrade_and_refusal(self):
         stock = m.BACKUP.read_bytes()
         self.assertEqual(m.digest(stock), m.EXPECTED_STOCK_SHA256)
-        old = m.build_canonical(stock, timers=False)
         new = m.build_canonical(stock)
-        self.assertEqual(m.classify(old, stock, new, (old,)), 'legacy-canonical')
-        self.assertEqual(m.classify(new, stock, new, (old,)), 'runtime-safe')
-        self.assertEqual(m.classify(new + b'\n// unknown', stock, new, (old,)), 'noncanonical-drift')
+        self.assertEqual(m.classify(stock, stock, new), 'stock-pristine')
+        self.assertEqual(m.classify(new, stock, new), 'runtime-safe')
+        self.assertEqual(m.classify(new + b'\n// unknown', stock, new), 'noncanonical-drift')
         with tempfile.TemporaryDirectory() as td:
             agent = Path(td)
             target = agent / 'npm/node_modules/@samfp/pi-memory/dist/index.js'
             target.parent.mkdir(parents=True)
-            (target.parent.parent / 'package.json').write_text('{"version":"1.5.0"}')
-            target.write_bytes(old)
+            (target.parent.parent / 'package.json').write_text('{"version":"1.6.0"}')
+            target.write_bytes(stock)
             command = ['python', str(ROOT / 'patches/memory-windows-runtime/apply.py'), '--agent-dir', str(agent)]
             subprocess.run(command, check=True, capture_output=True)
             self.assertEqual(target.read_bytes(), new)
@@ -79,7 +78,6 @@ class RuntimeTests(unittest.TestCase):
 const nativeSet = setTimeout, nativeClear = clearTimeout, live = new Set();
 global.setTimeout = (fn, ms) => { const h = nativeSet(() => {live.delete(h); fn();}, ms); live.add(h); return h; };
 global.clearTimeout = h => {live.delete(h); nativeClear(h);};
-MEMORY
 const pendingTimers = new Set();
 function scheduleTimer(fn, ms) {const h = setTimeout(() => {pendingTimers.delete(h); fn();}, ms); pendingTimers.add(h); return h;}
 let operation; const index = {sync: () => operation};
@@ -87,22 +85,16 @@ const ctx = {ui:{setStatus(){}}}; const notifySyncError = () => () => {};
 const SYNC_TIMEOUT_MS = 20;
 SEARCH
 (async () => {
- assert.equal(await withTimeout(Promise.resolve(7), 600000, 'resolve'),7);
- assert.equal(live.size,0);
  const error = new Error('reject');
- await assert.rejects(withTimeout(Promise.reject(error),600000,'reject'), e => e === error);
- assert.equal(live.size,0);
- await assert.rejects(withTimeout(new Promise(() => {}),20,'real'), /real timeout after 20ms/);
- assert.equal(live.size,0);
  operation = Promise.resolve(9); assert.equal(await runSync(),9);
  assert.equal(live.size,0); assert.equal(pendingTimers.size,0);
  operation = Promise.reject(error); await assert.rejects(runSync(), e => e === error);
  assert.equal(live.size,0); assert.equal(pendingTimers.size,0);
  operation = new Promise(() => {}); assert.equal(await runSync(),null);
  assert.equal(live.size,0); assert.equal(pendingTimers.size,0);
- console.log('resolve/reject/real timeout: both production timer bodies clean');
+ console.log('resolve/reject/real timeout: production sync timer clean');
 })().catch(e => {console.error(e);process.exitCode=1;});'''
-        script = script.replace('MEMORY', m.TIMEOUT_TO).replace('SEARCH', s.TIMER_NEW)
+        script = script.replace('SEARCH', s.TIMER_NEW)
         subprocess.run(['node', '-e', script], check=True, timeout=5)
 
 if __name__ == '__main__':

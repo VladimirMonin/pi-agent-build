@@ -42,7 +42,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-session-search
 
 Patch сначала можно `--restore`. Удалите config/index отдельно; исходные Pi sessions не трогайте. Полный fix: [session-search](../fixes/session-search.md).
 
-## `@samfp/pi-memory` 1.5.0
+## `@samfp/pi-memory` 1.6.0
 
 ### Назначение
 
@@ -51,7 +51,7 @@ Patch сначала можно `--restore`. Удалите config/index отд�
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:@samfp/pi-memory@1.5.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:@samfp/pi-memory@1.6.0
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>"
 ```
 
@@ -61,11 +61,11 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 По умолчанию БД `~/.pi/memory/memory.db` общая для обоих профилей. Project `pi-memory.localPath` изолирует БД. Stock package жёстко читает user-global settings из `~/.pi/agent/settings.json`; применяемый в сборке patch переключает этот путь на `<PI_CODING_AGENT_DIR>/settings.json`, поэтому Task получает собственный global config. Служебная модель — `polza-memory/deepseek/deepseek-v4.1-flash`.
 
-Семантический поиск по фактам работает на **локальном** embedder'е `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384d, offline, без ключа), который ставит patch вместо англоязычного stock `all-MiniLM-L6-v2`. Это отдельный механизм от Polza-консолидации и от embedder'а `pi-session-search`.
+Automatic vector recall использует upstream provider/hybrid/RRF с Polza `qwen/qwen3-embedding-8b`,1024d в `memory.embedding`. DeepSeek-консолидация и Session Search — независимые механизмы. Patch сохраняет upstream ephemeral context-hook, фильтрует project scope и помещает только целые записи.
 
 Patch также читает id сессии через `sessionManager.getSessionId()`: stock-выражение `ctx.sessionId ?? ctx.session?.id` всегда даёт `undefined` (в `ExtensionContext` нет таких полей), из-за чего консолидированные lessons помечались `session:unknown`.
 
-Плагин грузит модель лениво с таймаутом 30 с; на холодном кэше медленное скачивание может его превысить и поиск молча уйдёт в FTS-only. Прогрейте кэш заранее (у каждого профиля свой, ~130 МБ): `node scripts/warm-memory-embedder.mjs "<PROFILE_DIR>"`.
+Xenova/warm-up удалены. До переключения сохранена consistent SQLite backup вне Git. Старые384d не сравниваются с новыми1024d; upstream backfill обновляет missing/wrong-dimension vectors при новом session start. Сразу после установки полный reindex личной БД не заявляется; старые процессы нужно полностью перезапустить.
 
 ### Команды, tools и skills
 
@@ -75,11 +75,11 @@ Patch также читает id сессии через `sessionManager.getSess
 
 ### Риски
 
-Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. `perTurnInjection` ухудшает prefix-cache stability и по умолчанию не нужен. Embedder памяти локальный и офлайн — факты не покидают машину на этом шаге, но модель (~130 МБ) скачивается с HuggingFace при первом использовании. Если кэш не прогрет, первый семантический поиск молча откатывается на FTS-only.
+Memory DB содержит персональные preferences/identity и project facts. Default injection capped 8 KiB, но может раскрыть данные в новом model request. Consolidation отправляет conversation внешней модели; кроме того, pi-memory передаёт consolidation prompt дочернему Pi как command-line аргумент `-p`, видимый локальным process monitors/администраторам/telemetry. Неверный model id/credential может привести к тихому пропуску. Embedding выбранным облачным provider отправляет туда тексты фактов и запросов. Без embedding config работает keyword fallback. Ephemeral hook не записывает memory block в историю или consolidation transcript.
 
 ### Проверка
 
-Patch `--check` должен печатать `RUNTIME-SAFE`. Выполните `memory_stats`, сохраните тестовый факт через `memory_remember`, найдите его и удалите. На Pi1.0.2 Code/Task реально проверены synthetic remember/search в **FTS fallback** и local-mock lifecycle без внешнего model call; cold HF download был заблокирован. Это не semantic embedding и не consolidation acceptance. Реальный consolidation/model call требует отдельного разрешения. Структурные тесты `test-memory-pushturn.mjs`, `test-memory-embedder.mjs` и `test-memory-sessionid.mjs` бесплатны. Подробности: [memory fix](../fixes/memory.md).
+Patch `--check` должен вернуть0 и `runtime-safe`. Build.6: Native SDK Both на synthetic SQLite/local mock проверил Windows Node child, ordered consolidation, profile/session ID, scope/aliases и ephemeral injection. Installed real Polza canary: русский paraphrase без keyword match автоматически recalled,2 successful embedding requests. Личные факты не fixtures; real DeepSeek consolidation не повторялась. Подробности: [memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 

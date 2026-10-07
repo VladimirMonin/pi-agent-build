@@ -631,13 +631,13 @@ try {
         $pkg = Join-Path $agent 'npm\node_modules\@samfp\pi-memory'
         $dist = Join-Path $pkg 'dist\index.js'
         New-Item -ItemType Directory -Path (Split-Path $dist -Parent) -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.0"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.0"}')
         Copy-Item -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Destination $dist
         $patcher = Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.1"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.1"}')
         $wrongVersion = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 2 $wrongVersion.ExitCode 'memory patch must reject a newer package version despite identical dist bytes'
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.5.0"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.0"}')
 
         $stock = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 1 $stock.ExitCode 'stock memory check must mean needs apply'
@@ -664,21 +664,15 @@ try {
         $injectionRegression = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'patches\memory-windows-runtime\tests\test-memory-injection.mjs'), $dist)
         Assert-Equal 0 $injectionRegression.ExitCode "scoped memory injection regression failed: $($injectionRegression.Output)"
 
-        $previousCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),m.PREVIOUS_CANONICAL_REPLACEMENTS))'
-        $makePrevious = Invoke-NativeCapture 'python' @('-c', $previousCode, $patcher, $dist)
-        Assert-Equal 0 $makePrevious.ExitCode "could not create previous canonical fixture: $($makePrevious.Output)"
-        $previous = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
-        Assert-Equal 1 $previous.ExitCode 'previous canonical memory patch must require migration'
-        $migratePrevious = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
-        Assert-Equal 0 $migratePrevious.ExitCode 'previous canonical memory patch did not migrate'
-        $preInjectorCode = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''memory_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); pathlib.Path(sys.argv[2]).write_bytes(m.build_canonical(m.BACKUP.read_bytes(),injector=False,timers=False))'
-        $makePreInjector = Invoke-NativeCapture 'python' @('-c', $preInjectorCode, $patcher, $dist)
-        Assert-Equal 0 $makePreInjector.ExitCode 'could not create pre-injector canonical fixture'
-        $preInjector = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
-        Assert-Equal 1 $preInjector.ExitCode 'pre-injector canonical memory patch must require migration'
-        $migratePreInjector = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
-        Assert-Equal 0 $migratePreInjector.ExitCode 'pre-injector canonical memory patch did not migrate'
-        Assert-Equal $canonicalHash (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash 'migration did not reproduce canonical memory bytes'
+        $again = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
+        Assert-Equal 0 $again.ExitCode 'memory idempotent apply failed'
+        Assert-Equal $canonicalHash (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash 'idempotent apply changed bytes'
+        $restore = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--restore')
+        Assert-Equal 0 $restore.ExitCode 'memory restore failed'
+        Assert-Equal (Get-FileHash -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Algorithm SHA256).Hash (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash 'restore was not byte-exact'
+        $reapply = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
+        Assert-Equal 0 $reapply.ExitCode 'memory reapply failed'
+        Assert-Equal $canonicalHash (Get-FileHash -LiteralPath $dist -Algorithm SHA256).Hash 'reapply did not reproduce canonical bytes'
 
         Copy-Item -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Destination $dist -Force
         $winMarker = @($canonical -split "`r?`n" | Where-Object { $_ -match '^\s*// win32:' })[0].Trim()

@@ -1,65 +1,48 @@
 #!/usr/bin/env python3
-"""Patch @samfp/pi-memory 1.5.0 for runtime safety and scoped injection.
-
-Rebuild from verified pristine bytes. Only exact known states may be upgraded;
-noncanonical or unknown bundles are never overwritten by a marker-only match.
-"""
+"""Exact pi-memory1.6 runtime, ordered turns and scoped automatic hybrid recall."""
 from __future__ import annotations
-
 import argparse
 import datetime as dt
 import hashlib
 import json
 import os
 import pathlib
-import re
 import shutil
+import subprocess
 import sys
-
+sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+if str(HERE) not in sys.path: sys.path.insert(0, str(HERE))
 from injection import apply_injection, is_injection_safe
-
+VERSION = "1.6.0"
 BACKUP = HERE / "stock-index.js"
-EXPECTED_STOCK_SHA256 = "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58"
-# Exact private v1 bundle identity, accepted solely for one-time, backed-up migration.
-# Its hard-coded local aliases are NOT part of this public source.
-KNOWN_LOCAL_INJECTOR_V1_SHA256 = "15ca149cb8968f32735fe4ed1647c2bc81c19b3b7993507ec7bb31c6da4236bb"
-# Initial scoped v2 canonical, superseded by profile-only (not project-local) aliases.
-KNOWN_SCOPED_V2_INITIAL_SHA256 = "6ee8966d85382a088cf56af8ab98b40b33ee41bd2d22b4f21afaf69681c5881e"
+EXPECTED_STOCK_SHA256 = "3a7f5709239f005d54136c451c9e4a86aa27056449fcc79d1aebed14b628cb47"
+
 
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
+
 FIXED_SCOPE_MARKER = "// pi-memory ordered turns: session-local lexical state"
+
 PROFILE_SETTINGS_MARKER = "// pi-memory profile settings: PI_CODING_AGENT_DIR"
-EMBEDDER_MARKER = "// pi-memory multilingual embedder: Russian-capable, 384d"
+
 SESSIONID_MARKER = "// ExtensionContext has no sessionId/session field"
+
 LEGACY_GLOBAL = "globalThis.__piMemoryTurns"
 
-# Multilingual embedder: stock ships the English-only all-MiniLM-L6-v2, which
-# separates Russian paraphrases from unrelated text poorly. The multilingual
-# MiniLM keeps the same 384 dimensions and mean pooling, so no reindex or
-# threshold change is required.
-MODEL_FROM = 'var MODEL = "Xenova/all-MiniLM-L6-v2";'
-MODEL_TO = '''// pi-memory multilingual embedder: Russian-capable, 384d
-var MODEL = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";'''
-
-# Session id: ExtensionContext exposes no sessionId/session field (only the
-# read-only sessionManager), so stock's `ctx.sessionId ?? ctx.session?.id` is
-# always undefined and consolidation labels every fact `session:unknown`.
 SESSIONID_FROM = "      sessionId = ctx.sessionId ?? ctx.session?.id;"
+
 SESSIONID_TO = '''      // ExtensionContext has no sessionId/session field; read the real id from
       // the read-only session manager so consolidation labels facts correctly.
       sessionId = ctx.sessionManager?.getSessionId?.() ?? ctx.sessionId ?? ctx.session?.id;'''
 
 SETTINGS_FROM = 'var GLOBAL_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");'
+
 SETTINGS_TO = '''// pi-memory profile settings: PI_CODING_AGENT_DIR
 var GLOBAL_SETTINGS_PATH = join(
   process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent"),
   "settings.json"
 );'''
 
-# Windows spawn: npm's pi.cmd shim cannot be spawned with shell:false.
 P1_FROM = """      const execPromise = pi.exec("pi", [
         "-p",
         prompt,
@@ -85,19 +68,12 @@ P1_TAIL_TO = """          injectorConfig.consolidationModel ?? DEFAULT_CONSOLIDA
         if (process.platform === "win32") {
           const root = process.env.PI_AGENT_BUILD_NPM_PREFIX?.trim() || join(process.env.APPDATA || homedir(), "npm");
           const cli = join(root, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
-          if (existsSync(cli)) return [process.execPath, [cli, ...args], { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
-          return [join(root, "pi.cmd"), args, { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
+          if (!existsSync(cli)) throw new Error("Pi CLI not found under selected npm prefix");
+          return [process.execPath, [cli, ...args], { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
         }
         return ["pi", args, { timeout: EXEC_TIMEOUT_MS, cwd: sessionCwd }];
       })());"""
 
-# Canonical body shipped before profile-local settings/custom npm-prefix support.
-P1_TAIL_TO_PREVIOUS = P1_TAIL_TO.replace(
-    'const root = process.env.PI_AGENT_BUILD_NPM_PREFIX?.trim() || join(process.env.APPDATA || homedir(), "npm");',
-    'const root = join(process.env.APPDATA || homedir(), "npm");',
-)
-
-# Ordered turns: state and helper must share index_default's lexical scope.
 P2_STATE_FROM = """function index_default(pi) {
   let store = null;
   let pendingUserMessages = [];
@@ -199,9 +175,9 @@ P2_PAIRS_FROM = """  const maxPairs = 30;
   const len = Math.min(input.userMessages.length, maxPairs);
   for (let i = 0; i < len; i++) {
     const userMsg = input.userMessages[i];
-    if (userMsg) messages.push(`User: ${truncate(userMsg, 1e3)}`);
+    if (userMsg) messages.push(`User: ${truncate2(userMsg, 1e3)}`);
     const assistantMsg = input.assistantMessages[i];
-    if (assistantMsg) messages.push(`Assistant: ${truncate(assistantMsg, 500)}`);
+    if (assistantMsg) messages.push(`Assistant: ${truncate2(assistantMsg, 500)}`);
   }"""
 
 P2_PAIRS_TO = """  const maxPairs = 30;
@@ -214,11 +190,11 @@ P2_PAIRS_TO = """  const maxPairs = 30;
       if (turns[i].role === "user" && turns[i].text) userIdx.push(i);
     }
     for (const u of userIdx.slice(-maxPairs)) {
-      messages.push(`User: ${truncate(turns[u].text, 1e3)}`);
+      messages.push(`User: ${truncate2(turns[u].text, 1e3)}`);
       for (let j = u + 1; j < turns.length; j++) {
         if (turns[j].role === "user") break;
         if (turns[j].role === "assistant" && turns[j].text) {
-          messages.push(`Assistant: ${truncate(turns[j].text, 500)}`);
+          messages.push(`Assistant: ${truncate2(turns[j].text, 500)}`);
           break;
         }
       }
@@ -228,9 +204,9 @@ P2_PAIRS_TO = """  const maxPairs = 30;
     const len = Math.min(input.userMessages.length, maxPairs);
     for (let i = 0; i < len; i++) {
       const userMsg = input.userMessages[i];
-      if (userMsg) messages.push(`User: ${truncate(userMsg, 1e3)}`);
+      if (userMsg) messages.push(`User: ${truncate2(userMsg, 1e3)}`);
       const assistantMsg = input.assistantMessages[i];
-      if (assistantMsg) messages.push(`Assistant: ${truncate(assistantMsg, 500)}`);
+      if (assistantMsg) messages.push(`Assistant: ${truncate2(assistantMsg, 500)}`);
     }
   }"""
 
@@ -240,24 +216,6 @@ P2_INPUT_FROM = """      userMessages: pendingUserMessages,
 P2_INPUT_TO = """      userMessages: pendingUserMessages,
       assistantMessages: pendingAssistantMessages,
       turns: pendingTurns.slice(),"""
-
-TIMEOUT_FROM = '''function withTimeout(p, ms, label) {
-  return Promise.race([
-    p,
-    new Promise(
-      (_, reject) => setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
-    )
-  ]);
-}'''
-TIMEOUT_TO = '''function withTimeout(p, ms, label) {
-  let timer;
-  return Promise.race([
-    p,
-    new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
-    })
-  ]).finally(() => clearTimeout(timer));
-}'''
 
 CANONICAL_REPLACEMENTS = [
     (SETTINGS_FROM, SETTINGS_TO),
@@ -270,62 +228,16 @@ CANONICAL_REPLACEMENTS = [
     (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
     (P2_PAIRS_FROM, P2_PAIRS_TO),
     (P2_INPUT_FROM, P2_INPUT_TO),
-    (MODEL_FROM, MODEL_TO),
     (SESSIONID_FROM, SESSIONID_TO),
 ]
-
-# Canonical body shipped before the session-id fix (settings + turns + embedder).
-PREVIOUS_CANONICAL_REPLACEMENTS = [
-    (SETTINGS_FROM, SETTINGS_TO),
-    (P1_FROM, P1_TO),
-    (P1_TAIL_FROM, P1_TAIL_TO),
-    (P2_STATE_FROM, P2_STATE_TO),
-    (P2_REPLAY_FROM, P2_REPLAY_TO),
-    (P2_AGENT_END_FROM, P2_AGENT_END_TO),
-    (P2_RESET_START_FROM, P2_RESET_START_TO),
-    (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
-    (P2_PAIRS_FROM, P2_PAIRS_TO),
-    (P2_INPUT_FROM, P2_INPUT_TO),
-    (MODEL_FROM, MODEL_TO),
-]
-
-# Canonical body shipped before the multilingual embedder fix (settings + turns).
-PREVIOUS_CANONICAL_NO_EMBEDDER_REPLACEMENTS = [
-    (SETTINGS_FROM, SETTINGS_TO),
-    (P1_FROM, P1_TO),
-    (P1_TAIL_FROM, P1_TAIL_TO),
-    (P2_STATE_FROM, P2_STATE_TO),
-    (P2_REPLAY_FROM, P2_REPLAY_TO),
-    (P2_AGENT_END_FROM, P2_AGENT_END_TO),
-    (P2_RESET_START_FROM, P2_RESET_START_TO),
-    (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
-    (P2_PAIRS_FROM, P2_PAIRS_TO),
-    (P2_INPUT_FROM, P2_INPUT_TO),
-]
-
-# Older canonical body that also lacked profile-local settings.
-LEGACY_CANONICAL_REPLACEMENTS = [
-    (P1_FROM, P1_TO),
-    (P1_TAIL_FROM, P1_TAIL_TO_PREVIOUS),
-    (P2_STATE_FROM, P2_STATE_TO),
-    (P2_REPLAY_FROM, P2_REPLAY_TO),
-    (P2_AGENT_END_FROM, P2_AGENT_END_TO),
-    (P2_RESET_START_FROM, P2_RESET_START_TO),
-    (P2_RESET_SWITCH_FROM, P2_RESET_SWITCH_TO),
-    (P2_PAIRS_FROM, P2_PAIRS_TO),
-    (P2_INPUT_FROM, P2_INPUT_TO),
-]
-
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-
 def short(data: bytes) -> str:
     return digest(data)[:12]
 
-
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, timers=True) -> bytes:
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -335,15 +247,16 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
         text = text.replace(old, new, 1)
     if replacements is CANONICAL_REPLACEMENTS and injector:
         text = apply_injection(text)
-    if replacements is CANONICAL_REPLACEMENTS and timers:
-        if text.count(TIMEOUT_FROM) != 1:
-            raise RuntimeError("timeout anchor mismatch")
-        text = text.replace(TIMEOUT_FROM, TIMEOUT_TO, 1)
+    if replacements is CANONICAL_REPLACEMENTS:
+        old = "    const { text } = await buildContextBlock(store, ctx.cwd, event.prompt, injectorConfig);"
+        new = "    // pi-memory automatic hybrid recall: reuse upstream provider/RRF\n    const recall = await searchMemory(event.prompt, SEARCH_LIMIT, ctx);\n    const { text } = await buildContextBlock(store, ctx.cwd, event.prompt, injectorConfig, recall);"
+        if text.count(old) != 1:
+            raise RuntimeError("automatic recall anchor mismatch")
+        text = text.replace(old, new, 1)
     result = text.encode("utf-8")
     if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
     return result
-
 
 def is_runtime_safe(text: str) -> bool:
     index_pos = text.find("function index_default(pi) {")
@@ -353,8 +266,8 @@ def is_runtime_safe(text: str) -> bool:
         WIN_MARKER in text
         and FIXED_SCOPE_MARKER in text
         and PROFILE_SETTINGS_MARKER in text
-        and EMBEDDER_MARKER in text
-        and 'var MODEL = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";' in text
+        and "// pi-memory automatic hybrid recall" in text
+        and "searchMemory(event.prompt, SEARCH_LIMIT, ctx)" in text
         and SESSIONID_MARKER in text
         and "ctx.sessionManager?.getSessionId?.()" in text
         and "process.env.PI_CODING_AGENT_DIR?.trim()" in text
@@ -367,40 +280,6 @@ def is_runtime_safe(text: str) -> bool:
         and is_injection_safe(text)
     )
 
-
-def classify(target: bytes, stock: bytes, canonical: bytes, previous_states: tuple[bytes, ...]) -> str:
-    if target == stock:
-        return "stock-pristine"
-    text = target.decode("utf-8")
-    if target == canonical:
-        return "runtime-safe"
-    if digest(target) == KNOWN_LOCAL_INJECTOR_V1_SHA256:
-        return "legacy-local-injector"
-    if digest(target) == KNOWN_SCOPED_V2_INITIAL_SHA256:
-        return "legacy-canonical"
-    if target in previous_states:
-        return "legacy-canonical"
-    if is_runtime_safe(text):
-        return "noncanonical-drift"
-    return "unknown"
-
-
-def private_aliases_ready(agent_dir: pathlib.Path) -> bool:
-    """Migration from the old hard-coded local injector needs private replacement aliases."""
-    try:
-        settings = json.loads((agent_dir / "settings.json").read_text(encoding="utf-8"))
-        aliases = settings.get("memory", {}).get("factProjectAliases")
-        return isinstance(aliases, list) and bool(aliases) and all(
-            isinstance(a, dict) and isinstance(a.get("path"), str) and a["path"].strip()
-            and (a["path"].startswith("/") or re.match(r"^[A-Za-z]:[/\\]", a["path"]))
-            and isinstance(a.get("scope"), str) and re.fullmatch(r"[a-z0-9_-]+", a["scope"].lower())
-            and ("includeChildren" not in a or isinstance(a["includeChildren"], bool))
-            for a in aliases
-        )
-    except (OSError, ValueError, TypeError, AttributeError):
-        return False
-
-
 def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) -> pathlib.Path:
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     root = agent_dir / ".pi-agent-build-backups" / "memory-windows-runtime"
@@ -409,126 +288,46 @@ def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) ->
     shutil.copy2(target, destination)
     return destination
 
+def classify(target, stock, canonical):
+    if target == stock: return "stock-pristine"
+    if target == canonical: return "runtime-safe"
+    return "noncanonical-drift" if is_runtime_safe(target.decode("utf-8")) else "unknown"
 
-def main() -> int:
+
+def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--check", action="store_true", help="show state only")
-    ap.add_argument("--restore", action="store_true", help="restore pristine 1.5.0")
-    ap.add_argument("--agent-dir", help="Pi agent directory; default: PI_CODING_AGENT_DIR or ~/.pi/agent")
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--check", action="store_true")
+    modes.add_argument("--restore", action="store_true")
+    ap.add_argument("--agent-dir")
     args = ap.parse_args()
-
-    agent_dir = pathlib.Path(
-        args.agent_dir
-        or os.environ.get("PI_CODING_AGENT_DIR", "")
-        or pathlib.Path.home() / ".pi" / "agent"
-    ).expanduser().resolve()
-    target = agent_dir / "npm" / "node_modules" / "@samfp" / "pi-memory" / "dist" / "index.js"
-
-    if not target.exists():
-        print(f"НЕ НАЙДЕН: {target}")
-        return 2
+    agent = pathlib.Path(args.agent_dir or os.environ.get("PI_CODING_AGENT_DIR", "") or pathlib.Path.home() / ".pi" / "agent").expanduser().resolve()
+    target = agent / "npm/node_modules/@samfp/pi-memory/dist/index.js"
     try:
-        metadata = json.loads((target.parent.parent / "package.json").read_text(encoding="utf-8"))
-        if metadata.get("version") != "1.5.0":
-            print(f"ОТКАЗ: expected @samfp/pi-memory 1.5.0, found {metadata.get('version')}")
-            return 2
-    except (OSError, ValueError, AttributeError) as exc:
-        print(f"ОТКАЗ: package metadata unavailable: {exc}")
-        return 2
-    if not BACKUP.exists():
-        print(f"НЕ НАЙДЕН pristine backup: {BACKUP}")
-        return 2
-
-    stock = BACKUP.read_bytes()
-    if digest(stock) != EXPECTED_STOCK_SHA256:
-        print(f"ОТКАЗ: pristine backup изменён: {digest(stock)}")
-        return 2
-    try:
+        version = json.loads((target.parent.parent / "package.json").read_text(encoding="utf-8")).get("version")
+        if version != VERSION: raise RuntimeError(f"expected exactly {VERSION}, found {version}")
+        stock = BACKUP.read_bytes()
+        if digest(stock) != EXPECTED_STOCK_SHA256: raise RuntimeError("immutable stock hash mismatch")
         canonical = build_canonical(stock)
-        previous_timers = build_canonical(stock, timers=False)
-        previous_injector = build_canonical(stock, injector=False, timers=False)
-        previous = build_canonical(stock, PREVIOUS_CANONICAL_REPLACEMENTS)
-        previous_no_embedder = build_canonical(stock, PREVIOUS_CANONICAL_NO_EMBEDDER_REPLACEMENTS)
-        legacy = build_canonical(stock, LEGACY_CANONICAL_REPLACEMENTS)
-    except RuntimeError as exc:
-        print(f"ОТКАЗ: {exc}")
-        return 2
-
-    current = target.read_bytes()
-    try:
-        state = classify(current, stock, canonical, (previous_timers, previous_injector, previous, previous_no_embedder, legacy))
-    except UnicodeDecodeError:
-        state = "unknown"
-
-    print(f"agent: {agent_dir}")
-    print(f"файл:  {target}")
-    print(f"sha:   {short(current)}")
-    print(f"backup: {BACKUP} (sha {short(stock)})")
-    print(f"состояние: {state}")
-    if state == "runtime-safe":
-        print("verdict: RUNTIME-SAFE — pushTurn shares lexical scope with pending arrays.")
-    elif state == "legacy-canonical":
-        print("verdict: PATCH REQUIRED — exact previous canonical requires current runtime/injection upgrade.")
-    elif state == "legacy-local-injector":
-        print("verdict: PATCH REQUIRED — exact local v1 injector requires private alias config before migration.")
-        if not private_aliases_ready(agent_dir):
-            print("ОТКАЗ: add memory.factProjectAliases to the private profile settings.json first.")
-    elif state == "stock-pristine":
-        print("verdict: PATCH REQUIRED — pristine 1.5.0.")
-    elif state == "noncanonical-drift":
-        print("verdict: UNKNOWN — markers match, but bytes differ from canonical patch.")
-    else:
-        print("verdict: UNKNOWN — refusing to overwrite an unrecognized dist.")
-
-    if args.check:
-        if state == "runtime-safe":
+        current = target.read_bytes()
+        state = classify(current, stock, canonical)
+        print(f"version={VERSION} state={state}")
+        if args.check: return 0 if state == "runtime-safe" else 1 if state == "stock-pristine" else 2
+        if state not in {"stock-pristine", "runtime-safe"}: raise RuntimeError("unknown/noncanonical installed state")
+        desired = stock if args.restore else canonical
+        if current == desired:
+            print("ALREADY STOCK" if args.restore else "ALREADY PATCHED")
             return 0
-        if state in {"stock-pristine", "legacy-canonical"}:
-            return 1
-        if state == "legacy-local-injector":
-            return 1 if private_aliases_ready(agent_dir) else 2
-        return 2
-
-    if args.restore:
-        if state in {"unknown", "noncanonical-drift"}:
-            print("ОТКАЗ: unknown/noncanonical state не перезаписан; восстановите пакет штатным reinstall.")
-            return 2
-        if state == "stock-pristine":
-            print("изменений нет: pristine stock уже установлен.")
-            return 0
-        backup = runtime_backup(agent_dir, target, "before-restore")
+        backup = runtime_backup(agent, target, "before-restore" if args.restore else "before-apply")
         print(f"runtime backup: {backup}")
-        target.write_bytes(stock)
-        print(f"восстановлено из pristine backup -> {target}")
-        print(f"sha: {short(target.read_bytes())}")
+        target.write_bytes(desired)
+        subprocess.run(["node", "--check", str(target)], check=True)
+        if target.read_bytes() != desired: raise RuntimeError("post-write byte mismatch")
+        print("RESTORED BYTE-EXACT" if args.restore else "RUNTIME-SAFE")
         return 0
-
-    if state == "runtime-safe":
-        if current == canonical:
-            print("изменений нет: canonical patch уже применён.")
-            return 0
-        print("ОТКАЗ: runtime-safe, но не canonical; ручные изменения не перезаписаны.")
+    except Exception as error:
+        print(f"REFUSING: {error}", file=sys.stderr)
         return 2
-    if state not in {"stock-pristine", "legacy-canonical", "legacy-local-injector"}:
-        print("ОТКАЗ: применим только к pristine stock или точному known previous patch.")
-        return 2
-    if state == "legacy-local-injector" and not private_aliases_ready(agent_dir):
-        print("ОТКАЗ: private memory.factProjectAliases required to preserve local project mapping.")
-        return 2
-
-    backup = runtime_backup(agent_dir, target, "before-apply")
-    print(f"runtime backup: {backup}")
-    target.write_bytes(canonical)
-    written = target.read_bytes()
-    if written != canonical or not is_runtime_safe(written.decode("utf-8")):
-        print("ОШИБКА: post-write verification failed.")
-        return 2
-    action = "обновлён previous canonical patch" if state == "legacy-canonical" else "применён patch к stock"
-    print(f"{action} -> {target}")
-    print(f"sha: {short(written)}")
-    print("verdict: RUNTIME-SAFE")
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

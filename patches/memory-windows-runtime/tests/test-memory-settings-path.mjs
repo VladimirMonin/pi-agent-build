@@ -23,11 +23,14 @@ if (settingsStart < 0 || settingsEnd < 0) throw new Error("profile settings assi
 const settingsAssignment = src.slice(settingsStart, settingsEnd);
 const mergeSource = extractFunction("mergeMemorySettings");
 const readSource = extractFunction("readSettingsConfig");
+const parseSource = extractFunction("parseEmbeddingSettings");
+const embeddingConstants = src.slice(src.indexOf('var EMBEDDER_TYPES ='), src.indexOf('function parseEmbeddingSettings('));
 const taskDir = mkdtempSync(join(tmpdir(), "pi-memory-task-settings-"));
 const prior = process.env.PI_CODING_AGENT_DIR;
 try {
   writeFileSync(join(taskDir, "settings.json"), JSON.stringify({
-    memory: { consolidationModel: "task-only/model",
+    memory: { consolidationModel: "task-only/model", injectionMode: "context-hook",
+      embedding: {type: "openai-compatible", model: "synthetic", dimensions: 3, baseUrl: "http://127.0.0.1:1", apiKey: "synthetic"},
       factProjectAliases: [{ path: "/example/worktrees", scope: "example", includeChildren: true }] },
   }));
   const projectDir = join(taskDir, "project");
@@ -38,6 +41,9 @@ try {
   process.env.PI_CODING_AGENT_DIR = taskDir;
   const result = new Function("join", "homedir", "readFileSync", "projectDir", `
     ${settingsAssignment}
+    const warnUnknownKeys = () => {};
+    ${embeddingConstants}
+    ${parseSource}
     ${mergeSource}
     ${readSource}
     return { path: GLOBAL_SETTINGS_PATH, config: readSettingsConfig(projectDir) };
@@ -47,7 +53,7 @@ try {
   }
   if (result.config.consolidationModel !== "task-only/model" ||
       result.config.factProjectAliases?.[0]?.scope !== "example" ||
-      result.config.lessonInjection !== "selective") {
+      result.config.lessonInjection !== "selective" || result.config.embedding?.dimensions !== 3 || result.config.injectionMode !== "context-hook") {
     throw new Error(`Task-only memory settings and private aliases were not loaded: ${JSON.stringify(result.config)}`);
   }
   if (!src.includes('var DEFAULT_MEMORY_DIR = join(homedir(), ".pi", "memory");')) {
