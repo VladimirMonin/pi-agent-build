@@ -46,7 +46,7 @@ POSIX-набор повторяет PowerShell-набор по контракт�
 
 `manifests/runtime.lock.json` закрепляет Windows-версии Node `25.8.1`, npm `11.11.0` и Git `2.54.0.windows.1`. На macOS/Linux эти точные версии обычно недоступны, поэтому `verify.sh` сообщает о расхождении как **WARN**, а не FAIL. Жёсткие требования остаются:
 
-- Node `>= 24.0.0` (требование `pi-session-search 1.4.3`);
+- Node `>= 24.0.0` (требование `pi-session-search 1.6.0`);
 - Python `>= 3.8` для patchers и Trace renderer;
 - Python-пакет `jsonschema` для schema validation в `verify.sh`.
 

@@ -58,7 +58,7 @@ patches/            version-guarded исправления, tests и upstream no
 skills/             собственные переносимые Pi-навыки
 docs/components/    документация 15 установленных Pi-пакетов
 docs/notes/         заметки о поведении upstream-компонентов и его причинах
-scripts/            install, launcher install, patch orchestration, verify, safety scan, memory embedder warm-up
+scripts/            install, launcher install, patch orchestration, verify, safety scan
 instructions/       постоянные правила сопровождения репозитория
 ```
 
