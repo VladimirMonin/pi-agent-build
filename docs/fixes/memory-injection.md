@@ -34,7 +34,7 @@
 
 > **Title:** Project fact scope filter is bypassed by embedding hits and domain expansion
 >
-> **Version:** `@samfp/pi-memory@1.5.0`.
+> **Historical report version:** `@samfp/pi-memory@1.5.0`; current patch target1.6.0.
 > **Expected:** when the current project is `alpha`, no `project.beta.*` fact is injected.
 > **Actual:** `buildSelectiveBlock` filters FTS results by `parts[1] === slug`, but appends embedding hits and domain siblings *after* that filter without the same check. An embedding hit for `project.beta.one` can bring in `project.beta.two` as well.
 > **Suggested fix:** enforce project scope for every candidate before adding it, including embeddings and sibling expansion. Add a synthetic regression test for a nonmatching project.

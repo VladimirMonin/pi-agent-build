@@ -34,7 +34,7 @@ pi-task [аргументы Pi]
 
 - `~/.agents/skills/`, пользовательский `AGENTS.md`, общие MCP-файлы и project-local `.pi/*` видны обоим профилям;
 - `@samfp/pi-memory` по умолчанию использует общую БД `~/.pi/memory/memory.db`;
-- stock pi-memory `1.5.0` читает user-global memory config только из `~/.pi/agent/settings.json`; patch `memory-windows-runtime` заменяет это на `<PI_CODING_AGENT_DIR>/settings.json`, поэтому Code и Task получают независимые global memory settings, но по-прежнему делят БД по умолчанию;
+- stock pi-memory `1.6.0` читает user-global memory config только из `~/.pi/agent/settings.json`; patch `memory-windows-runtime` заменяет это на `<PI_CODING_AGENT_DIR>/settings.json`, поэтому Code и Task получают независимые global memory settings, но по-прежнему делят БД по умолчанию;
 - исходный `pi-session-search 1.4.3` жёстко ориентирован на Code; Task требует [profile patch](fixes/session-search.md);
 - внешние binaries (`serena`, `ast-grep.exe`, `codebase-memory-mcp.exe`) устанавливаются на уровне пользователя;
 - текущий проект, его инструкции и файлы не изолируются выбором профиля.

@@ -1,4 +1,10 @@
-# Core SDK smoke
+# SDK checks
+
+## Memory1.6 native mock
+
+`node tests/sdk/memory-smoke.mjs <SDK_ROOT> <SYNTHETIC_ROOT> code|task` uses the real installed Pi SDK and an exact Memory1.6 package in synthetic `code`/`task` profiles. All fixture writes stay outside Git; working profiles are rejected. It tests automatic provider/RRF recall, scoped aliases, ephemeral tool continuation and history/consolidation exclusion, ordered turns, real session ID and a Windows Node child with a synthetic CLI. No paid model/provider requests. Real Polza evidence is separate in [build.6](../../docs/releases/pi-1.0.4-build.6.md).
+
+## Core SDK smoke
 
 Minimal local mock for the exact version in `manifests/runtime.lock.json`. Use an explicit installed SDK path and a **fresh synthetic output directory outside Git**:
 
