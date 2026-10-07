@@ -34,7 +34,7 @@
     },
     "npm:pi-session-search@1.6.0",
     "npm:@samfp/pi-memory@1.5.0",
-    "npm:pi-mcp-adapter@2.36.0"
+    "npm:pi-mcp-adapter@5.1.0"
   ],
   "memory": {
     "consolidationModel": "polza-memory/deepseek/deepseek-v4.1-flash"

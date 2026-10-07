@@ -47,6 +47,11 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.5]
+
+- MCP Adapter2.36.0 → **5.1.0** Both, единственный MCP owner; existing shared config и `-builtin:mcp` сохранены.
+- Actual installed native Code/Task: WVM/Context7/Fetch/Brave connect PASS; WVM schema-call PASS Both, Code Context7/Fetch/Brave calls PASS. WVM запущен `run_debug.bat` и закрыт после проверки. [Scope](docs/releases/pi-1.0.4-build.5.md).
+
 ## [pi-v1.0.4-build.4]
 
 - Session Search1.4.3 → **1.6.0** Both: новый exact patch, explicit roots через штатный workerData, Windows-safe reader containment, initial-sync timer cleanup. Worker bundle не патчится; index/config/model/fusion сохранены, forced reindex не требуется.

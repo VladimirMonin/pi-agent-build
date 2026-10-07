@@ -1,6 +1,6 @@
 # MCP
 
-## `pi-mcp-adapter` 2.36.0
+## `pi-mcp-adapter` 5.1.0
 
 ### Назначение
 
@@ -9,7 +9,7 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-mcp-adapter@2.36.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-mcp-adapter@5.1.0
 ```
 
 Peer metadata package старше Pi `0.87.0`, поэтому совместимость подтверждается реальным MCP tool call, а не только startup banner.
@@ -69,7 +69,9 @@ uv tool uninstall mcp-server-fetch
 
 ## Решение для кандидата Pi 0.99.1
 
-`pi-mcp-adapter@2.36.0` **сохранён**. Последняя WVM assessment выполнена после private source-only query corrections, source review и doc/diff/safety gates: configured parent gateway connect33tools и read-only public `settings_schema` version1 PASS. Предыдущие `fetch failed` и прежние schema receipts сохранены как история; source/managed approval не открывает controlled native runner gate. Ни success, ни availability failure parent gateway не являются transport diagnosis кандидата. **Legacy SSE и streamable HTTP в отдельных candidate-конфигурациях NOT TESTED**: отдельно идентифицированные endpoints/configs не испытаны, working configs/credentials не копировались. Надпись gateway «legacy notification path» сама по себе не устанавливает MCP transport; public schema-call не доказывает builtin parity.
+**Текущий build.5:** adapter5.1.0 — единственный MCP owner, `-builtin:mcp` сохранён Both. Native actual installed Code/Task подключили shared WVM/Context7/Fetch/Brave без config migration. WVM `settings_schema` PASS Both; Code Context7 resolve, Fetch example.com и один Brave search PASS. WVM запускался через `run_debug.bat` и после smoke закрыт, port7558 closed. Историческая assessment ниже относится к2.36.0 и не описывает текущий статус.
+
+`pi-mcp-adapter@2.36.0` ранее **сохранялся**. Последняя WVM assessment выполнена после private source-only query corrections, source review и doc/diff/safety gates: configured parent gateway connect33tools и read-only public `settings_schema` version1 PASS. Предыдущие `fetch failed` и прежние schema receipts сохранены как история; source/managed approval не открывает controlled native runner gate. Ни success, ни availability failure parent gateway не являются transport diagnosis кандидата. **Legacy SSE и streamable HTTP в отдельных candidate-конфигурациях NOT TESTED**: отдельно идентифицированные endpoints/configs не испытаны, working configs/credentials не копировались. Надпись gateway «legacy notification path» сама по себе не устанавливает MCP transport; public schema-call не доказывает builtin parity.
 
 Для замены должны быть доказаны: единственный `/mcp`, lazy discovery/schema exposure, proxy/direct tools и `mcpScript`, auth без экспорта credentials, ошибки/output guard и реальные требуемые WVM tools на обоих transports. Паритет builtin по этим функциям **NOT TESTED**, эксперимент не запускался; два владельца `/mcp` не добавлялись. Официальная [документация 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/mcp.md#configure-servers) описывает stdio/streamable HTTP, но не обещает legacy SSE. Это static contract, не наш runtime PASS.
 

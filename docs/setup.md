@@ -1,6 +1,6 @@
 # Установка сборки
 
-Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; [build.4](releases/pi-1.0.4-build.4.md) обновляет Session Search1.6.0 Both с profile/runtime patch и без forced reindex. [build.3](releases/pi-1.0.4-build.3.md) обновил Inspector1.3.0 и Code Serena wrapper0.9.20 (Agent1.7.0 неизменён). Предыдущий [build.2](releases/pi-1.0.4-build.2.md) обновил Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; [build.5](releases/pi-1.0.4-build.5.md) обновляет MCP Adapter5.1.0 Both; builtin:mcp остаётся выключен. [build.4](releases/pi-1.0.4-build.4.md) обновил Session Search1.6.0 Both с profile/runtime patch и без forced reindex. [build.3](releases/pi-1.0.4-build.3.md) обновил Inspector1.3.0 и Code Serena wrapper0.9.20 (Agent1.7.0 неизменён). Предыдущий [build.2](releases/pi-1.0.4-build.2.md) обновил Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
 
@@ -112,7 +112,7 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-session-search@1.6.0
   PI_CODING_AGENT_DIR="$profile" pi install npm:@samfp/pi-memory@1.5.0
-  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-mcp-adapter@2.36.0
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-mcp-adapter@5.1.0
 }
 
 install_common "$user_home/.pi/agent"

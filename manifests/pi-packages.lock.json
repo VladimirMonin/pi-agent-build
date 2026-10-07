@@ -73,10 +73,10 @@
         "patch": "memory-windows-runtime"
       },
       {
-        "source": "npm:pi-mcp-adapter@2.36.0",
+        "source": "npm:pi-mcp-adapter@5.1.0",
         "package": "pi-mcp-adapter",
-        "version": "2.36.0",
-        "compatibilityNote": "Upstream peer metadata predates Pi 0.87; verify with a real MCP tool call"
+        "version": "5.1.0",
+        "compatibilityNote": "Single MCP owner; builtin:mcp remains disabled. Verify required servers including WVM."
       }
     ],
     "codeOnly": [
