@@ -316,10 +316,10 @@ try {
         $profile = Join-Path $piRoot 'agent'
         New-Item -ItemType Directory -Path $profile -Force | Out-Null
         $settingsPath = Join-Path $profile 'settings.json'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.13.0","npm:pi-goal-x@0.31.9"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.16.1","npm:pi-goal-x@0.32.3"]}')
         $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($bad.Output -match 'installed settings must load pinned pi-goal-x before pi-intercom') 'reversed installed order was not rejected'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.31.9","npm:pi-intercom@0.13.0"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.32.3","npm:pi-intercom@0.16.1"]}')
         $good = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($good.Output -match 'PASS Code installed goal-x/intercom order') 'correct installed order was not accepted'
     }

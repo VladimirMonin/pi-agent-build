@@ -20,13 +20,13 @@ Pi остаётся **1.0.4**. Обновляем только:
 4. `scripts/verify.ps1 -RepositoryOnly`, `tests/scripts/run-tests.ps1`, safety scan и просмотр diff. Core-only smoke не повторяем: Pi не меняется. Если всё работает — один mini-release **`pi-v1.0.4-build.2`**, commit/push/tag/GitHub Release. Не расширяем support claims за пределы реально запущенного.
 5. Ставим эти же три exact npm-spec себе штатным package lifecycle с явным `PI_CODING_AGENT_DIR` для Code/Task; не используем полный installer, `update --all`, замену configs или миграцию памяти/auth. До первой живой работы нового Goal X один раз сохраняем копию текущего `.pi/goals` вне Git: новый scheduler после сохранения теряет `nextAction`. Это одна копия данных, не разработка rollback-системы. Проверяем наличие custom `brokerCommand` только если он задан. Полностью перезапускаем Pi и проверяем обычный запуск. Готово.
 
-Текущий статус: план уточнён одним read-only reviewer — OK with notes; этап A начат, пакеты пока не обновлены. Исследования владельца служат входом, недостающие детали проверяются только при необходимости конкретного изменения.
+Текущий статус: план уточнён одним read-only reviewer — OK with notes; кандидат этапа A установлен и проверен. Code/Task loading13/10 без ошибок/предупреждений/fetch; короткий synthetic wake/legacy-goal + два процесса Windows Intercom broker PASS; Windows regressions24/24, verifier0/0. Выпуск и живая установка — следующие шаги, по [release notes](../releases/pi-1.0.4-build.2.md). Исследования владельца служат входом, недостающие детали проверяются только при необходимости конкретного изменения.
 
 ## Следующие обновления — тот же алгоритм
 
 Владелец досылает исследования. Они не расширяют этап A автоматически.
 
-- **B — Serena 0.9.20:** небольшой exact rebase существующего tool-surface patch; Serena Agent/Python оставляем. Проверка доступных tools и отсутствия повторной мутации после timeout.
+- **B — Serena 0.9.20:** по исследованию владельца небольшой exact rebase: скрыть `serena_check_onboarding_performed` и `serena_find_implementations`, убрать упоминание `find_implementations` из `SERENA_FIRST_GUIDANCE`. Новый pristine для 0.9.20 и exact guidance patch; не расширять guard старых bytes. Serena Agent 1.7.0/Python/Pyright оставляем. Короткая приёмка: 20 stock → 18 visible tools, обе ложные capabilities отсутствуют, guidance их не предлагает, `serena_find_symbol` реально работает через Pyright. Не добавлять отдельный migration framework.
 - **C — Session Search 1.6.0:** использовать upstream возможности, оставить только необходимый профильный patch. Проверить Task/Code paths, worker и поиск. Ranking-настройки не менять попутно.
 - **D — Memory 1.6.0:** проверить оставшиеся необходимые исправления, выбрать embedding backend и проверить на synthetic DB. Перед живым переходом одна копия данных; это не основание строить инфраструктуру отката.
 - **E — MCP Adapter 5.1.0:** выбрать одного MCP owner, проверить нужные серверы включая WVM. Не держать два владельца одних серверов.

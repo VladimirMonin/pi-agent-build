@@ -1,6 +1,6 @@
 # Установка сборки
 
-Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; обновлён только core pin, версии плагинов не менялись. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; минирелиз [build.2](releases/pi-1.0.4-build.2.md) дополнительно обновляет только Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
 
@@ -106,9 +106,9 @@ install_common() {
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-context-inspector@1.1.1
   PI_CODING_AGENT_DIR="$profile" pi install npm:@juicesharp/rpiv-todo@2.12.0
   PI_CODING_AGENT_DIR="$profile" pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
-  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.76.0
-  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-goal-x@0.31.9
-  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.13.0
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-subagents@0.76.1
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-goal-x@0.32.3
+  PI_CODING_AGENT_DIR="$profile" pi install npm:pi-intercom@0.16.1
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-background-tasks@2.6.2
   PI_CODING_AGENT_DIR="$profile" pi install npm:pi-session-search@1.4.3
   PI_CODING_AGENT_DIR="$profile" pi install npm:@samfp/pi-memory@1.5.0

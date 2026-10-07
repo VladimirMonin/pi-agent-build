@@ -37,20 +37,20 @@
         "releaseTag": "v0.2.1"
       },
       {
-        "source": "npm:pi-subagents@0.76.0",
+        "source": "npm:pi-subagents@0.76.1",
         "package": "pi-subagents",
-        "version": "0.76.0"
+        "version": "0.76.1"
       },
       {
-        "source": "npm:pi-goal-x@0.31.9",
+        "source": "npm:pi-goal-x@0.32.3",
         "package": "pi-goal-x",
-        "version": "0.31.9",
-        "compatibilityNote": "Peer range @earendil-works/pi-* >=0.83.0 <0.88.0; re-verify after any Pi upgrade. Must load before pi-intercom: intercom-first ordering makes Pi's turn_end boundary fail to resolve the persisted assistant entry ID in headless runs."
+        "version": "0.32.3",
+        "compatibilityNote": "Peer range @earendil-works/pi-* >=0.83.0 <2.0.0; re-verify after any Pi upgrade. Must load before pi-intercom: intercom-first ordering makes Pi's turn_end boundary fail to resolve the persisted assistant entry ID in headless runs."
       },
       {
-        "source": "npm:pi-intercom@0.13.0",
+        "source": "npm:pi-intercom@0.16.1",
         "package": "pi-intercom",
-        "version": "0.13.0"
+        "version": "0.16.1"
       },
       {
         "source": "npm:pi-background-tasks@2.6.2",

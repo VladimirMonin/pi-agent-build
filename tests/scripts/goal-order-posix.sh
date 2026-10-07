@@ -29,10 +29,10 @@ fi
 grep -q 'manifest must load pi-goal-x before pi-intercom' "$tmp/reversed.log"
 
 mkdir -p "$tmp/pi/agent"
-printf '%s\n' '{"packages":["npm:pi-intercom@0.13.0","npm:pi-goal-x@0.31.9"]}' >"$tmp/pi/agent/settings.json"
+printf '%s\n' '{"packages":["npm:pi-intercom@0.16.1","npm:pi-goal-x@0.32.3"]}' >"$tmp/pi/agent/settings.json"
 "$repo/scripts/verify.sh" --profile Code --pi-root "$tmp/pi" --skip-patch-checks --skip-external-checks >"$tmp/bad.log" 2>&1 || true
 grep -q 'installed settings must load pinned pi-goal-x before pi-intercom' "$tmp/bad.log"
-printf '%s\n' '{"packages":["npm:pi-goal-x@0.31.9","npm:pi-intercom@0.13.0"]}' >"$tmp/pi/agent/settings.json"
+printf '%s\n' '{"packages":["npm:pi-goal-x@0.32.3","npm:pi-intercom@0.16.1"]}' >"$tmp/pi/agent/settings.json"
 "$repo/scripts/verify.sh" --profile Code --pi-root "$tmp/pi" --skip-patch-checks --skip-external-checks >"$tmp/good.log" 2>&1 || true
 grep -q 'PASS Code installed goal-x/intercom order' "$tmp/good.log"
 echo 'PASS POSIX goal-x/intercom order regression'

@@ -47,7 +47,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 
 Удалите optional config отдельно. Исторические todo tool calls останутся в session files.
 
-## `pi-goal-x` 0.31.9
+## `pi-goal-x` 0.32.3
 
 ### Назначение
 
@@ -57,7 +57,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 
 ```bash
 PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install npm:pi-goal-x@0.31.9
+  pi install npm:pi-goal-x@0.32.3
 ```
 
 ### Конфигурация и данные
@@ -76,7 +76,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 ### Риски
 
 - **порядок загрузки:** `pi-goal-x` должен грузиться раньше `pi-intercom` (так закреплено в манифесте и шаблонах). При обратном порядке в headless-режиме (`pi -p`) `turn_end` печатает ошибки boundary и stale ctx; на работу цели это не влияет, но засоряет stderr. Подробности — [notes/goal-x-intercom-order.md](../notes/goal-x-intercom-order.md);
-- peer range `@earendil-works/pi-* >=0.83.0 <0.88.0`: при апгрейде Pi за пределы диапазона пакет перестанет соответствовать заявленной совместимости;
+- peer range `@earendil-works/pi-* >=0.83.0 <2.0.0`: при апгрейде Pi за пределы диапазона пакет перестанет соответствовать заявленной совместимости;
 - автономное продолжение расходует токены; текущий владелец сознательно выбрал unlimited. Агент не меняет Goal X settings без явного запроса и никогда не ставит `maxAutonomousRuns:0`; технический blocker передаётся Oracle через `blocked`, не `paused`;
 - auditor по умолчанию изолирован от project resources (`auditorProjectResources: false`); включение расширяет его поверхность;
 - состояние пишется в рабочий каталог (`.pi/goals/`), поэтому попадает под project-local файлы и не должно коммититься;

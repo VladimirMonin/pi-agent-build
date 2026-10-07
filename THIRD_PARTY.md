@@ -23,13 +23,13 @@
 | 3 | `pi-context-inspector` | 1.1.1 | MIT | <https://github.com/yuriteixeira/pi-context-inspector> |
 | 4 | `@juicesharp/rpiv-todo` | 2.10.1 | MIT | <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo> |
 | 5 | `pi-polza` | 0.2.1 | MIT | <https://github.com/VladimirMonin/pi-polza> |
-| 6 | `pi-subagents` | 0.70.1 | MIT | <https://github.com/nicobailon/pi-subagents> |
-| 7 | `pi-intercom` | 0.13.0 | MIT | <https://www.npmjs.com/package/pi-intercom/v/0.13.0> |
+| 6 | `pi-subagents` | 0.76.1 | MIT | <https://github.com/nicobailon/pi-subagents> |
+| 7 | `pi-intercom` | 0.16.1 | MIT | <https://www.npmjs.com/package/pi-intercom/v/0.16.1> |
 | 8 | `pi-background-tasks` | 2.6.2 | ISC | <https://github.com/ismailsaleekh/pi-background-tasks> |
 | 9 | `pi-session-search` | 1.4.3 | MIT | <https://github.com/samfoy/pi-session-search> |
 | 10 | `@samfp/pi-memory` | 1.5.0 | MIT | <https://github.com/samfoy/pi-memory> |
 | 11 | `pi-mcp-adapter` | 2.36.0 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
-| 12 | `pi-goal-x` | 0.31.9 | MIT | <https://github.com/tmonk/pi-goal-x> |
+| 12 | `pi-goal-x` | 0.32.3 | MIT | <https://github.com/tmonk/pi-goal-x> |
 | 13 | `@nicknisi/pi-ast-grep` | 0.2.0 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
 | 14 | `@bacnh85/pi-serena` | 0.9.16 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
 | 15 | `pi-cbm` | 1.2.1 | MIT | <https://github.com/alexykn/pi-cbm> |

@@ -20,7 +20,7 @@
 | `oracle.projectResources` | `true` |
 | `oracle.maxFailedAttemptsPerBlocker` | `2` |
 
-В закреплённой **Goal X 0.31.9** строка autonomous runs уже выводится диагностикой; отдельного поддерживаемого JSON-переключателя `showAutonomousRuns` нет. Не добавляйте неизвестный ключ. Auditor project resources остаются default-off: независимая проверка не наследует исполняемые extensions проекта. Oracle получает project resources по явному запросу владельца.
+В закреплённой **Goal X 0.32.3** строка autonomous runs скрывается при unlimited; появился `showAutonomousRuns`, но пресет не меняется. Recovery дополнительно распознаёт `PROTOCOL_ERROR` и `finish_reason: error`; quota/billing не повторяются. Старые goals читаются, но после сохранения scheduler больше не содержит `nextAction`: перед первой живой работой новой версии сохраните одну копию `.pi/goals` вне Git. Auditor project resources остаются default-off: независимая проверка не наследует исполняемые extensions проекта. Oracle получает project resources по явному запросу владельца.
 
 Модель выбрана из доступного registry текущей Windows-сессии. Для её вызовов нужен собственный вход в `openai-codex`; сборка не поставляет и не переносит auth. На другой машине модель/провайдер выбираются явно в `/goal-settings`, с сохранением `high` и остальных правил пресета.
 

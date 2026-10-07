@@ -1,6 +1,6 @@
 # Подагенты и координация
 
-## `pi-subagents` 0.76.0
+## `pi-subagents` 0.76.1
 
 ### Назначение
 
@@ -9,7 +9,7 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.76.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.76.1
 ```
 
 ### Конфигурация и данные
@@ -39,7 +39,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-subagents
 
 До удаления остановите active runs. Runtime artifacts/sessions остаются и чистятся отдельно после аудита.
 
-## `pi-intercom` 0.13.0
+## `pi-intercom` 0.16.1
 
 ### Назначение
 
@@ -48,7 +48,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-subagents
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-intercom@0.13.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-intercom@0.16.1
 ```
 
 ### Конфигурация и данные

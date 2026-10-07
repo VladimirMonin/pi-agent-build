@@ -47,6 +47,13 @@
 - Локальные package patches нужно повторно проверять и применять после reinstall/update.
 - Закреплённые top-level versions не фиксируют transitive dependency tree; release bundle требует отдельного lock/hash/SBOM шага.
 
+## [pi-v1.0.4-build.2]
+
+### Изменено
+
+- Только три пакета: Subagents **0.76.1**, Goal X **0.32.3**, Intercom **0.16.1**; Pi остаётся **1.0.4**. Goal X preset, картинки, Trace/MCP filters и остальные версии сохранены.
+- Both candidate loading — 13/10 extensions, 0 errors/warnings/fetch; synthetic completion wake, два процесса Intercom через настоящий Windows broker и старый synthetic Goal с `nextAction` → complete — PASS. Windows script regressions 24/24; repository verifier 0/0. [Проверки и короткая установка](docs/releases/pi-1.0.4-build.2.md).
+
 ## [pi-v1.0.4-build.1]
 
 ### Изменено
