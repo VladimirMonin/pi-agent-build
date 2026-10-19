@@ -1,6 +1,6 @@
 # MCP
 
-## `pi-mcp-adapter` 5.1.0
+## `pi-mcp-adapter` 5.3.2
 
 ### Назначение
 
@@ -9,10 +9,18 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-mcp-adapter@5.1.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-mcp-adapter@5.3.2
 ```
 
-Peer metadata package старше Pi `0.87.0`, поэтому совместимость подтверждается реальным MCP tool call, а не только startup banner.
+Pin принятой сборки Pi 1.3.0 — 5.3.2; прежний рабочий build.5/6 использует 5.1.0 и здесь не переключается. Совместимость подтверждается scoped actual MCP tool calls, а не только peer metadata или startup banner.
+
+### Почему Adapter остаётся владельцем
+
+Pi 1.3.0 не предоставляет эквивалентный legacy SSE fallback; SSE внутри streamable HTTP не заменяет legacy SSE transport. Поэтому сохраняются единственный `/mcp`, `-builtin:mcp` в обоих профилях, `settings.scriptMode:false` в MCP template, existing shared configuration и direct-tool selection. Не включать builtin ради нового core и не переносить credentials/config автоматически.
+
+В 5.3.2 межхостовые redirects отвергаются: используйте конечный URL сервера. На Windows `!command` при доступном Git Bash исполняется через него, поэтому синтаксис проверяется без вывода значений секретов. Старые OAuth credentials без issuer могут потребовать отдельной повторной авторизации; не назначайте issuer из недоверенной discovery и не экспортируйте keyring. Обновление SDK само по себе не доказывает безопасность всех старых credentials.
+
+На actual installed Adapter5.3.2/coherent Pi1.3.0 в synthetic Code/Task проверены connect/discovery/search → describe с constraints → read-only proxy/direct calls. Выбранный tool доступен напрямую, другой остаётся proxy-only; scripting off. Exclusive fixture использует adapter-owned `mcp-adapter.json` (актуальный exclusive contract), не мигрирует working/shared MCP files. Server-only checks не заменяют этот runtime case; [команда и scope](../../tests/sdk/README.md). Последним техническим шагом independent reviewer проверил already-running WVM: Code-installed Adapter с explicit `httpTransport:"sse"`, Task-installed Adapter с explicit `httpTransport:"streamable-http"`; на обоих initialize/tools-list и discovered read-only `settings_schema` PASS. Это два owned SDK cases, не gateway и не полная матрица profile × transport; full-profile loading проверен отдельно. Schema bounded в памяти, HTTP resources probe освобождены после SDK shutdown; default output sizing/самостоятельный HTTP teardown и model/provider readiness не заявляются. Ни settings get/plan/apply/preview, ни запуск/остановка WVM не выполнялись. [Proof и limits](../releases/pi-1.3.0-build.1.md).
 
 ### Опциональные server executables
 

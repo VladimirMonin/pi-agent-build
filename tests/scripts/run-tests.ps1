@@ -303,9 +303,24 @@ try {
         $manifestPath = Join-Path $fixture 'manifests\pi-packages.lock.json'
         $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         $common = @($manifest.profiles.common)
+        $subagents = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-subagents' })
         $goal = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-goal-x' })
         $intercom = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-intercom' })
-        Assert-True ($goal -ge 0 -and $intercom -gt $goal) 'fixture order changed unexpectedly'
+        Assert-True ($subagents -ge 0 -and $goal -gt $subagents -and $intercom -gt $goal) 'Subagents -> Goal X -> Intercom order changed'
+        foreach ($pin in @('npm:pi-subagents@0.79.1', 'npm:pi-goal-x@0.32.3', 'npm:pi-intercom@0.17.1', 'npm:pi-mcp-adapter@5.3.2')) {
+            Assert-Equal 1 @($common | Where-Object { $_.source -eq $pin }).Count "exact candidate pin missing: $pin"
+        }
+        foreach ($name in @('code', 'task')) {
+            $template = Get-Content -LiteralPath (Join-Path $RepoRoot "profiles\$name\settings.template.json") -Raw | ConvertFrom-Json
+            $sources = @($template.packages | ForEach-Object { if ($_ -is [string]) { $_ } else { $_.source } })
+            foreach ($entry in $common) { Assert-True ($sources -contains $entry.source) "$name lost manifest pin $($entry.source)" }
+            Assert-True ([array]::IndexOf($sources, $common[$subagents].source) -lt [array]::IndexOf($sources, $common[$goal].source)) "$name subagents/goal order"
+            Assert-True ([array]::IndexOf($sources, $common[$goal].source) -lt [array]::IndexOf($sources, $common[$intercom].source)) "$name goal/intercom order"
+            Assert-True (@($template.extensions) -contains '-builtin:mcp') "$name enabled a second MCP owner"
+            Assert-True (@($template.extensions) -notcontains '+builtin:mcp') "$name overrides the MCP owner exclusion"
+        }
+        $mcp = Get-Content -LiteralPath (Join-Path $RepoRoot 'config\mcp.example.json') -Raw | ConvertFrom-Json
+        Assert-Equal $false $mcp.settings.scriptMode 'MCP scripting must remain disabled'
         $temp = $common[$goal]; $common[$goal] = $common[$intercom]; $common[$intercom] = $temp
         $manifest.profiles.common = $common
         [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 100))
@@ -316,10 +331,10 @@ try {
         $profile = Join-Path $piRoot 'agent'
         New-Item -ItemType Directory -Path $profile -Force | Out-Null
         $settingsPath = Join-Path $profile 'settings.json'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.16.1","npm:pi-goal-x@0.32.3"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.17.1","npm:pi-goal-x@0.32.3"]}')
         $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($bad.Output -match 'installed settings must load pinned pi-goal-x before pi-intercom') 'reversed installed order was not rejected'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.32.3","npm:pi-intercom@0.16.1"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.32.3","npm:pi-intercom@0.17.1"]}')
         $good = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($good.Output -match 'PASS Code installed goal-x/intercom order') 'correct installed order was not accepted'
     }
@@ -631,13 +646,13 @@ try {
         $pkg = Join-Path $agent 'npm\node_modules\@samfp\pi-memory'
         $dist = Join-Path $pkg 'dist\index.js'
         New-Item -ItemType Directory -Path (Split-Path $dist -Parent) -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.0"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.1"}')
         Copy-Item -LiteralPath (Join-Path $RepoRoot 'patches\memory-windows-runtime\stock-index.js') -Destination $dist
         $patcher = Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.1"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.2"}')
         $wrongVersion = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 2 $wrongVersion.ExitCode 'memory patch must reject a newer package version despite identical dist bytes'
-        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.0"}')
+        [IO.File]::WriteAllText((Join-Path $pkg 'package.json'), '{"name":"@samfp/pi-memory","version":"1.6.1"}')
 
         $stock = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent, '--check')
         Assert-Equal 1 $stock.ExitCode 'stock memory check must mean needs apply'

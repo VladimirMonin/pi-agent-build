@@ -1,6 +1,6 @@
-# pi-memory 1.6.0: runtime и автоматический scoped recall
+# pi-memory 1.6.1: runtime, lifecycle и автоматический scoped recall
 
-Поддерживается только `@samfp/pi-memory@1.6.0`, exact pristine SHA-256 и canonical output. Неизвестные версии, mixed/marker-shaped изменения не перезаписываются.
+Поддерживается только `@samfp/pi-memory@1.6.1`, pristine SHA-256 `9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f` и canonical output. Неизвестные версии, mixed/marker-shaped изменения не перезаписываются.
 
 ## Что меняет patch
 
@@ -11,7 +11,11 @@
 - Facts/lessons scope, приватные `memory.factProjectAliases`, section quotas и бюджет 8000 символов из целых записей.
 - Automatic injection вызывает upstream `searchMemory`: configurable embedder, hybrid/RRF, diagnostics и dimension-aware backfill. Stock1.6 automatic injection использует только FTS; patch возвращает vector recall.
 
-Upstream ephemeral `context` hook сохранён: память доступна в tool continuation, но не добавляется в system prompt, session history или consolidation transcript. Старый Xenova backend и его timeout patch удалены.
+Upstream ephemeral `context` hook сохранён: память доступна в tool continuation, но не добавляется в system prompt, session history или consolidation transcript.
+
+Для Pi user/custom lifecycle block сбрасывается **в начале каждого нового run**, до проверки store/settings/prompt и до поиска; также сбрасывается на session start/before-switch. Только непустой `messageType:user` запускает свежий recall. Custom, пустой prompt и ошибка поиска не наследуют предыдущий block; `systemPrompt` не используется как search query. Внутри одного user-run block сохраняется между context/tool продолжениями. В служебных Goal/Intercom продолжениях при необходимости вызывайте явный `memory_search`. Это политика сборки, не универсальное требование SDK.
+
+Upstream1.6.1 добавляет диагностику AWS credential_process; внешние embeddings уже были доступны в1.6.0. Rebase не меняет provider/model/dimensions и не разрешает backfill/reindex рабочих данных. Старый Xenova backend и его timeout patch удалены.
 
 ## Применение
 
@@ -21,7 +25,7 @@ python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>"
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --restore
 ```
 
-Без `--check`/`--restore` выполняется apply. Exit: `0` canonical; `1` pristine требует apply; `2` неизвестное состояние/ошибка. Backup bundle создаётся внутри выбранного профиля; restore возвращает byte-exact stock1.6, **не откатывает SQLite или настройки**.
+Без `--check`/`--restore` выполняется apply. Exit: `0` canonical; `1` pristine требует apply; `2` неизвестное состояние/ошибка. Backup bundle создаётся внутри выбранного профиля; restore возвращает byte-exact stock1.6.1, **не откатывает SQLite или настройки**.
 
 ## Backend и данные
 
@@ -36,8 +40,8 @@ Structural: `test-memory-{pushturn,pairing,embedder,sessionid,injection,settings
 Native SDK с synthetic SQLite и local mock embedder (без платной LLM):
 
 ```text
-node tests/sdk/memory-smoke.mjs <sdk-root> <synthetic-root> code
-node tests/sdk/memory-smoke.mjs <sdk-root> <synthetic-root> task
+node tests/sdk/memory-smoke.mjs <sdk-root> <fresh-synthetic-root> code <synthetic-code-profile>
+node tests/sdk/memory-smoke.mjs <sdk-root> <fresh-synthetic-root> task <synthetic-task-profile>
 ```
 
-Synthetic root должен содержать собственные `code`/`task` профили с установленным package. Рабочие профили не fixtures. Native smoke проверяет automatic recall, aliases/scope, ephemeral hook, ordered consolidation и настоящий Windows Node child со synthetic CLI, не DeepSeek provider. Real Polza Russian paraphrase canary описан в [build.6](../../docs/releases/pi-1.0.4-build.6.md).
+Четвёртый аргумент задаёт уже установленный synthetic profile; без него fixture использует `<root>/code|task`. Windows fixture до imports/settings I/O проверяет фактический profile/case и ancestors существующими private-root/Git/reparse guards. Девять sacrificial controls отказывают без product imports/settings access; independent valid Code/Task runs восстановили settings byte-exact. Это не OS sandbox и не native POSIX proof. Runtime case directory должен быть fresh. Native sequence проверяет user recall → тот же block в tool continuation → custom без поиска/block → пустой prompt и реальный SQLite search failure без старого block → свежий user recall → session-switch reset. Рабочие профили не fixtures. Native smoke проверяет automatic recall, aliases/scope, ephemeral hook, ordered consolidation и настоящий Windows Node child со synthetic CLI, не DeepSeek provider. Real Polza Russian paraphrase canary описан в [build.6](../../docs/releases/pi-1.0.4-build.6.md).

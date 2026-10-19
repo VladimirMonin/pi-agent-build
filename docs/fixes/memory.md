@@ -1,10 +1,16 @@
 # Memory1.6: runtime, scope и automatic vector recall
 
-Exact `@samfp/pi-memory@1.6.0` поддерживается единым [patcher](../../patches/memory-windows-runtime/README.md).
+Exact `@samfp/pi-memory@1.6.1` поддерживается единым [patcher](../../patches/memory-windows-runtime/README.md).
 
 Сохраняются четыре runtime fixes: Windows Node/настоящий CLI выбранного npm prefix, session-local ordered turns, profile settings из `PI_CODING_AGENT_DIR`, session ID из `sessionManager.getSessionId()`. Последний привязывает lessons к сессии; source facts upstream остаётся `consolidation`.
 
 [Scope/aliases/целые записи](memory-injection.md) перенесены на1.6. Automatic injection использует upstream hybrid/RRF search с configurable embedder, а не stock FTS-only injector. Ephemeral context hook остаётся upstream: повторная инъекция при tool continuation, без записи в system prompt/history/consolidation. `injectionMode`, `embedding`, profile aliases и остальные настройки сохраняются.
+
+## User/custom lifecycle
+
+В начале нового run patch очищает pending recall до любых early returns или поиска. Непустой user prompt получает новый block; custom/пустой prompt/error не наследуют прежний и не ищут по system prompt. Внутри одного user-run context/tool continuation сохраняет block. Session start/before-switch тоже сбрасывают его. Для explicit recall в служебных Goal/Intercom продолжениях доступен `memory_search`.
+
+Fresh Pi1.3.0 SDK + patched Memory1.6.1: synthetic Code/Task проверили эту последовательность, включая реальную ошибку поиска в принадлежащей fixture SQLite, и прежние Windows/profile/session-ID/scope/ordered-turns contracts. Это local mock evidence, не новый paid canary. Модели и рабочие данные не менялись.
 
 ## Модели и данные
 

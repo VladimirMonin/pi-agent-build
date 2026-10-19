@@ -4,7 +4,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
 // Core-only local mock. No extension discovery, real credentials or provider calls.
-const [sdkRoot, dataDir] = process.argv.slice(2);
+const [sdkRoot, dataDir, coordinationProfile, qualification = 'coordination'] = process.argv.slice(2);
 assert(sdkRoot && dataDir, 'Explicit SDK path and fresh synthetic data directory required');
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const outputRelative = path.relative(repoRoot, path.resolve(dataDir));
@@ -13,7 +13,35 @@ const target = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifests/runtime
 const manifest = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'package.json'), 'utf8'));
 assert.equal(manifest.name, '@earendil-works/pi-coding-agent');
 assert.equal(manifest.version, target);
-const aiDir = path.join(sdkRoot, 'node_modules/@earendil-works/pi-ai');
+// Check every internal dependency edge, including agent-core -> AI -> telemetry.
+// Top-level CLI version alone did not catch the former 1.0.4/caret mixed graph.
+const dependencyGraph = [];
+const pending = [path.resolve(sdkRoot)], visited = new Set();
+function locatePackage(from, name) {
+  for (let cursor = from; ; cursor = path.dirname(cursor)) {
+    const candidate = path.join(cursor, 'node_modules', name, 'package.json');
+    if (fs.existsSync(candidate)) return path.dirname(candidate);
+    if (path.dirname(cursor) === cursor) throw Error(`Missing installed internal dependency ${name} from ${from}`);
+  }
+}
+assert(!manifest.dependencies['@earendil-works/chord'], 'New core must not depend on chord');
+while (pending.length) {
+  const root = fs.realpathSync(pending.shift());
+  if (visited.has(root)) continue;
+  visited.add(root);
+  const metadata = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(metadata.version, target, `Mixed internal graph: ${metadata.name}`);
+  dependencyGraph.push({ name: metadata.name, version: metadata.version, root });
+  for (const [name, spec] of Object.entries(metadata.dependencies ?? {})) {
+    if (!name.startsWith('@earendil-works/')) continue;
+    assert.equal(spec, target, `Internal dependency must be exact: ${metadata.name} -> ${name}`);
+    pending.push(locatePackage(root, name));
+  }
+}
+for (const name of ['pi-agent-core', 'pi-ai', 'pi-codemode', 'pi-mcp', 'pi-tui', 'pi-telemetry']) {
+  assert(dependencyGraph.some(entry => entry.name === '@earendil-works/' + name), `Unverified graph node ${name}`);
+}
+const aiDir = locatePackage(path.resolve(sdkRoot), '@earendil-works/pi-ai');
 const aiManifest = JSON.parse(fs.readFileSync(path.join(aiDir, 'package.json'), 'utf8'));
 assert.equal(aiManifest.name, '@earendil-works/pi-ai');
 assert.equal(aiManifest.version, target);
@@ -24,7 +52,7 @@ const originalFetch = globalThis.fetch;
 globalThis.fetch = () => { networkAttempts++; throw Error('Network forbidden in local mock'); };
 const calls = [], events = [];
 const report = { scope: 'CORE_SDK_LOCAL_MOCK_NOT_PLUGIN_OR_RELEASE_ACCEPTANCE', piVersion: manifest.version,
-  aiVersion: aiManifest.version, sdkRoot, aiEntry, pid: process.pid, ppid: process.ppid,
+  aiVersion: aiManifest.version, dependencyGraph, sdkRoot, aiEntry, pid: process.pid, ppid: process.ppid,
   execPath: process.execPath, cwd: process.cwd(), calls, events, status: 'STARTED' };
 let session, unsubscribe, runtime;
 try {
@@ -70,6 +98,28 @@ try {
   assert.equal(session.getLastAssistantText(), 'SDK_SMOKE_OK');
   assert.equal(calls.length, 1); assert.equal(networkAttempts, 0);
   assert(events.includes('agent_settled'));
+  if (coordinationProfile) {
+    if (qualification === 'goal') {
+      const { runGoal } = await import('./fixtures/goal.mjs');
+      report.goal = await runGoal(sdk, ai, sdkRoot, coordinationProfile, path.join(dataDir, 'goal'));
+    } else if (qualification === 'ownership') {
+      const { runOwnershipProbe } = await import('./fixtures/coordination.mjs');
+      report.ownership = await runOwnershipProbe(sdk, ai, sdkRoot, coordinationProfile, path.join(dataDir, 'ownership'), process.argv[6], process.argv[7]);
+    } else if (qualification === 'cli') {
+      const { runCli } = await import('./fixtures/cli.mjs');
+      report.cli = await runCli(sdkRoot, path.join(dataDir, 'cli'));
+    } else if (qualification === 'profiles') {
+      const { runProfiles } = await import('./fixtures/profiles.mjs');
+      report.profiles = await runProfiles(sdk, ai, coordinationProfile, path.join(dataDir, 'profiles'));
+    } else if (qualification === 'polza') {
+      const { runPolza } = await import('./fixtures/polza.mjs');
+      report.polza = await runPolza(sdkRoot, coordinationProfile, path.join(dataDir, 'polza'));
+    } else {
+      assert.equal(qualification, 'coordination');
+      const { runCoordination } = await import('./fixtures/coordination.mjs');
+      report.coordination = await runCoordination(sdk, ai, sdkRoot, coordinationProfile, path.join(dataDir, 'coordination'));
+    }
+  }
   report.status = 'PASS';
 } catch (error) { report.status = 'FAIL'; report.error = String(error.stack || error); throw error; }
 finally {

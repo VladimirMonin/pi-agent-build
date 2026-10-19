@@ -14,9 +14,9 @@ sys.dont_write_bytecode = True
 HERE = pathlib.Path(__file__).resolve().parent
 if str(HERE) not in sys.path: sys.path.insert(0, str(HERE))
 from injection import apply_injection, is_injection_safe
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 BACKUP = HERE / "stock-index.js"
-EXPECTED_STOCK_SHA256 = "3a7f5709239f005d54136c451c9e4a86aa27056449fcc79d1aebed14b628cb47"
+EXPECTED_STOCK_SHA256 = "9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f"
 
 
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
@@ -229,6 +229,17 @@ CANONICAL_REPLACEMENTS = [
     (P2_PAIRS_FROM, P2_PAIRS_TO),
     (P2_INPUT_FROM, P2_INPUT_TO),
     (SESSIONID_FROM, SESSIONID_TO),
+    ('  pi.on("session_start", async (_event, ctx) => {\n    try {',
+     '  pi.on("session_start", async (_event, ctx) => {\n    pendingContextBlock = null;\n    try {'),
+    ('  pi.on("session_before_switch", async (_event, ctx) => {\n    if (!store) return;',
+     '  pi.on("session_before_switch", async (_event, ctx) => {\n    pendingContextBlock = null;\n    if (!store) return;'),
+    ('  pi.on("before_agent_start", async (event, ctx) => {\n    if (!store) return;',
+     '''  pi.on("before_agent_start", async (event, ctx) => {
+    // pi-memory run lifecycle: never reuse recall across user/custom runs.
+    // Keep the block across context/tool continuations within this user run only.
+    pendingContextBlock = null;
+    if (event.messageType !== "user" || typeof event.prompt !== "string" || !event.prompt.trim()) return;
+    if (!store) return;'''),
 ]
 
 def digest(data: bytes) -> str:
@@ -266,6 +277,8 @@ def is_runtime_safe(text: str) -> bool:
         WIN_MARKER in text
         and FIXED_SCOPE_MARKER in text
         and PROFILE_SETTINGS_MARKER in text
+        and "// pi-memory run lifecycle" in text
+        and 'event.messageType !== "user"' in text
         and "// pi-memory automatic hybrid recall" in text
         and "searchMemory(event.prompt, SEARCH_LIMIT, ctx)" in text
         and SESSIONID_MARKER in text

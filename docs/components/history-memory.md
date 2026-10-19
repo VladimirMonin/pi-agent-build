@@ -42,7 +42,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-session-search
 
 Patch сначала можно `--restore`. Удалите config/index отдельно; исходные Pi sessions не трогайте. Полный fix: [session-search](../fixes/session-search.md).
 
-## `@samfp/pi-memory` 1.6.0
+## `@samfp/pi-memory` 1.6.1
 
 ### Назначение
 
@@ -51,7 +51,7 @@ Patch сначала можно `--restore`. Удалите config/index отд�
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:@samfp/pi-memory@1.6.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:@samfp/pi-memory@1.6.1
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>"
 ```
 
@@ -62,6 +62,8 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 По умолчанию БД `~/.pi/memory/memory.db` общая для обоих профилей. Project `pi-memory.localPath` изолирует БД. Stock package жёстко читает user-global settings из `~/.pi/agent/settings.json`; применяемый в сборке patch переключает этот путь на `<PI_CODING_AGENT_DIR>/settings.json`, поэтому Task получает собственный global config. Служебная модель — `polza-memory/deepseek/deepseek-v4.1-flash`.
 
 Automatic vector recall использует upstream provider/hybrid/RRF с Polza `qwen/qwen3-embedding-8b`,1024d в `memory.embedding`. DeepSeek-консолидация и Session Search — независимые механизмы. Patch сохраняет upstream ephemeral context-hook, фильтрует project scope и помещает только целые записи.
+
+Автоматический block очищается в начале каждого нового run и на смене сессии. Только непустой user prompt получает свежий recall; custom/пустой prompt/error не наследуют прошлый block. Tool continuation того же user-run сохраняет его. В служебном Goal/Intercom run при необходимости используйте `memory_search`. [Lifecycle и проверки](../fixes/memory.md#usercustom-lifecycle).
 
 Patch также читает id сессии через `sessionManager.getSessionId()`: stock-выражение `ctx.sessionId ?? ctx.session?.id` всегда даёт `undefined` (в `ExtensionContext` нет таких полей), из-за чего консолидированные lessons помечались `session:unknown`.
 

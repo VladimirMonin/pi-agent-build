@@ -37,9 +37,9 @@
         "releaseTag": "v0.2.1"
       },
       {
-        "source": "npm:pi-subagents@0.76.1",
+        "source": "npm:pi-subagents@0.79.1",
         "package": "pi-subagents",
-        "version": "0.76.1"
+        "version": "0.79.1"
       },
       {
         "source": "npm:pi-goal-x@0.32.3",
@@ -48,9 +48,9 @@
         "compatibilityNote": "Peer range @earendil-works/pi-* >=0.83.0 <2.0.0; re-verify after any Pi upgrade. Must load before pi-intercom: intercom-first ordering makes Pi's turn_end boundary fail to resolve the persisted assistant entry ID in headless runs."
       },
       {
-        "source": "npm:pi-intercom@0.16.1",
+        "source": "npm:pi-intercom@0.17.1",
         "package": "pi-intercom",
-        "version": "0.16.1"
+        "version": "0.17.1"
       },
       {
         "source": "npm:pi-background-tasks@2.6.2",
@@ -67,15 +67,15 @@
         "taskProfilePatch": "session-search-profile"
       },
       {
-        "source": "npm:@samfp/pi-memory@1.6.0",
+        "source": "npm:@samfp/pi-memory@1.6.1",
         "package": "@samfp/pi-memory",
-        "version": "1.6.0",
+        "version": "1.6.1",
         "patch": "memory-windows-runtime"
       },
       {
-        "source": "npm:pi-mcp-adapter@5.1.0",
+        "source": "npm:pi-mcp-adapter@5.3.2",
         "package": "pi-mcp-adapter",
-        "version": "5.1.0",
+        "version": "5.3.2",
         "compatibilityNote": "Single MCP owner; builtin:mcp remains disabled. Verify required servers including WVM."
       }
     ],

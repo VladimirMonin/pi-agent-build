@@ -1,7 +1,7 @@
-"""Guarded pi-memory 1.6.0 injector: scope, whole records and upstream hybrid recall.
+"""Guarded pi-memory 1.6.1 injector: scope, whole records and upstream hybrid recall.
 
 No private project names, paths, memory values, or credentials belong here.
-The caller first validates the immutable stock 1.6.0 SHA before invoking this module.
+The caller first validates the immutable stock 1.6.1 SHA before invoking this module.
 """
 
 INJECTION_MARKER = "// pi-memory scoped injection v3"

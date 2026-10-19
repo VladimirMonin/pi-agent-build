@@ -24,7 +24,11 @@ pi -e $trace
 
 Для SDK opt-in используется существующий `DefaultResourceLoader.additionalExtensionPaths: [traceEntry]`; в следующем loader этот список пуст. Это не новый launcher/режим.
 
-## Проверено на Pi 1.0.2
+## Проверено на Pi 1.3.0
+
+SDK full synthetic Code/Task: off → explicit `additionalExtensionPaths` opt-in → off PASS. On создаёт `events.jsonl` и `trace.html`; canonical settings bytes не меняются. Для persistent sessions каталог соответствует basename session-файла (timestamp + ID), не одному UUID. `PI_TRACE_PYTHON` задаётся явно до импорта расширения. Одновременно проверены actual Session Search workers и private source paths; их disposal штатно завершает worker. Browser/UI и live-provider evidence не добавлены. Corrected terminal CLI discriminator независимо прошёл на stock core; [принятый scope](releases/pi-1.3.0-build.1.md) не расширяет Trace proof до visual UI. Команды/границы: [SDK checks](../tests/sdk/README.md).
+
+## Исторически проверено на Pi 1.0.2
 
 - **Code и Task × off-before/on/off-after**: шесть реальных SDK runs и шесть реальных CLI `--print --no-session` runs, с local mock provider без внешних provider calls.
 - Явный CLI `-e` проверен с установленным entry. On создаёт `events.jsonl` и `trace.html`: session start, interaction/turn/step summary и shutdown. Следующий обычный запуск снова off.

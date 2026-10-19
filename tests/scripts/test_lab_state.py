@@ -45,6 +45,43 @@ def write_json(path, value):
 
 
 class PrivateStateTests(unittest.TestCase):
+    def test_pinned_runtime_metadata_is_narrow_and_fail_closed(self):
+        common = json.loads((REPO / 'manifests/pi-packages.lock.json').read_text())['profiles']['common']
+        versions = {entry['package']: entry['version'] for entry in common}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            state.validate_profile_runtime_metadata(root, common)
+            for name in ('mcp-onboarding.json', 'pi-subagents'):
+                # A dangling link is not equivalent to absent startup metadata.
+                with patch.object(state, 'link', side_effect=lambda p, target=name: p.name == target):
+                    with self.assertRaises(state.Refusal):
+                        state.validate_profile_runtime_metadata(root, common)
+            onboarding = {'version': 1, 'sharedConfigHintShown': False, 'setupCompleted': False,
+                          'piBuiltinMcpHandledVersion': versions['pi-mcp-adapter']}
+            write_json(root / 'mcp-onboarding.json', onboarding)
+            write_json(root / 'pi-subagents/last-seen-version.json', {'version': versions['pi-subagents']})
+            state.validate_profile_runtime_metadata(root, common)
+            for name in ('mcp-onboarding.json', 'pi-subagents'):
+                with patch.object(state, 'link', side_effect=lambda p, target=name: p.name == target):
+                    with self.assertRaises(state.Refusal):
+                        state.validate_profile_runtime_metadata(root, common)
+            (root / 'mcp-onboarding.json').write_text(' ' * 4097 + json.dumps(onboarding))
+            with self.assertRaises(state.Refusal):
+                state.validate_profile_runtime_metadata(root, common)
+            for bad in ({**onboarding, 'extra': 'refused'}, {**onboarding, 'piBuiltinMcpHandledVersion': '0.0.0'},
+                        {**onboarding, 'version': True}, {**onboarding, 'setupCompleted': 0}):
+                write_json(root / 'mcp-onboarding.json', bad)
+                with self.assertRaises(state.Refusal):
+                    state.validate_profile_runtime_metadata(root, common)
+            write_json(root / 'mcp-onboarding.json', onboarding)
+            write_json(root / 'pi-subagents/last-seen-version.json', {'version': '0.0.0'})
+            with self.assertRaises(state.Refusal):
+                state.validate_profile_runtime_metadata(root, common)
+            write_json(root / 'pi-subagents/last-seen-version.json', {'version': versions['pi-subagents']})
+            write_json(root / 'pi-subagents/unknown.json', {})
+            with self.assertRaises(state.Refusal):
+                state.validate_profile_runtime_metadata(root, common)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.lab = Path(self.temp.name) / 'lab'

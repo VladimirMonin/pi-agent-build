@@ -9,6 +9,7 @@
 - Перед первым runtime manifest change закрепить exact target. Следующий релиз не меняет его автоматически внутри цикла.
 - Создать отдельную candidate branch/worktree и начальный doc commit до runtime edits. Исторический source/approval/version не переносится на target по номеру.
 - Составить delta matrix: CLI/SDK/extensions/peers, profiles/filters, patches, lifecycle, TUI, codemode/MCP, model catalog/auth/response и support scope.
+- Проверить actual внутренние dependency edges и настоящий SDK import: один top-level CLI version не доказывает coherent Pi graph при caret dependencies. Failed промежуточный graph сохранять; согласованный successor устанавливать fresh, а не repair/override старого root. Это не обещание byte-identical всех сторонних transitive dependencies.
 
 Working baseline и исследовательский кандидат — разные сущности. Candidate acceptance не переключает личные profiles и не закрывает автоматически историческую цель.
 
@@ -114,6 +115,8 @@ Required tests на synthetic profiles:
 - Затем WVM legacy SSE и streamable HTTP — отдельные candidate configurations/handshakes/function cases. Gateway tool list/schema parent процесса не заменяют их.
 - Adapter KEEP до доказанного functional parity; builtin unsupported transport фиксируется честно. Не запускать два /mcp owners и не переписывать working configs/auth.
 - После WVM разрешены final doc/link/safety/manual publication gates. Новый технический runtime/code срез требует новой last assessment, но изменение статуса/плана не требует дергать WVM само по себе.
+
+CLI terminal output-limit проверяй stimulus, реально достигшим declared max output; early-length recovery — другой case. Нужны current partial/warning/text exit1 и JSON proof без omission/recovery, отдельно normal/resume/excluded tools. Неверный stimulus не обосновывает production print patch; [принятое решение](notes/pi-1.3.0-upgrade-decisions.md#5-почему-нет-speculative-goalcorepolza-patches).
 
 ## 8. Final docs, release и handoff
 

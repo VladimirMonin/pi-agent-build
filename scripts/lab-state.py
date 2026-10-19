@@ -63,6 +63,35 @@ def read_json(path):
         raise Refusal('required private JSON missing or invalid') from None
 
 
+def validate_profile_runtime_metadata(root, common):
+    """Only exact, credential-free metadata emitted by the pinned packages.
+
+    Do not accept arbitrary adapter config, auth, subagent runs or ownership state.
+    Missing metadata is normal before the first session; malformed/drift refuses.
+    """
+    versions = {entry['package']: entry['version'] for entry in common}
+    onboarding = root / 'mcp-onboarding.json'
+    if onboarding.exists() or link(onboarding):
+        require(onboarding.is_file() and not link(onboarding) and onboarding.stat().st_size <= 4096,
+                'adapter onboarding metadata type/size refused')
+        data = read_json(onboarding)
+        require(isinstance(data, dict) and type(data.get('version')) is int
+                and type(data.get('sharedConfigHintShown')) is bool and type(data.get('setupCompleted')) is bool
+                and data == {'version': 1, 'sharedConfigHintShown': False,
+                'setupCompleted': False, 'piBuiltinMcpHandledVersion': versions['pi-mcp-adapter']},
+                'adapter onboarding metadata drift')
+    subagents = root / 'pi-subagents'
+    if subagents.exists() or link(subagents):
+        require(subagents.is_dir() and not link(subagents)
+                and {p.name for p in subagents.iterdir()} == {'last-seen-version.json'},
+                'subagents metadata path set refused')
+        seen = subagents / 'last-seen-version.json'
+        require(seen.is_file() and not link(seen) and seen.stat().st_size <= 4096,
+                'subagents metadata type/size refused')
+        require(read_json(seen) == {'version': versions['pi-subagents']},
+                'subagents metadata drift')
+
+
 def validate_paths(lab, repo):
     require(lab.is_absolute() and repo.is_absolute() and '..' not in lab.parts,
             'absolute private root required')
@@ -155,8 +184,9 @@ def installed(lab, repo, node, git):
         root = lab / 'pi-root' / name
         allowed = {'settings.json', 'models.json', 'models-store.json', 'ollama-cloud.json', 'mcp.json',
                    'auth.json', 'skills', 'npm', 'git', '.pi-agent-build-backups', 'traces', 'session-search', 'intercom',
-                   'pi-goal-x-settings.json', 'AGENTS.md'}
+                   'pi-goal-x-settings.json', 'AGENTS.md', 'mcp-onboarding.json', 'pi-subagents'}
         require(not {p.name for p in root.iterdir()} - allowed, name + ' unknown profile content')
+        validate_profile_runtime_metadata(root, manifest['common'])
         # Defaults may be absent in an older installation, but accepted files
         # must be exactly the published assets, not arbitrary new contents.
         for filename, source in (('pi-goal-x-settings.json', 'pi-goal-x-settings.json'),

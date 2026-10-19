@@ -29,11 +29,17 @@ class RuntimeTests(unittest.TestCase):
             agent = Path(td)
             target = agent / 'npm/node_modules/@samfp/pi-memory/dist/index.js'
             target.parent.mkdir(parents=True)
-            (target.parent.parent / 'package.json').write_text('{"version":"1.6.0"}')
+            (target.parent.parent / 'package.json').write_text('{"version":"1.6.1"}')
             target.write_bytes(stock)
             command = ['python', str(ROOT / 'patches/memory-windows-runtime/apply.py'), '--agent-dir', str(agent)]
             subprocess.run(command, check=True, capture_output=True)
             self.assertEqual(target.read_bytes(), new)
+            subprocess.run(command, check=True, capture_output=True)
+            self.assertEqual(target.read_bytes(), new)
+            self.assertEqual(subprocess.run(command + ['--check'], capture_output=True).returncode, 0)
+            subprocess.run(command + ['--restore'], check=True, capture_output=True)
+            self.assertEqual(target.read_bytes(), stock)
+            self.assertEqual(subprocess.run(command + ['--check'], capture_output=True).returncode, 1)
             subprocess.run(command, check=True, capture_output=True)
             self.assertEqual(target.read_bytes(), new)
             drift = new + b'\n// unknown'
