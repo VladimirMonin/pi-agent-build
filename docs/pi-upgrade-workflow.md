@@ -4,7 +4,7 @@
 
 ## 1. Baseline и exact target
 
-- Зафиксировать working ref/runtime, source candidate ref и tracking state; не стирать чужие изменения или unrelated untracked files.
+- Зафиксировать working ref/runtime, ref кандидата и tracking state. До первого изменения выполнить [проверку фактической готовности](../instructions/BUILD.lab_upgrade.instructions.md#до-изменения-runtime); чужую работу сохранить, private payload/diff не использовать для metadata admission.
 - Проверить latest **stable** через официальный release/npm HTTP metadata. npm CLI metadata использовать только с private environment/cache/config, даже без install.
 - Перед первым runtime manifest change закрепить exact target. Следующий релиз не меняет его автоматически внутри цикла.
 - Создать отдельную candidate branch/worktree и начальный doc commit до runtime edits. Исторический source/approval/version не переносится на target по номеру.
@@ -28,7 +28,7 @@ Working baseline и исследовательский кандидат — ра
 | Optional live routes | Отдельное разрешение и credentials safe routing | Все модели/платформы/transports |
 | Publication | Final accepted ref и разрешённые main/tag/Release | Working Code/Task switch |
 
-Применяется scope текущей задачи; документация не требует повторного вопроса там, где владелец уже явно разрешил работу. Но широкое разрешение не делает failed gate successful и не включает неоговорённый paid расход.
+Применяются уже выданные разрешения и [границы paid lifecycle](../instructions/BUILD.lab_upgrade.instructions.md#исполнение-и-gates): повторно согласовывать тот же scope не требуется, расширять его молча нельзя. Failed gate остаётся failed.
 
 ### Filesystem-only PLAN/PREPARE
 
@@ -124,7 +124,18 @@ CLI terminal output-limit проверяй stimulus, реально достиг
 
 Release gate: mandatory cases PASS в заявляемом scope; никаких скрытых security/runtime blockers; optional NOT TESTED ограничивает notes, не приравнивается к support. Проверить full final diff/safety/links/schema и semantics, затем permitted commits/push, main/tag/GitHub Release. Tag format определяется BUILD/manifest и не перезаписывает прежние tags. Remote/main/tag/Release должны указывать на принятую версию.
 
-Working-profile switch — отдельный scope с [private rollback](state-migration.md); нынешний release project его не выполняет. Handoff включает exact ref, source/payload identities, commands/results/coverage, remaining limitations, publication state и safe следующий шаг.
+Рабочее переключение требует действующего scope и [private recovery](state-migration.md), а не следует из публикации. В handoff указываются фактический checkpoint, точные ref/identities, результаты, ограничения и следующий незавершённый шаг с ответственным исполнителем.
+
+### Рабочая установка: короткое продолжение, не повтор installer
+
+1. После natural exit всех использующих runtime ролей/runs/writers проверь fresh clearance и routes; выполни [подготовку recovery copy](state-migration.md#подготовка-источника). PREPARED не заменяет фактические предусловия установки.
+2. Выполняй только необходимые exact package transitions. Защита dirty work и links описана в [локальном обновлении](state-migration.md#локальное-обновление-и-новая-машина). При partial failure сохрани достигнутый checkpoint и продолжай только незавершённый остаток по [recovery contract](../instructions/BUILD.lab_upgrade.instructions.md#recovery-review-и-handoff), не повторяй исходный installer поверх изменённого состояния.
+3. Когда payloads готовы, существующий preserving tail: `scripts/install.ps1 -Profile Both -Apply -SyncSettingsOnly`, original preservation comparison, `scripts/apply-patches.ps1 -Profile Both -Mode Apply`, затем `-Mode Check`, существующий launcher installer и verifier с выбранными roots. Если эти операции уже PASS и остался один external check, не повторяй их; соблюдай [child-specific environment](../instructions/BUILD.lab_upgrade.instructions.md#размещение-и-окружение).
+4. Закрой только failed check/непройденный tail точной native-командой и переиспользуй применимые unchanged PASS; исторический nonzero verifier не объявляй fresh exit0. Затем проверь фактические Both startup/resume и новый общий Intercom broker: CLI version сам по себе их не доказывает.
+
+Уборка независимых owned артефактов продолжается по [правилу release/consumers](../instructions/BUILD.lab_upgrade.instructions.md#recovery-review-и-handoff), не ожидая несвязанного gate. В handoff раздельно отмечай ready и действительно удалённые paths, сохранённые материалы и следующий owner/action; наличие ready-list не закрывает уборку.
+
+Для docs-only исправления достаточно exact diff, links/frontmatter/safety и ручного просмотра. [BUILD.Master](../instructions/BUILD.master.instructions.md#критерий-готовности-release-tag) определяет release contract: старые теги/артефакты immutable; обычный docs commit не требует нового compatibility release. Запрошенный source ZIP строится через `git archive` от нового accepted commit с SHA256, не выдаётся за пересобранный runtime и не требует повторять unchanged product/WVM suite.
 
 ## Текущие входные ссылки
 
