@@ -2,7 +2,7 @@
 
 Переносимое, version-pinned описание Pi Agent для Windows x64 и POSIX (macOS/Linux): два профиля, 15 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
 
-> **Текущий выпуск: [Pi 1.3.0 build.1](docs/releases/pi-1.3.0-build.1.md).** Node **25.8.1** / npm **11.11.0**; Memory **1.6.1 patched**, Adapter **5.3.2**, Subagents **0.79.1**, Intercom **0.17.1**. Independent acceptance и actual WVM schema-only cases: Code legacy SSE, Task streamable HTTP. Полный состав 15 пакетов, proof и limits — в release notes; [решения обновления](docs/notes/pi-1.3.0-upgrade-decisions.md). Рабочая установка/restart не выполнялись.
+> **Текущий выпуск: [Pi 1.3.0 build.1](docs/releases/pi-1.3.0-build.1.md).** Node **25.8.1** / npm **11.11.0**; Memory **1.6.1 patched**, Adapter **5.3.2**, Subagents **0.79.1**, Intercom **0.17.1**. Independent acceptance и actual WVM schema-only cases: Code legacy SSE, Task streamable HTTP. Полный состав 15 пакетов, proof и limits — в release notes; [решения обновления](docs/notes/pi-1.3.0-upgrade-decisions.md). Это рабочая принятая сборка в описанном release scope, не общий экспериментальный runtime. Рабочая установка/full restart **в том цикле выпуска** не выполнялись; нынешний doc-only срез не повторяет установку и не доказывает новый restart.
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
@@ -25,6 +25,10 @@
 - навык обслуживания памяти Pi.
 
 Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
+
+## Отдельная переносимая методика
+
+[Project Foundation Kit](https://github.com/VladimirMonin/Project-Foundation-Kit) — переносимые методы инженерной работы, проверки поведения, сопровождения знаний и UI-дизайна. Подключается отдельно **полным pack** по инструкции PFK, с ресурсами и notices. Эта ссылка не устанавливает навыки, не делает их автоматически доступными Pi и не меняет профили Code/Task, runtime или провайдера. Обнаружение, чтение и применение проверяются отдельно.
 
 ## Автономный Goal X
 

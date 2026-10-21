@@ -1,12 +1,16 @@
 # Установка сборки
 
-Состав задают текущие `manifests/*.lock.json`: в source сейчас Pi `1.0.4`; [build.6](releases/pi-1.0.4-build.6.md) обновляет Memory1.6 Both: upstream context-hook/provider/RRF, scoped whole-record automatic recall; Polza Qwen1024d выбран отдельно от DeepSeek. SQLite backup вне Git, новый русский canary PASS; нужен restart. Предыдущий [build.5](releases/pi-1.0.4-build.5.md) обновил MCP Adapter5.1.0 Both; builtin:mcp остаётся выключен. [build.4](releases/pi-1.0.4-build.4.md) обновил Session Search1.6.0 Both с profile/runtime patch и без forced reindex. [build.3](releases/pi-1.0.4-build.3.md) обновил Inspector1.3.0 и Code Serena wrapper0.9.20 (Agent1.7.0 неизменён). Предыдущий [build.2](releases/pi-1.0.4-build.2.md) обновил Subagents0.76.1, GoalX0.32.3 и Intercom0.16.1. Both candidate loading и короткий local-mock/Windows broker smoke PASS. Владелец уже обновил рабочий Pi до `1.0.4`; core SDK local-mock проверен отдельно. Прежние Both plugin checks относятся к `1.0.2`, не являются свежей проверкой `1.0.4` ([scope](releases/pi-1.0.4.md)). Скрипты предусмотрены для Windows x64 и POSIX; actual native scope — в [readiness board](plans/lab-readiness-board.md), shell/fake проверки не подтверждают live macOS/Linux. Это не bit-reproducible build: переносимых transitive lockfiles и hashes всех скачиваемых artifacts пока нет, поэтому dependency tree может измениться при повторной установке. Команды ниже не переносят пользовательские сессии, память или credentials. Для этого см. [перенос состояния](state-migration.md).
+Текущий состав задают [runtime lock](../manifests/runtime.lock.json) и остальные `manifests/*.lock.json`: **Pi 1.3.0 build.1**, Node **25.8.1**, npm **11.11.0**; Memory **1.6.1 patched**, MCP Adapter **5.3.2**, Subagents **0.79.1**, Intercom **0.17.1**. Это рабочая принятая сборка в [точном release scope](releases/pi-1.3.0-build.1.md), не общий неработающий эксперимент. Полный состав, independent fresh/reused evidence и ограничения — в release notes и [readiness board](plans/lab-readiness-board.md). Рабочая установка/full restart в том цикле выпуска оставались отдельным post-exit этапом; эта редактура их не выполняет и не доказывает.
+
+Исторические версии и проверки сохраняются у [Pi 1.0.4 build.6](releases/pi-1.0.4-build.6.md) и предыдущих release notes, а не выдаются за свежую проверку 1.3.0. Failed mixed install, early-length recovery FAIL и collector FAIL/timeout остаются историческими фактами. Native macOS/Linux, visual TUI/browser, paid/live-provider matrix и OS containment этим документационным срезом не подтверждены; конкретные Win32/изоляционные ограничения не отменяются.
+
+Скрипты предусмотрены для Windows x64 и POSIX; shell/fake checks не подтверждают native macOS/Linux. Top-level pins не дают bit-for-bit воспроизводимость: transitive lockfiles/hashes всех artifacts не поставляются. Source ZIP — не offline runtime. Команды не переносят пользовательские сессии, память или credentials; для этого см. [перенос состояния](state-migration.md).
 
 Различия платформ и POSIX-эквиваленты скриптов описаны в [platforms.md](platforms.md).
 
 > Для обновления кандидата используйте [паспорт стенда](lab-stand.md) и [lab upgrade runbook](pi-upgrade-workflow.md), не global manual commands ниже. Read-only PLAN, private executable probes, PREPARE, install и runtime gate — разные действия. Этот документ не разрешает изменять рабочие Code/Task.
 >
-> Ручные примеры с Pi0.87.0 ниже сохранены как working-baseline procedure, не команда поставить новый target. Целевая политика следующего выпуска — Trace установлен/default-off в обоих профилях; [проверенный opt-in/off recipe](trace.md) использует обычный `pi -e` без изменения canonical filters.
+> Ручные примеры с Pi0.87.0 и прежними package pins ниже сохранены как историческая working-baseline procedure, не текущий install-рецепт и не команда поставить новый target. Политика принятого Pi1.3.0 build.1 — Trace установлен/default-off в обоих профилях; SDK Both checks описаны в release notes, а [проверенный opt-in/off recipe](trace.md) использует обычный `pi -e` без изменения canonical filters.
 
 ## До установки
 
@@ -63,7 +67,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\install-launchers.ps1" -Profile Both -Shell Both -Apply
 ```
 
-После этого всё равно нужны локальные provider configs, `/login` и проверки из разделов 5 и 8. Далее приведён ручной эквивалент, полезный для аудита и точечного восстановления.
+После этого всё равно нужны локальные provider configs, `/login` и проверки из разделов 5 и 8. Далее сохранена историческая ручная процедура для аудита прежнего baseline; её core/package pins не являются текущим составом. Для текущего состава использовать manifests и автоматизированную процедуру выше в разрешённом scope.
 
 ## 1. Pi Agent — исторический working baseline, не lab upgrade
 
@@ -96,7 +100,7 @@ mkdir -p "$user_home/.pi/agent" "$user_home/.pi/task"
 
 ## 3. Пакеты Pi
 
-Функция ниже устанавливает 12 общих пакетов в выбранный профиль. Источники и версии совпадают с manifest.
+Функция ниже устанавливает 12 общих пакетов в выбранный профиль. Источники и версии в этом историческом блоке соответствуют прежнему baseline, не текущему manifest; не выполнять его как установку Pi1.3.0 build.1.
 
 ```bash
 install_common() {
