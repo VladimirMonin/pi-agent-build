@@ -1,9 +1,15 @@
 # Polza для памяти и поиска истории
 
-В сборке Polza используется двумя независимыми путями:
+Не смешивайте четыре независимых пути:
 
-1. `pi-session-search` отправляет embeddings модели `qwen/qwen3-embedding-8b`;
-2. `@samfp/pi-memory` консолидирует диалог моделью `deepseek/deepseek-v4.1-flash` через статический provider `polza-memory`.
+| Назначение | Настройка |
+|---|---|
+| Основной агент `polza/<model-id>` | Динамический `pi-polza`, нативный `/login`, модель профиля/явные launch arguments |
+| Консолидация Memory | Статический `polza-memory` в каждом `models.json` и `memory.consolidationModel` |
+| Embeddings Memory | Отдельный `memory.embedding` в приватных settings; в существующем Polza-сценарии Qwen, 1024d |
+| Поиск истории | Собственные config/index `pi-session-search`; FTS без embeddings, semantic mode отдельно |
+
+Штатный сохранённый login для **main `polza`** не требует `.env`. Он не настраивает автоматически credential служебного provider, Memory embeddings или session-search. Успех любого из трёх вспомогательных путей не подтверждает основную модель.
 
 Это не третий plugin. `polza-memory` — запись в штатном `models.json` Pi.
 
@@ -11,7 +17,7 @@
 
 ## Почему нужен статический provider
 
-pi-memory `1.6.0` запускает дочерний Pi так:
+Memory использует служебный child с отключёнными extensions (версия пакета закреплена в manifest):
 
 ```text
 pi -p <prompt> --print --no-extensions --no-tools --no-session --model <model>
@@ -53,16 +59,17 @@ credential: $POLZA_API_KEY
 4. сохраните plugin `pi-polza` — его dynamic provider по-прежнему называется `polza`;
 5. повторите изменение отдельно в Code и Task, затем проверьте `--list-models` и короткий ответ дочернего Pi с `--no-extensions --provider polza-memory --model deepseek/deepseek-v4.1-flash`. Перед изменением сохраните byte-for-byte backup `models.json`; не переносите `auth.json` или сам credential.
 
-Stock pi-memory `1.6.0` читает user-global memory settings из `~/.pi/agent/settings.json` даже в Task. В этой сборке `memory-windows-runtime` исправляет путь на `<PI_CODING_AGENT_DIR>/settings.json`; patch должен быть применён отдельно к Code и Task. Project-local `<project>/.pi/settings.json` может переопределить обычные параметры `memory`/`pi-memory`, **но не приватные `memory.factProjectAliases`**: они читаются только из профиля. БД по умолчанию остаётся общей — `~/.pi/memory/memory.db`; profile-aware settings сами по себе не изолируют сохранённые факты.
+Stock Memory читает user-global memory settings из `~/.pi/agent/settings.json` даже в Task. `memory-windows-runtime` исправляет путь на `<PI_CODING_AGENT_DIR>/settings.json`; patch применяется отдельно к Code и Task. Project-local `<project>/.pi/settings.json` может переопределить обычные параметры `memory`/`pi-memory`, **но не приватные `memory.factProjectAliases`**: они читаются только из профиля. БД по умолчанию общая — `~/.pi/memory/memory.db`; profile-aware settings сами по себе не изолируют сохранённые факты.
 
 ### Проверка
 
+В shell, где уже безопасно доступен настроенный credential:
+
 ```bash
-POLZA_API_KEY="<SET_IN_CURRENT_SHELL>" PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi --list-models
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 ```
 
-В списке должна быть `polza-memory/deepseek/deepseek-v4.1-flash`. В Pi выполните `memory_stats`, затем в тестовой сессии с минимум тремя user messages — `/memory-consolidate`. Проверьте изменение stats, но не выводите содержимое всей БД. Вызов модели платный.
+В списке должна быть `polza-memory/deepseek/deepseek-v4.1-flash`; listing не доказывает запрос/создание факта. Для разрешённой проверки на synthetic данных используйте новый уникальный факт и настоящую консолидацию, **не `memory_remember`**. Проверьте новую запись, source=`consolidation`, точный scope и автоматический контекст новой подходящей сессии с исключением чужого проекта. Старый повтор без новых фактов может быть дедупликацией. Не выводите всю БД; вызов модели может быть платным.
 
 ## Embeddings для session-search
 
@@ -81,27 +88,26 @@ POLZA_API_KEY="<SET_IN_CURRENT_SHELL>" PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
 }
 ```
 
-`pi-session-search` сам добавляет `/v1/embeddings`, поэтому итоговый endpoint — `https://polza.ai/api/v1/embeddings`. `sendDimensions: true` отправляет `dimensions: 1024`; изменение dimensions требует полного reindex, иначе старые и новые vectors несовместимы.
+`pi-session-search` сам добавляет `/v1/embeddings`, итоговый endpoint — `https://polza.ai/api/v1/embeddings`. `sendDimensions: true` отправляет `dimensions: 1024`. Смена **модели или размерности** требует отдельного согласованного rebuild/reindex; одинаковая длина не делает разные embedding spaces совместимыми. Обычный update/cwd display fix не является такой миграцией.
 
 Пути в этой сборке:
 
 - Code: `~/.pi/session-search/config.json`;
 - Task: `~/.pi/task/session-search/config.json` после [profile patch](fixes/session-search.md).
 
-Config хранит API key как literal. Ограничьте доступ к файлу и не добавляйте его в Git. После настройки:
+Config хранит API key как literal. Ограничьте доступ к файлу и не добавляйте его в Git. Для уже настроенного индекса начните с короткой проверки, без forced reindex:
 
 ```text
-/session-reindex
 /session-sync
 session_search(query="контрольный запрос", limit=3)
 ```
 
-Первый reindex делает внешние embedding-запросы для истории, может занять время и стоить денег. Сессии содержат приватный код и prompts; включайте semantic mode только если допустима их передача Polza.
+`/session-reindex` — отдельная операция: делает внешние embedding-запросы для истории, может занять время и стоить денег. Не запускайте её автоматически после установки или display fix. Сессии содержат private code/prompts; semantic mode допустим только при разрешённой передаче. Обычный startup/sync тоже учитывается по реальному lifecycle до запуска, не считается заведомо zero-cost.
 
 ## Риски
 
 - Консолидация отправляет выбранные фрагменты диалога внешней LLM; embeddings отправляют извлечённый текст прошлых сессий внешнему endpoint.
-- pi-memory `1.6.0` передаёт полный consolidation prompt дочернему Pi через аргументы `pi -p <prompt>`. На Windows этот текст виден в command line процесса локальным средствам мониторинга, администраторам и software, собирающему process telemetry. Не считайте child process приватным каналом и не запускайте консолидацию над секретами, которые недопустимо раскрывать таким наблюдателям.
+- Memory передаёт полный consolidation prompt дочернему Pi через аргументы `pi -p <prompt>`. На Windows этот текст виден в command line процесса локальным средствам мониторинга, администраторам и software, собирающему process telemetry. Не считайте child process приватным каналом и не запускайте консолидацию над секретами, которые недопустимо раскрывать таким наблюдателям.
 - `cost` в статической model config задан нулями и не отражает фактическое списание. В отличие от `pi-polza`, этот core route не ведёт нативный `cost_rub`.
 - pi-memory молча пропускает consolidation при неверной модели/ключе; ориентируйтесь на `memory_stats` и runtime test, а не на отсутствие ошибки.
 - Запуск без `POLZA_API_KEY` делает пример с env credential unavailable; приватный проверенный `!`-helper — альтернативный путь. Простой static-check не исполняет helper: подтвердите маршрут отдельным child Pi smoke.
@@ -111,7 +117,7 @@ session_search(query="контрольный запрос", limit=3)
 
 1. Удалите provider `polza-memory` из локального `models.json`.
 2. Замените `memory.consolidationModel` на проверенный доступный core/static model либо удалите override; не оставляйте недоступный id.
-3. Удалите embedder block, чтобы вернуться к FTS5-only search, затем `/session-reindex`.
+3. При явном отказе от semantic mode удалите соответствующий embedder block. Действия с производным индексом/reindex — отдельно по версии и данным; не удаляйте исходную историю попутно.
 4. Удалите `POLZA_API_KEY` из process/secret injection и literal key из session-search config.
 
 Удаление provider/config не удаляет `memory.db`, sessions или search indexes. Их удаление — отдельная необратимая операция; сначала сделайте приватную backup и остановите Pi.

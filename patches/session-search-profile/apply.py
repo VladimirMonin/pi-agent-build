@@ -13,12 +13,18 @@ import sys
 VERSION = "1.6.0"
 HERE = pathlib.Path(__file__).resolve().parent
 STORE = HERE / "store" / VERSION
-REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/index.js", "src/index.ts")))
+REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/index.js", "src/index.ts",
+                                   "src/utils.ts", "src/session-index.ts", "dist/index-worker.js", "src/fts-index.ts", "src/index-service.ts")))
 STOCK_HASHES = (
     "e6103a7010615e059a01a3954d3135092b46e197cec6ce878ae84271c9211427",
     "2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a",
     "9d011f994d6de8bb873ba242a9b705ab560046a4eae3c66c75068c98aa29090b",
     "e2e36ee96ca972d8e98bc9dec857ca1ac883c1063f8f8ca11786713d3f1574bc",
+    "fd8cff09d6557df8b1dd4b55770aa4fdbdd37546a0da454bb25596055926bf5e",
+    "4c0fa27ae77ff037fe393f24efda51fb7ca2b995143b0560d5b09902f82a8622",
+    "7901989942a790c549d328a3d49e491090f514c0b5a650a4547dad9b73a99b57",
+    "9f01a4fe3cf51ad1db8663be34603b9d71cee5ead30fbd18d0e7d590bb92316f",
+    "369d4d64531f82fcaae93f1354813328db73aead72488263f5e7d0f928d93d58",
 )
 BACKUP_ROOT = pathlib.Path()
 TIMER_NEW = '''const runSync = () => {
@@ -127,24 +133,51 @@ def patch_index(text, source=False):
     return replace_body(text, "const runSync = () =>", "const initialSync = async () =>", timer + "\n\n      ")
 
 
-def canonical_files(runtime_only=False):
+def patch_display(text, typed=False):
+    if typed and 'export function createIndexService' in text:
+        text = replace_once(text, 'import { Worker } from "node:worker_threads";',
+                            'import { Worker } from "node:worker_threads";\nimport { buildSummary } from "./utils";', 'service display import')
+    signature = 'function slugToProject(slug: string): string {' if typed else 'function slugToProject(slug) {'
+    replacement = 'function slugToProject(slug: string, cwd?: string): string {' if typed else 'function slugToProject(slug, cwd) {'
+    if signature in text:
+        text = replace_once(text, signature, replacement, 'project display signature')
+        text = replace_once(text,
+            '  if (!slug.startsWith("--") || !slug.endsWith("--")) return slug;\n  return slug.slice(2, -2).replace(/-/g, "/");',
+            '  return typeof cwd === "string" && cwd.trim() ? cwd : slug; // display only: slug is not reversible',
+            'project display body')
+    text = text.replace('slugToProject(s.projectSlug)', 'slugToProject(s.projectSlug, s.cwd)')
+    # Refresh old derived display on read. Do not mutate source JSONL, identities,
+    # filters, stored vectors or trigger an embedding/reindex migration.
+    text = text.replace('summary: entry.summary', 'summary: buildSummary(entry.session)')
+    text = text.replace('summary: String(r.summary ?? "")', 'summary: buildSummary(JSON.parse(String(r.json)))')
+    text = text.replace('summary: String(row.summary ?? "")', 'summary: buildSummary(JSON.parse(String(row.json)))')
+    return text
+
+
+def canonical_files(runtime_only=False, *, previous=False):
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
         raise RuntimeError("immutable stock hash mismatch")
-    c, p, d, i = (stock[r].decode("utf-8") for r in REL_FILES)
+    c, p, d, i = (stock[r].decode("utf-8") for r in REL_FILES[:4])
     if not runtime_only:
         c = replace_once(c, 'return join(homedir(), ".pi", "session-search");', 'return process.env.PI_CODING_AGENT_DIR?.trim() ? join(process.env.PI_CODING_AGENT_DIR.trim(), "session-search") : join(homedir(), ".pi", "session-search"); // local-profile-patch', "config")
         d = replace_once(d, 'return join(homedir(), ".pi", "session-search");', 'return process.env.PI_CODING_AGENT_DIR?.trim() ? join(process.env.PI_CODING_AGENT_DIR.trim(), "session-search") : join(homedir(), ".pi", "session-search"); // local-profile-patch', "dist config")
     p = patch_parser(p, runtime_only)
     d = patch_index(patch_parser(d, runtime_only, True))
     i = patch_index(i, True)
-    return stock, dict(zip(REL_FILES, (v.encode("utf-8") for v in (c, p, d, i))))
+    canonical = {**stock, **dict(zip(REL_FILES[:4], (v.encode("utf-8") for v in (c, p, d, i))))}
+    if not previous:
+        for rel in (REL_FILES[2], *REL_FILES[4:]):
+            canonical[rel] = patch_display(canonical[rel].decode("utf-8"), rel.suffix == '.ts').encode("utf-8")
+    return stock, canonical
 
 
 def classify(root, runtime_only=False):
     stock, canonical = canonical_files(runtime_only)
     current = read_files(root)
-    return ("patched" if current == canonical else "stock" if current == stock else "unknown"), stock, canonical
+    _, previous = canonical_files(runtime_only, previous=True)
+    return ("patched" if current == canonical else "stock" if current == stock else
+            "previous-patched" if current == previous else "unknown"), stock, canonical
 
 
 def runtime_backup(root, label):
@@ -152,6 +185,10 @@ def runtime_backup(root, label):
     for rel in REL_FILES:
         (dst / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / rel, dst / rel)
+    hashes = {rel.as_posix(): hashlib.sha256((dst / rel).read_bytes()).hexdigest() for rel in REL_FILES}
+    if any((dst / rel).read_bytes() != (root / rel).read_bytes() for rel in REL_FILES):
+        raise RuntimeError("runtime backup verification failed")
+    (dst / 'receipt.json').write_text(json.dumps({'version': VERSION, 'state': label, 'sha256': hashes}, indent=2), encoding='utf-8')
     return dst
 
 
@@ -160,12 +197,13 @@ def apply(root, runtime_only=False):
     if state == "patched":
         print("ALREADY PATCHED")
         return
-    if state != "stock":
+    if state not in {"stock", "previous-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
         (root / rel).write_bytes(body)
     subprocess.run(["node", "--check", str(root / REL_FILES[2])], check=True)
+    subprocess.run(["node", "--check", str(root / 'dist/index-worker.js')], check=True)
     if read_files(root) != canonical:
         raise RuntimeError("post-write verification failed")
     print("PATCH APPLIED")
@@ -176,7 +214,7 @@ def restore(root, runtime_only=False):
     if state == "stock":
         print("ALREADY STOCK")
         return
-    if state != "patched":
+    if state not in {"patched", "previous-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
@@ -202,7 +240,7 @@ def main():
         if args.check:
             state, _, _ = classify(root, args.runtime_only)
             print(f"version={VERSION} state={state}")
-            return {"patched": 0, "stock": 1, "unknown": 2}[state]
+            return {"patched": 0, "stock": 1, "previous-patched": 1, "unknown": 2}[state]
         (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:

@@ -182,7 +182,7 @@ def installed(lab, repo, node, git):
     require(node_version == runtime['node'], 'Node runtime version mismatch')
     for name, template, expected_count in (('agent', 'code', 15), ('task', 'task', 12)):
         root = lab / 'pi-root' / name
-        allowed = {'settings.json', 'models.json', 'models-store.json', 'ollama-cloud.json', 'mcp.json',
+        allowed = {'settings.json', 'models.json', 'models-store.json', 'ollama-cloud.json', 'mcp.json', 'mcp-adapter.json',
                    'auth.json', 'skills', 'npm', 'git', '.pi-agent-build-backups', 'traces', 'session-search', 'intercom',
                    'pi-goal-x-settings.json', 'AGENTS.md', 'mcp-onboarding.json', 'pi-subagents'}
         require(not {p.name for p in root.iterdir()} - allowed, name + ' unknown profile content')
@@ -203,6 +203,8 @@ def installed(lab, repo, node, git):
             require(read_json(root / filename) == read_json(repo / 'config' / source), name + ' config mismatch')
         require(read_json(root / 'mcp.json') == {'mcpServers': {}, 'settings': {'scriptMode': False}},
                 name + ' MCP config must be empty/exclusive')
+        require(read_json(root / 'mcp-adapter.json') == read_json(repo / 'config/mcp-adapter.default.json'),
+                name + ' canonical remote Context7 adapter default missing or drifted')
         # Runtime may create an empty auth store. Never accept credentials here.
         if (root / 'auth.json').exists():
             require(read_json(root / 'auth.json') == {}, name + ' auth store is not empty')

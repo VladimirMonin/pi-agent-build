@@ -1,18 +1,90 @@
-# MCP
+# MCP: единственный adapter и удалённый Context7
 
-## `pi-mcp-adapter` 5.3.2
+Владелец MCP — `pi-mcp-adapter@5.3.2`. Code/Task сохраняют `extensions: ["-builtin:mcp"]`: builtin и adapter не должны одновременно обслуживать серверы. Действие подавления проверяется на целевом ядре, не предполагается из номера версии. Полный install идёт через [основной маршрут](../../INSTALL_FOR_AGENTS.md); [manifest](../../manifests/pi-packages.lock.json) владеет pin.
 
-### Назначение
+## Стандартный Context7
 
-Подключает MCP servers через один discovery/proxy tool вместо постоянного добавления всех schemas в context. Connections lazy по умолчанию; отдельные tools можно сделать direct. Pi1.0.2 также содержит built-in MCP: в этой сборке owner остаётся adapter, оба templates явно задают `extensions:["-builtin:mcp"]`. Не загружайте обоих владельцев `/mcp`; project `+builtin:mcp` может переопределить user policy.
+В новых Code и Task стандартная конфигурация — `<PROFILE_DIR>/mcp-adapter.json`:
 
-### Установка
-
-```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-mcp-adapter@5.3.2
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "httpTransport": "streamable-http",
+      "lifecycle": "lazy"
+    }
+  },
+  "settings": {
+    "scriptMode": false
+  }
+}
 ```
 
-Pin принятой сборки Pi 1.3.0 — 5.3.2; прежний рабочий build.5/6 использует 5.1.0 и здесь не переключается. Совместимость подтверждается scoped actual MCP tool calls, а не только peer metadata или startup banner.
+Это удалённый **Streamable HTTP** server, не npm executable. Local `npx`, `context7-mcp`, дополнительный Pi plugin или прокси не нужны. Сервис не имеет закреплённой npm-версии; фиксируются URL, клиент/протокол. `lazy` сохраняет доступность по требованию, не постоянное соединение. Для discovery adapter может кратко подключить сервер, получить tools и закрыть его; connected=0 не равно disabled.
+
+Безключевой default **не содержит `headers`**, пустого Bearer или ссылки на отсутствующую переменную. Не обещайте безлимитный доступ: сервис может вернуть rate limit или потребовать auth. OAuth не является обязательным шагом базовой URL-установки.
+
+Оба installer-а после package install вызывают [`scripts/ensure-context7.mjs`](../../scripts/ensure-context7.mjs), используя [`config/mcp-adapter.default.json`](../../config/mcp-adapter.default.json) и loader именно установленного adapter 5.3.2. Fresh defaults задают `scriptMode:false`; существующий пользовательский `true` сохраняется. Read-only configuration check: `node scripts/ensure-context7.mjs --profile-dir "<PROFILE_DIR>" --sdk-root "<INSTALLED_CORE_PACKAGE>" --check`. Это проверка effective configuration, не tools/call.
+
+[`config/mcp.example.json`](../../config/mcp.example.json) — большой пример дополнительных servers, не файл для слепого копирования в профиль. Brave/Fetch и их credentials не включаются вместе с обязательным default Context7.
+
+### Необязательный HTTP auth
+
+Только если у пользователя действительно есть ключ и переменная доступна процессу Pi, добавьте в **локальную запись Context7**:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer ${CONTEXT7_API_KEY}"
+  }
+}
+```
+
+Pinned adapter поддерживает env interpolation HTTP headers. Это фрагмент записи server, не весь config и не секрет для Git. Если переменной нет — не добавляйте поле. `env` stdio-сервера не заменяет HTTP header. Не создавайте новое хранилище ключей; используйте поддержанный механизм конфигурации/credentials. [Headers/auth адаптера](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/auth.md#headers-bearer-tokens-and-secret-commands), [schema полей](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/servers.md), [официальная установка Context7](https://github.com/upstash/context7#installation).
+
+## Loader 5.3.2 и сохранение настроек
+
+Adapter-specific settings/imports/overrides принадлежат `mcp-adapter.json`. На современном Pi файл `mcp.json` имеет **Pi-native** контракт: loader переводит только поддержанные servers, не произвольные adapter поля. Нельзя переносить туда `settings.scriptMode`, `lifecycle` и transport override в надежде на одинаковую семантику.
+
+Основные layers в порядке возрастания приоритета:
+
+1. `~/.config/mcp/mcp.json`, `~/.agents/mcp.json`, `~/.agents/mcp/mcp.json`.
+2. `<PROFILE_DIR>/mcp.json` (Pi-native), затем `<PROFILE_DIR>/mcp-adapter.json`.
+3. Явно opted-in ancestors; в cwd `.mcp.json`, `.pi/mcp.json` (Pi-native), `.pi/mcp-adapter.json`.
+
+Ancestor discovery по умолчанию off, host-specific imports имеют собственные правила. Используйте **effective config штатного loader**, не вторую реализацию приоритетов и не проверку одного файла. [Точный контракт loader](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/config.ts), [configuration](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/configuration.md).
+
+При обновлении сохраняйте другие servers/imports/settings, действительные credentials, пользовательский Context7 URL/auth и явный disable. Не создавайте profile default поверх существующей shared записи с более высоким приоритетом. Отсутствующая настройка получает default; уже сделанный выбор пользователя не отменяется.
+
+`PI_MCP_CONFIG_MODE=exclusive` **не входит в рабочие defaults/launchers**: он скрывает shared sources. Создание `mcp-adapter.json` само по себе не включает exclusive. Изолированный fixture может выбирать его по своему scope. Project trust/approval adapter-а сохраняются; не обходите их ради зелёного результата.
+
+## Короткая функциональная проверка
+
+1. В обоих профилях проверьте effective Context7 definition и единственного MCP owner. Панель `/mcp`/`/mcp-adapter` должна принадлежать adapter-у, не второму владельцу.
+2. Обнаружьте tools через `mcp` search и прочитайте schema нужного tool. Выполните **`resolve-library-id` → версия библиотеки → `query-docs`** с коротким вопросом о публичной документации. Имена/аргументы — из schema, не догадка о prefix.
+3. Проверьте полезный результат и завершение. URL, произвольный HTTP GET, server/tool listing и config validation сами по себе не live-вызов.
+4. Network unavailable, auth required и rate limit — разные внешние результаты; default остаётся настроенным, независимая работа продолжается. Не заявляйте live PASS по конфигурации.
+
+Этот путь нужен для решения, требующего актуальной внешней документации. При отказе используйте официальный первичный источник с нужной версией и указанием способа получения; опечатка/локальная ссылка не требуют сети.
+
+## Дополнительные servers и диагностика
+
+Локальные Brave/Fetch подключаются **отдельно**, только если нужны. Их версии/способ probes — в [external tools manifest](../../manifests/external-tools.lock.json). Binary availability не доказывает MCP handshake, auth или tools/call. Отсутствие локального Context7 CLI не является ошибкой remote readiness.
+
+MCP commands исполняются с правами пользователя; remote tools могут иметь destructive/paid side effects. `inheritEnv: true` у stdio передаёт окружение child; `false` с explicit env уменьшает наследование, но не sandbox. Output guard может сохранить большой sensitive результат в private temp file. Это не разрешение на публикацию.
+
+Adapter protocol trace — отдельный **opt-in metadata-only** канал: default caps `maxBytes: 262144`, `maxEvents: 10000`; не raw args/results/auth/URLs, не хранение по дням. `debug` stderr и `pi-trace-extension` — другие каналы. [Реальные ограничения хранения](../../instructions/SEC.public_repository.instructions.md#диагностика-и-хранение).
+
+## Удаление и откат
+
+Удаляйте только своё package/config изменение; shared `.mcp.json` может использоваться другими клиентами. После удаления adapter-а отдельно восстановите builtin, если он нужен. Credential cleanup и optional CLI uninstall — самостоятельные действия, не удаление всех shared серверов.
+
+## Приёмка Context7 на Pi 1.4.0
+
+Windows / Pi 1.4.0 / adapter 5.3.2: переиспользован один успешный public keyless MCP case через настоящий adapter — connect, discovery, describe обеих schemas, `context7_resolve-library-id`, `context7_query-docs`; получена документация React/useState. LLM не вызывалась. Отдельно real-loader configuration stage обоих installer-ов проверил fresh/repeat/custom override для Code и Task (15 config checks). Это **одна live chain**, не две профильные live-проверки; configuration-stage cases не выданы за полный package lifecycle install.
+
+## Историческая приёмка Pi 1.3.0
 
 ### Почему Adapter остаётся владельцем
 
@@ -22,58 +94,6 @@ Pi 1.3.0 не предоставляет эквивалентный legacy SSE f
 
 На actual installed Adapter5.3.2/coherent Pi1.3.0 в synthetic Code/Task проверены connect/discovery/search → describe с constraints → read-only proxy/direct calls. Выбранный tool доступен напрямую, другой остаётся proxy-only; scripting off. Exclusive fixture использует adapter-owned `mcp-adapter.json` (актуальный exclusive contract), не мигрирует working/shared MCP files. Server-only checks не заменяют этот runtime case; [команда и scope](../../tests/sdk/README.md). Последним техническим шагом independent reviewer проверил already-running WVM: Code-installed Adapter с explicit `httpTransport:"sse"`, Task-installed Adapter с explicit `httpTransport:"streamable-http"`; на обоих initialize/tools-list и discovered read-only `settings_schema` PASS. Это два owned SDK cases, не gateway и не полная матрица profile × transport; full-profile loading проверен отдельно. Schema bounded в памяти, HTTP resources probe освобождены после SDK shutdown; default output sizing/самостоятельный HTTP teardown и model/provider readiness не заявляются. Ни settings get/plan/apply/preview, ни запуск/остановка WVM не выполнялись. [Proof и limits](../releases/pi-1.3.0-build.1.md).
 
-### Опциональные server executables
-
-Manifest объявляет три optional servers; adapter работает и без них. Все три версии закреплены точно. Для Fetch verifier проверяет наличие команды, но не запускает server ради неподдерживаемого `--version`; точную установленную версию подтверждайте через `uv tool list` или metadata Python-пакета. Ручная установка:
-
-```bash
-npm install -g @upstash/context7-mcp@3.2.2
-npm install -g @brave/brave-search-mcp-server@2.0.85
-uv tool install "mcp-server-fetch==2025.4.7"
-```
-
-`mcp-server-fetch==2025.4.7` требует Python `>=3.10`; `uv tool` может выбрать/установить совместимый managed runtime. Установка executable сама по себе не включает server: добавьте осознанную запись в MCP config. Пример сборки использует удалённый URL Context7, локальные commands для Fetch и Brave и placeholder Brave key; удалите неиспользуемые entries и никогда не оставляйте placeholder как будто это credential.
-
-### Конфигурация и данные
-
-Рекомендуемые sources по возрастанию приоритета: `~/.config/mcp/mcp.json`, `~/.agents/mcp*.json`, `<PROFILE_DIR>/mcp.json`, project `.mcp.json`, project `.pi/mcp.json`. Host-specific configs не загружаются при default `hostConfigDiscovery: "off"`.
-
-OAuth хранится в OS credential store. Plaintext config credentials не публикуют. Output guard может сохранить большой text result во временный private file; этот файл всё равно содержит sensitive payload. Metadata-only protocol trace opt-in пишет `.pi/mcp-traces/` без raw args/results/URLs.
-
-### Команды, tools и skills
-
-- proxy tool `mcp`: search, describe, call, status, connect, install/auth actions;
-- `mcpScript` — bounded JavaScript orchestration только MCP calls;
-- optional per-server wrappers/direct tools;
-- commands `/mcp`, `/mcp setup`, `/mcp-auth <server>`, `/mcp-trace` и generated MCP prompt commands;
-- manual skill `mcp-scripting`.
-
-### Риски
-
-MCP server commands исполняются локально с правами пользователя; remote tools могут иметь destructive/paid side effects. `inheritEnv: true` передаёт child полный environment. Используйте `inheritEnv: false` и explicit env там, где возможно, но это не sandbox. Включайте `approveTools` для destructive/high-cost patterns. `mcpScript` тоже не isolation boundary.
-
-### Проверка
-
-1. `/mcp status` показывает configured servers без принудительного запуска lazy servers.
-2. `mcp({search:"<capability>"})` возвращает cached/discovered tool.
-3. Выполните один read-only вызов и проверьте result.
-4. После disable/enable выполните `/reload` и подтвердите tool surface.
-
-Repository verification трактует отсутствие optional command как warning. Context7 поддерживает `--version`; для Brave `--version` **не работает без API key** и пытается запустить server, поэтому verifier проверяет наличие команды и exact версию в глобальном npm `package.json`, не запускает сервер и не запрашивает ключ. Неверная версия установленного пакета является failure. Для `mcp-server-fetch` verifier проверяет только command resolution и не запускает server, поэтому не подтверждает exact installed version. Ни один probe не подтверждает MCP handshake, сеть, авторизацию, права API или корректность ответа; functional criterion остаётся реальный read-only tool call из пункта 3.
-
-### Удаление/откат
-
-```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-mcp-adapter
-```
-
-Затем удалите только Pi-specific config/overrides и OAuth credentials для нужных servers. Shared `.mcp.json` может использоваться другими clients и не должен удаляться автоматически. Optional MCP server binaries удаляются отдельно.
-
-```bash
-npm uninstall -g @upstash/context7-mcp
-npm uninstall -g @brave/brave-search-mcp-server
-uv tool uninstall mcp-server-fetch
-```
 
 ## Решение для кандидата Pi 0.99.1
 

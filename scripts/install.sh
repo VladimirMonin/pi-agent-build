@@ -201,6 +201,8 @@ if [ -n "$LAB_ROOT" ]; then
       run_checked "[$name] private pi install $source" lab_run "$lab_pi" install "$source"
       assert_installed_package "$LAB_PROFILE" "$source" "$pkg" "$ver"
     done < <(manifest_packages "$PACKAGES_MANIFEST" "$selected")
+    run_checked "[$name] remote Context7 default" lab_run node "$SCRIPT_DIR/ensure-context7.mjs" \
+      --profile-dir "$LAB_PROFILE" --sdk-root "$LAB_PREFIX/lib/node_modules/$PI_PACKAGE" --cwd "$LAB_CWD"
   done
   # Windows python.exe writes CRLF to pipes; the existing patch orchestrator
   # reads patch names linewise. Keep its interpreter output LF without changing
@@ -264,7 +266,7 @@ if [ "$SKIP_PACKAGE_INSTALL" != "1" ]; then
     dist="$profile_root/npm/node_modules/@samfp/pi-memory/dist/index.js"
     [ -f "$dist" ] || continue
     set +e
-    "$(resolve_python)" "$REPO_ROOT/patches/memory-windows-runtime/apply.py" --check --agent-dir "$profile_root" >/dev/null
+    "$(resolve_python)" "$REPO_ROOT/patches/memory-windows-runtime/apply.py" --prepare-replace --agent-dir "$profile_root"
     probe_code=$?
     set -e
     [ "$probe_code" -le 1 ] || { err "$name memory preflight refused unknown state before reinstall"; exit 2; }
@@ -353,6 +355,19 @@ while IFS=$'\t' read -r name dir; do
         "$REPO_ROOT/profiles/$template_dir/settings.template.json" "$PACKAGES_MANIFEST" "$name" "$backup_root"
       log "merged $profile_root/settings.json"
     fi
+  fi
+  if [ -f "$profile_root/npm/node_modules/pi-mcp-adapter/package.json" ]; then
+    if [ -n "${PI_AGENT_BUILD_NPM_PREFIX:-}" ]; then
+      sdk_root="$PI_AGENT_BUILD_NPM_PREFIX/lib/node_modules/$PI_PACKAGE"
+      [ -f "$sdk_root/package.json" ] || sdk_root="$PI_AGENT_BUILD_NPM_PREFIX/node_modules/$PI_PACKAGE"
+    else
+      sdk_root="$(npm root --global)/$PI_PACKAGE"
+    fi
+    run_checked "[$name] remote Context7 default" node "$SCRIPT_DIR/ensure-context7.mjs" \
+      --profile-dir "$profile_root" --sdk-root "$sdk_root"
+  else
+    [ "$SKIP_PACKAGE_INSTALL" = 1 ] || { err 'installed MCP adapter missing'; exit 2; }
+    warn 'Context7 configuration NOT TESTED: package installation skipped and adapter unavailable'
   fi
 done < <(selected_profiles "$PROFILE")
 

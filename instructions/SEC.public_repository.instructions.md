@@ -95,3 +95,19 @@ Safety scan должен:
 ## Runtime backup — отдельный канал
 
 Пользовательская память, сессии и auth могут переноситься только отдельным зашифрованным архивом вне Git. Этот репозиторий может содержать инструкцию и backup script с allowlist, но не сам архив и не пароль.
+
+## Диагностика и хранение
+
+Используй существующие console/verifier messages, Pi status/panels и opt-in каналы; не добавляй независимый постоянный JSONL-логгер. Trace остаётся установлен/default-off. Полезная диагностика сообщает этап, версию, исход и причину: patch state/transition, auth source/state без секрета, catalog count, expected/actual provider-model, project scope/тип операции, configured/enabled/reachable Context7 и внешний error code.
+
+Не добавляй в диагностический default ключи, Authorization, личные prompts/responses, memory contents, каждый токен или повторяющееся событие. Обычная история Pi и явный Trace уже sensitive: их наличие не разрешает полную копию в новом логе. Если изменён фильтр, проверь настоящие bytes synthetic выхода: необходимые технические поля присутствуют **и** запрещённые sentinels отсутствуют. Выключенный logger/пустой файл не доказывает это.
+
+| Существующий канал | Размер/срок/очистка по реализации |
+|---|---|
+| Installer, patchers, verifier | Console/stdout/stderr, не собственный постоянный logfile. При redirect владелец запуска задаёт файл/срок и удаляет его после использования; авторотация не заявляется |
+| Adapter 5.3.2 protocol trace | Отдельный opt-in metadata-only JSONL, defaults `maxBytes: 262144`, `maxEvents: 10000`; это предел записи, не retention по дням. Не raw args/results/auth/URLs. Адресная очистка своего output после завершения потребителей |
+| `pi-trace-extension` | Explicit opt-in в `<PROFILE_DIR>/traces/`; содержит sensitive context. Автоматических retention/rotation нет. Их добавление — конкретный отдельный остаток, не часть переписывания logging |
+| Pi sessions, Memory DB, search index | Данные продукта, не одноразовые diagnostic logs. Не подрезать ради лимита сообщения; backup/миграция/удаление отдельно по state-migration |
+| Installer/patch/launcher backups, raw evidence | Автоматический TTL не заявляется. Хранятся приватно; чистятся только owned paths без активных потребителей, после сохранения нужного recovery/evidence |
+
+Подробности каналов: [MCP](../docs/components/mcp.md), [Trace](../docs/trace.md), [Polza](../docs/polza-provider.md). Описание лимитов не заменяет runtime privacy-проверку и не разрешает экспорт raw artifacts.

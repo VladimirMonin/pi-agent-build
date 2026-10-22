@@ -1,4 +1,4 @@
-# Провайдер Polza AI (`pi-polza` 0.2.1)
+# Провайдер Polza AI (`pi-polza`)
 
 ## Назначение
 
@@ -6,12 +6,9 @@
 
 ## Установка
 
-```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
-```
+Основной маршрут — [INSTALL_FOR_AGENTS](../INSTALL_FOR_AGENTS.md). Exact версия provider, immutable commit и release metadata принадлежат [packages lock](../manifests/pi-packages.lock.json); ядро и минимальный Node всей сборки — [runtime lock](../manifests/runtime.lock.json). Сам provider требует Node ≥ 22.6 и Git для GitHub-source, не Python.
 
-Release `v0.2.1`: annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c` peels to commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`. Manifest/installer передаёт именно immutable commit `cbc8…`; tag object и имя `v0.2.1` хранятся отдельно как проверяемая release metadata. Это фиксирует top-level Git source, но не transitive npm tree. Требования: Pi `1.0.2` из manifest и Node.js не ниже `22.6`.
+Не дублируйте прежний SHA в ручном recipe. Исправленный provider должен пройти цепочку «проверенный commit → доступность GitHub → новый pin → установка этой ревизии». Local override не доказывает публичную доставку. Исторический `v0.2.1` имел annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c`, peeled commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`; это сведения прежнего выпуска, не требование отката.
 
 В 0.2.1 нативный RUB учитывается один раз по последнему `usage.cost_rub` после успешного ответа, независимо от задержки закрытия SSE после `[DONE]`. Ошибки, отмена и некорректная/отсутствующая стоимость остаются unknown; настоящий ноль сохраняется. Неудачное обновление баланса сохраняет последнюю сумму с пометкой `stale`, успешное снимает пометку; частота запросов не меняется. Проверенная граница — Pi **1.0.2**, не все версии 1.x. Evidence и ограничения: [build.3](releases/pi-1.0.2-build.3.md).
 
@@ -23,7 +20,7 @@ Release `v0.2.1`: annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c
 /login → Polza AI → Sign in with an API key
 ```
 
-Pi сохраняет credential в профильном `auth.json`; сам plugin отдельный secret store не ведёт. Для headless допускается `POLZA_API_KEY`, но не записывайте значение в tracked `.env`, launcher или документацию.
+Pi сохраняет credential в профильном `auth.json`; plugin отдельный secret store не ведёт. `.env` не обязательное условие ordinary main-provider запуска. Для headless допускается `POLZA_API_KEY`, но не записывайте значение в tracked `.env`, launcher или документацию. Ключ вводится человеком через штатный login; не выводите его для диагностики.
 
 Plugin кэширует OpenRouter enrichment в project-local `.pi/pi-polza-cache/`. Стоимость сессии хранится в session entries; background-subagent cost импортируется после завершения запуска. Эти данные могут раскрывать модели, стоимость и контекст запуска — не публикуйте живые session/trace artifacts.
 
@@ -56,7 +53,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi list
 PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 ```
 
-После `/login`: `/polza-refresh`, `/polza-model-info`, `/polza-balance`. Платный smoke выполняйте осознанно коротким запросом и затем сравните `/polza-cost` с `Coverage: complete` либо документированным `partial`.
+После `/login` проверьте catalog и `/polza-model-info` **до рабочего запроса**; `/polza-refresh` диагностирует обновление, но не закрывает провал cold start. Missing/rejected key, network failure и отсутствующая model различаются. Новая сессия: expected provider/model из реальных настроек/arguments → actual SDK/RPC state → структурированный результат запроса. Успешный fallback на `polza-memory` не PASS. Платный smoke — короткий в разрешённом scope, затем `/polza-cost`/Coverage; timeout/обрыв/ошибка не успешный ответ.
 
 ## Удаление и откат
 

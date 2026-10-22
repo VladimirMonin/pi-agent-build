@@ -229,7 +229,7 @@ export async function runCoordination(sdk, ai, sdkRoot, installedProfile, root) 
       assert.equal(receipt.entrypoint.path,expectedRunner);assert.equal(receipt.entrypoint.sha256,hash(expectedRunner));
       assert.equal(receipt.sdkIdentity.root,expectedSdk);assert.equal(receipt.sdkIdentity.entry,expectedEntry);
       assert.equal(receipt.sdkIdentity.entrySha256,hash(expectedEntry));assert.equal(receipt.sdkIdentity.packageSha256,hash(path.join(sdkRoot,'package.json')));
-      assert.equal(receipt.sdkIdentity.name,'@earendil-works/pi-coding-agent');assert.equal(receipt.sdkIdentity.version,'1.3.0');
+      assert.equal(receipt.sdkIdentity.name,'@earendil-works/pi-coding-agent');assert.equal(receipt.sdkIdentity.version,JSON.parse(fs.readFileSync(path.join(sdkRoot,'package.json'),'utf8')).version);
       assert.equal(receipt.sdkIdentity.sessionManagerConstructorMatches,true,'Active context uses a different SDK class');
     }
     for (const receipt of childReceipts) {

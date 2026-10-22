@@ -1,0 +1,376 @@
+import { DatabaseSync } from "node:sqlite";
+import { mkdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import type { ParsedSession } from "./parser";
+import { discoverSessionFiles, parseSession, readSessionId } from "./parser";
+import type { SearchResult, ListFilters } from "./session-index";
+import { buildSummary, createYielder } from "./utils";
+import { assertFts5Available } from "./fts5-probe";
+
+const BUSY_TIMEOUT_MS = 5000;
+/** PRAGMA user_version once load() has removed duplicates older releases left. */
+const HEALED_USER_VERSION = 1;
+
+/**
+ * SQLite FTS5-backed session index. API-compatible with SessionIndex.
+ * Requires no embedder — uses BM25 keyword search.
+ */
+export class FtsSessionIndex {
+  private db!: DatabaseSync;
+  private dbPath: string;
+  private indexDir: string;
+  private extraSessionDirs: string[];
+  private extraArchiveDirs: string[];
+  private sessionDir?: string;
+  private archiveDir?: string;
+
+  constructor(
+    indexDir: string,
+    extraSessionDirs: string[] = [],
+    extraArchiveDirs: string[] = [],
+    sessionDir?: string,
+    archiveDir?: string,
+  ) {
+    this.indexDir = indexDir;
+    this.extraSessionDirs = extraSessionDirs;
+    this.extraArchiveDirs = extraArchiveDirs;
+    this.sessionDir = sessionDir;
+    this.archiveDir = archiveDir;
+    mkdirSync(indexDir, { recursive: true });
+    this.dbPath = join(indexDir, "sessions-fts.db");
+  }
+
+  async load(): Promise<void> {
+    // Fail fast with an actionable message on Node runtimes without FTS5
+    // (older Node 22 releases omit it). Without this probe the
+    // CREATE VIRTUAL TABLE below leaves the DB file with no tables and
+    // later queries surface "no such table: sessions".
+    assertFts5Available();
+
+    this.db = new DatabaseSync(this.dbPath);
+    this.db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+
+    // Migrate: add sizeBytes column if missing (FTS5 UNINDEXED columns)
+    // FTS5 virtual tables don't support ALTER TABLE ADD COLUMN, so we check
+    // if the table has the sizeBytes column by attempting a query.
+    let hasSizeBytes = false;
+    try {
+      this.db.prepare("SELECT sizeBytes FROM sessions LIMIT 0").all();
+      hasSizeBytes = true;
+    } catch {
+      // Column doesn't exist — need to recreate the table
+    }
+    if (!hasSizeBytes) {
+      this.db.exec("DROP TABLE IF EXISTS sessions");
+    }
+
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS sessions USING fts5(
+        id UNINDEXED,
+        file UNINDEXED,
+        archived UNINDEXED,
+        startedAt UNINDEXED,
+        projectSlug UNINDEXED,
+        cwd UNINDEXED,
+        mtimeMs UNINDEXED,
+        sizeBytes UNINDEXED,
+        json UNINDEXED,
+        summary UNINDEXED,
+        name,
+        content,
+        tokenize='porter unicode61'
+      );
+    `);
+
+    this.dropOldDuplicatesOnce();
+  }
+
+  /**
+   * FTS5 has no unique constraint, and releases before 1.6.0 could index one
+   * id twice when two pi processes synced at once. Scan for that once per DB;
+   * sync() handles later races. Best-effort: while another connection holds
+   * the write lock it is skipped, and the next open or adding sync heals.
+   */
+  private dropOldDuplicatesOnce(): void {
+    const { user_version } = this.db.prepare("PRAGMA user_version").get() as { user_version: number };
+    if (user_version >= HEALED_USER_VERSION) return;
+    try {
+      this.db.exec("PRAGMA busy_timeout = 0");
+      try {
+        this.db.exec("BEGIN IMMEDIATE");
+      } finally {
+        this.db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+      }
+      dropDuplicateRows(this.db);
+      this.db.exec(`PRAGMA user_version = ${HEALED_USER_VERSION}`);
+      this.db.exec("COMMIT");
+    } catch {
+      if (this.db.isTransaction) this.db.exec("ROLLBACK");
+    }
+  }
+
+  save(): void { /* auto-persisted */ }
+
+  size(): number {
+    const row = this.db.prepare("SELECT COUNT(*) AS n FROM sessions").get() as any;
+    return Number(row?.n ?? 0);
+  }
+
+  async sync(
+    onProgress?: (msg: string) => void,
+    _onError?: (msg: string) => void,
+  ): Promise<{ added: number; updated: number; removed: number; moved: number }> {
+    try {
+      return await this.applyChanges(onProgress);
+    } catch (err) {
+      // Roll back the failed chunk: left open, it would make every later
+      // sync's BEGIN fail. Chunks committed before it stay indexed.
+      if (this.db.isTransaction) this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  private async applyChanges(
+    onProgress?: (msg: string) => void,
+  ): Promise<{ added: number; updated: number; removed: number; moved: number }> {
+    const discovered = discoverSessionFiles(this.extraSessionDirs, this.extraArchiveDirs, this.sessionDir, this.archiveDir);
+
+    let added = 0, updated = 0, removed = 0, moved = 0;
+    const pause = createYielder();
+
+    // Build idToFile map from disk (preferring newer mtime on dupes)
+    const idToFile = new Map<string, { file: string; archived: boolean; mtimeMs: number; sizeBytes: number }>();
+    for (const { file, archived } of discovered) {
+      if (pause.due()) await pause.yield();
+      let mtimeMs: number;
+      let sizeBytes: number;
+      try {
+        const st = statSync(file);
+        mtimeMs = st.mtimeMs;
+        sizeBytes = st.size;
+      } catch { continue; }
+      const id = readSessionId(file);
+      if (!id) continue;
+      const existing = idToFile.get(id);
+      if (!existing || mtimeMs > existing.mtimeMs) {
+        idToFile.set(id, { file, archived, mtimeMs, sizeBytes });
+      }
+    }
+
+    // Current index state
+    const currentRows = this.db
+      .prepare("SELECT id, file, mtimeMs, sizeBytes FROM sessions")
+      .all() as any[];
+    const currentIds = new Set(currentRows.map((r) => String(r.id)));
+    const currentById = new Map<string, { file: string; mtimeMs: number; sizeBytes: number }>();
+    for (const r of currentRows) {
+      currentById.set(String(r.id), {
+        file: String(r.file),
+        mtimeMs: Number(r.mtimeMs),
+        sizeBytes: Number(r.sizeBytes ?? 0),
+      });
+    }
+
+    // Remove sessions no longer present
+    const delStmt = this.db.prepare("DELETE FROM sessions WHERE id = ?");
+    this.db.exec("BEGIN");
+    for (const id of currentIds) {
+      if (!idToFile.has(id)) {
+        delStmt.run(id);
+        removed++;
+      }
+    }
+    this.db.exec("COMMIT");
+
+    // Figure out what needs (re-)ingestion
+    const toIngest: { id: string; file: string; archived: boolean; mtimeMs: number; sizeBytes: number }[] = [];
+    const movedUpdates: { id: string; file: string; archived: boolean; mtimeMs: number; sizeBytes: number }[] = [];
+    for (const [id, disc] of idToFile.entries()) {
+      const cur = currentById.get(id);
+      if (!cur) {
+        toIngest.push({ id, ...disc });
+      } else if (cur.sizeBytes !== disc.sizeBytes) {
+        // File size changed — content was actually modified
+        toIngest.push({ id, ...disc });
+      } else if (cur.file !== disc.file) {
+        movedUpdates.push({ id, ...disc });
+      }
+      // else: same size (and same file) — skip even if mtime differs
+    }
+
+    // Apply moves (metadata-only) without reparse
+    const moveStmt = this.db.prepare(
+      "UPDATE sessions SET file = ?, archived = ?, mtimeMs = ?, sizeBytes = ? WHERE id = ?",
+    );
+    for (const m of movedUpdates) {
+      moveStmt.run(m.file, m.archived ? 1 : 0, m.mtimeMs, m.sizeBytes, m.id);
+      moved++;
+    }
+
+    if (toIngest.length > 0) onProgress?.(`Indexing ${toIngest.length} sessions...`);
+
+    const insertStmt = this.db.prepare(`
+      INSERT INTO sessions (id, file, archived, startedAt, projectSlug, cwd, mtimeMs, sizeBytes, json, summary, name, content)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const replaceDel = this.db.prepare("DELETE FROM sessions WHERE id = ?");
+
+    // Commit before each yield so no transaction spans an await: requests
+    // served between chunks never meet an open transaction, and other pi
+    // processes sharing this DB only wait for one chunk's write lock.
+    this.db.exec("BEGIN");
+    let done = 0;
+    for (const item of toIngest) {
+      if (pause.due()) {
+        this.db.exec("COMMIT");
+        await pause.yield();
+        this.db.exec("BEGIN");
+      }
+      const session = parseSession(item.file, item.archived);
+      if (!session || session.userMessageCount === 0) { done++; continue; }
+      const content = buildContent(session);
+      const summary = buildSummary(session);
+      const isUpdate = currentIds.has(item.id);
+      // A DELETE by the UNINDEXED id scans the whole table, so only updates
+      // pay it; ids another process inserted meanwhile are deduped below.
+      if (isUpdate) replaceDel.run(item.id);
+      insertStmt.run(
+        session.id,
+        session.file,
+        session.archived ? 1 : 0,
+        session.startedAt,
+        session.projectSlug,
+        session.cwd,
+        item.mtimeMs,
+        item.sizeBytes,
+        JSON.stringify(session),
+        summary,
+        session.name ?? "",
+        content,
+      );
+      if (isUpdate) updated++; else added++;
+      done++;
+      if (done % 25 === 0) onProgress?.(`Indexed ${done}/${toIngest.length}...`);
+    }
+    // Another pi process sharing this DB may have inserted some of the ids
+    // added here since currentRows was read. One scan per sync removes them.
+    if (added > 0) dropDuplicateRows(this.db);
+    this.db.exec("COMMIT");
+
+    return { added, updated, removed, moved };
+  }
+
+  async rebuild(onProgress?: (msg: string) => void, onError?: (msg: string) => void): Promise<void> {
+    this.db.exec("DELETE FROM sessions");
+    await this.sync(onProgress, onError);
+  }
+
+  async search(query: string, limit = 10, _signal?: AbortSignal, project?: string): Promise<SearchResult[]> {
+    const fts = toFtsQuery(query);
+    if (!fts) return [];
+    const clauses: string[] = ["sessions MATCH ?"];
+    const args: any[] = [fts];
+    if (project) {
+      clauses.push("(lower(projectSlug) LIKE ? OR lower(cwd) LIKE ?)");
+      const p = `%${project.toLowerCase()}%`;
+      args.push(p, p);
+    }
+    const sql = `SELECT json, summary, bm25(sessions) AS score FROM sessions WHERE ${clauses.join(" AND ")} ORDER BY score LIMIT ?`;
+    const rows = this.db.prepare(sql).all(...args, limit) as any[];
+    return rows.map((r) => {
+      const session = JSON.parse(String(r.json)) as ParsedSession;
+      // Normalize BM25 (lower is better) into a 0..1-ish relevance score for display
+      const raw = Number(r.score);
+      const score = 1 / (1 + Math.abs(raw));
+      return { session, summary: String(r.summary ?? ""), score };
+    });
+  }
+
+  list(filters?: ListFilters): ParsedSession[] {
+    const clauses: string[] = [];
+    const args: any[] = [];
+    if (filters?.project) {
+      clauses.push("(lower(projectSlug) LIKE ? OR lower(cwd) LIKE ?)");
+      const p = `%${filters.project.toLowerCase()}%`;
+      args.push(p, p);
+    }
+    if (filters?.after) { clauses.push("startedAt >= ?"); args.push(filters.after); }
+    if (filters?.before) { clauses.push("startedAt <= ?"); args.push(filters.before); }
+    if (filters?.archived !== undefined) {
+      clauses.push("archived = ?");
+      args.push(filters.archived ? 1 : 0);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const limit = filters?.limit ?? 1000;
+    const sql = `SELECT json FROM sessions ${where} ORDER BY startedAt DESC LIMIT ?`;
+    const rows = this.db.prepare(sql).all(...args, limit) as any[];
+    return rows.map((r) => JSON.parse(String(r.json)) as ParsedSession);
+  }
+
+  get(fileOrId: string): { session: ParsedSession; summary: string } | undefined {
+    const row = this.db
+      .prepare("SELECT json, summary FROM sessions WHERE id = ? OR file = ? LIMIT 1")
+      .get(fileOrId, fileOrId) as any;
+    if (!row) return undefined;
+    return {
+      session: JSON.parse(String(row.json)) as ParsedSession,
+      summary: String(row.summary ?? ""),
+    };
+  }
+
+  getAll(): { session: ParsedSession; summary: string }[] {
+    const rows = this.db.prepare("SELECT json, summary FROM sessions").all() as any[];
+    return rows.map((r) => ({
+      session: JSON.parse(String(r.json)) as ParsedSession,
+      summary: String(r.summary ?? ""),
+    }));
+  }
+
+  close(): void {
+    this.db.close();
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+/** Delete all but each id's newest row (by mtime, then rowid). One table scan. */
+function dropDuplicateRows(db: DatabaseSync): void {
+  db.exec(`
+    DELETE FROM sessions WHERE rowid IN (
+      SELECT rowid FROM (
+        SELECT rowid, row_number() OVER (
+          PARTITION BY id ORDER BY CAST(mtimeMs AS REAL) DESC, rowid DESC
+        ) AS rank FROM sessions
+      ) WHERE rank > 1
+    )
+  `);
+}
+
+export function buildContent(s: ParsedSession): string {
+  const parts: string[] = [];
+  if (s.name) parts.push(s.name);
+  parts.push(s.userMessages.join("\n"));
+  if (s.compactionSummaries?.length) parts.push(s.compactionSummaries.join("\n"));
+  if (s.branchSummaries?.length) parts.push(s.branchSummaries.join("\n"));
+  if (s.filesModified?.length) parts.push(s.filesModified.join(" "));
+  return parts.join("\n\n");
+}
+
+/**
+ * Turn a user query into a safe FTS5 MATCH expression.
+ * Strips FTS syntax characters, quotes each term, and joins with OR.
+ *
+ * OR rather than AND: BM25 already ranks docs matching more terms higher, so
+ * OR preserves recall (partial matches stay in the result set) without
+ * sacrificing relevance. In hybrid mode FTS is fused with vector search via
+ * RRF — we want FTS to surface candidates, not hard-exclude them.
+ */
+export function toFtsQuery(q: string): string {
+  const terms = q
+    .replace(/[\"^*():{}\[\]]/g, " ")
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
+    .map((t) => `"${t}"`);
+  return terms.join(" OR ");
+}

@@ -36,3 +36,7 @@ SDK full synthetic Code/Task: off → explicit `additionalExtensionPaths` opt-in
 - Холодные HF embedding downloads блокировались, memory работала в FTS fallback; это не semantic embedding acceptance. Browser opening/dashboard UI и платные реальные providers этой проверкой не подтверждены.
 
 Raw synthetic traces/receipts остаются вне Git; исходные личные трассы не использовались.
+
+## Хранение
+
+У `pi-trace-extension` нет автоматических size cap, retention или rotation. Это конкретный отдельный остаток компонента; текущий ремонт не добавляет новый logger. Для разовой диагностики заранее выберите приватные output/scope, затем после завершения потребителей удалите только свои ненужные traces; нужное evidence и чужую историю сохраните. Не отправляйте raw JSONL/HTML в public issue. Ограниченный metadata-only **MCP protocol trace** — другой канал с собственными лимитами, не ротация этого Trace; [политика](../instructions/SEC.public_repository.instructions.md#диагностика-и-хранение).

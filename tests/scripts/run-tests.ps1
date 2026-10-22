@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([string[]]$Only = @())
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -117,6 +117,8 @@ public static class $className {
 
 function New-FakeInstallToolchain {
     param([string]$Root)
+    $manifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
+    $polzaPin = @($manifest.profiles.common | Where-Object { $_.package -eq 'pi-polza' })[0]
     $bin = Join-Path $Root 'bin'
     $prefix = Join-Path $Root 'npm-prefix'
     New-Item -ItemType Directory -Path $bin -Force | Out-Null
@@ -176,32 +178,53 @@ if (source.startsWith("npm:")) {
 } else {
   const pkg = path.join(agent, "git", "github.com", "VladimirMonin", "pi-polza");
   fs.mkdirSync(path.join(pkg, ".git"), {recursive:true});
-  fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({name:"pi-polza", version:"0.2.1"}));
+  fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({name:"pi-polza", version:__POLZA_VERSION__}));
 }
 '@
+    $piJs = $piJs.Replace('__POLZA_VERSION__', ([string]$polzaPin.version | ConvertTo-Json -Compress))
     [IO.File]::WriteAllText((Join-Path $bin 'fake-pi.js'), $piJs)
 
+    # This suite doubles npm/Pi lifecycle commands. Real Context7 loader and
+    # installer configuration-stage coverage lives in context7-defaults.mjs.
+    $nodeJs = @'
+const fs = require("fs"), path = require("path"), {spawnSync} = require("child_process");
+const args = process.argv.slice(2);
+if (args.length === 1 && args[0] === "--version") { console.log("v" + __NODE_VERSION__); process.exit(0); }
+if (args[0] && path.basename(args[0]) === "ensure-context7.mjs") {
+  fs.appendFileSync(path.join(__dirname, "..", "install-log.jsonl"), JSON.stringify({tool:"context7-config-mock", args, secret:process.env.SECRET_SENTINEL || "", scope:"LIFECYCLE_COMMAND_DOUBLE_NOT_CONFIG_LOADER_COVERAGE"}) + "\n");
+  process.exit(0);
+}
+const result = spawnSync(__REAL_NODE__, args, {stdio:"inherit", env:process.env});
+if (result.error) throw result.error;
+process.exit(result.status === null ? 1 : result.status);
+'@
+    $nodeVersion = [string](Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\runtime.lock.json') -Raw | ConvertFrom-Json).runtime.node
+    $nodeJs = $nodeJs.Replace('__NODE_VERSION__', ($nodeVersion | ConvertTo-Json -Compress)).Replace('__REAL_NODE__', ($realNode | ConvertTo-Json -Compress))
+    [IO.File]::WriteAllText((Join-Path $bin 'fake-node.js'), $nodeJs)
     $nodeQuoted = $realNode.Replace('%', '%%')
+    [IO.File]::WriteAllText((Join-Path $bin 'node.cmd'), "@`"$nodeQuoted`" `"%~dp0fake-node.js`" %*`r`n")
     [IO.File]::WriteAllText((Join-Path $bin 'npm.cmd'), "@`"$nodeQuoted`" `"%~dp0fake-npm.js`" %*`r`n")
     [IO.File]::WriteAllText((Join-Path $bin 'pi.cmd'), "@`"$nodeQuoted`" `"%~dp0fake-pi.js`" %*`r`n")
     $gitJs = @'
 const fs = require("fs"), path = require("path");
 const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
+const pin = __POLZA_PIN__;
 const commit = fs.existsSync(path.join(root, "fake-git-head.txt"))
   ? fs.readFileSync(path.join(root, "fake-git-head.txt"), "utf8").trim()
-  : "cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139";
+  : pin.commit;
 if (args.length === 1 && args[0] === "--version") { console.log("git version 2.54.0.windows.1"); process.exit(0); }
 if (args[0] === "-C" && args[2] === "rev-parse") {
   const ref = args[3];
   if (ref === "HEAD") console.log(commit);
-  else if (ref === "refs/tags/v0.2.1") console.log("a93589ecd0075d3f4c34eb1f13bda891c5983d8c");
-  else if (ref === "a93589ecd0075d3f4c34eb1f13bda891c5983d8c^{commit}" || ref === "a93589ecd0075d3f4c34eb1f13bda891c5983d8c{commit}") console.log("cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139");
+  else if (ref === "refs/tags/" + pin.releaseTag) console.log(pin.tagObject);
+  else if (ref === pin.tagObject + "^{commit}" || ref === pin.tagObject + "{commit}") console.log(pin.commit);
   else process.exit(7);
   process.exit(0);
 }
 process.exit(8);
 '@
+    $gitJs = $gitJs.Replace('__POLZA_PIN__', ($polzaPin | ConvertTo-Json -Depth 10 -Compress))
     [IO.File]::WriteAllText((Join-Path $bin 'fake-git.js'), $gitJs)
     [IO.File]::WriteAllText((Join-Path $bin 'git.cmd'), "@`"$nodeQuoted`" `"%~dp0fake-git.js`" %*`r`n")
     [IO.File]::WriteAllText((Join-Path $bin 'uv.cmd'), "@if `"%1`"==`"--version`" (@echo uv 0.9.27& @exit /b 0)`r`n@>>`"%~dp0..\install-log.jsonl`" echo {`"tool`":`"uv`",`"secret`":`"%SECRET_SENTINEL%`"}`r`n@exit /b 0`r`n")
@@ -210,6 +233,7 @@ process.exit(8);
 
 function Test-Case {
     param([string]$Name, [scriptblock]$Body)
+    if ($Only.Count -gt 0 -and $Only -notcontains $Name) { return }
     try {
         & $Body
         $script:Passed++
@@ -267,11 +291,11 @@ try {
         }
         $packageManifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
         $polza = @($packageManifest.profiles.common | Where-Object { $_.package -eq 'pi-polza' })[0]
-        Assert-Equal '0.2.1' ([string]$polza.version) 'pi-polza package version'
-        Assert-Equal 'cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139' ([string]$polza.commit) 'pi-polza commit pin'
-        Assert-Equal 'a93589ecd0075d3f4c34eb1f13bda891c5983d8c' ([string]$polza.tagObject) 'pi-polza annotated tag object'
-        Assert-Equal 'v0.2.1' ([string]$polza.releaseTag) 'pi-polza release tag metadata'
-        Assert-True ([string]$polza.source -match [regex]::Escape([string]$polza.commit)) 'pi-polza source is not pinned to the commit'
+        Assert-True ([string]$polza.version -match '^\d+\.\d+\.\d+$') 'pi-polza package version format'
+        Assert-True ([string]$polza.commit -cmatch '^[a-f0-9]{40}$') 'pi-polza commit pin format'
+        Assert-True ([string]$polza.tagObject -cmatch '^[a-f0-9]{40}$') 'pi-polza annotated tag object format'
+        Assert-Equal ('v' + [string]$polza.version) ([string]$polza.releaseTag) 'pi-polza release tag metadata'
+        Assert-True ([string]$polza.source -match ('@' + [regex]::Escape([string]$polza.commit) + '$')) 'pi-polza source is not pinned to the exact commit'
     }
 
     Test-Case 'install defaults to plan and does not create Pi root' {
@@ -468,15 +492,18 @@ try {
         [IO.File]::WriteAllText($existingModels, '{"providers":{"local-test":{"name":"keep-me"}}}')
         $oldPath = $env:PATH
         $oldSecret = $env:SECRET_SENTINEL
+        $oldNpmPrefix = $env:PI_AGENT_BUILD_NPM_PREFIX
         try {
             $env:PATH = "$($tools.Bin);$oldPath"
             $env:SECRET_SENTINEL = 'must-not-reach-child-processes'
+            $env:PI_AGENT_BUILD_NPM_PREFIX = $null
             $result = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\install.ps1') @(
                 '-Profile', 'Code', '-Apply', '-SkipPatches', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot
             )
         } finally {
             $env:PATH = $oldPath
             $env:SECRET_SENTINEL = $oldSecret
+            $env:PI_AGENT_BUILD_NPM_PREFIX = $oldNpmPrefix
         }
         Assert-Equal 0 $result.ExitCode "fake lifecycle install failed: $($result.Output)"
         $installedSettings = Get-Content -LiteralPath $existingSettings -Raw | ConvertFrom-Json
@@ -494,6 +521,9 @@ try {
         Assert-Equal 'keep-me' ([string]$installedModels.providers.'local-test'.name) 'existing model provider was not preserved'
         Assert-True ($null -ne $installedModels.providers.'polza-memory') 'polza-memory provider was not merged'
         $records = @([IO.File]::ReadAllLines($tools.Log) | ForEach-Object { $_ | ConvertFrom-Json })
+        Assert-Equal 1 @($records | Where-Object { $_.tool -eq 'context7-config-mock' }).Count 'installer did not dispatch one Context7 configuration stage'
+        $context7Call = @($records | Where-Object { $_.tool -eq 'context7-config-mock' })[0]
+        Assert-Equal '' ([string]$context7Call.secret) 'secret leaked into Context7 configuration node child'
         $piCalls = @($records | Where-Object { $_.tool -eq 'pi' })
         Assert-Equal 15 $piCalls.Count 'not every profile package was installed through pi install'
         foreach ($call in $piCalls) {
@@ -735,7 +765,12 @@ try {
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\parser.ts'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index.js'),
             (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.9.20'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index.ts')
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\utils.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\session-index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\fts-index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index-service.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index-worker.js')
         )
         $before = Get-FileHashes $storeFiles
         $python = (Get-Command python).Source
@@ -818,7 +853,7 @@ try {
         $sessionAgent = Join-Path $root 'session-profile'
         $sessionPkg = Join-Path $sessionAgent 'npm\node_modules\pi-session-search'
         [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.6.0"}')
-        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts')) {
+        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts', 'src\utils.ts', 'src\session-index.ts', 'src\fts-index.ts', 'src\index-service.ts', 'dist\index-worker.js')) {
             $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0') $rel
             $dst = Join-Path $sessionPkg $rel
             New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
@@ -879,7 +914,7 @@ try {
             $env:PATH = "$($tools.Bin);$oldPath"
             $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-ExternalOnly', '-RepoRoot', $RepoRoot)
         } finally { $env:PATH = $oldPath }
-        Assert-True ($bad.ExitCode -ne 0) 'installed optional MCP with wrong version was not rejected'
+        Assert-Equal 0 $bad.ExitCode 'irrelevant local Context7 CLI affected the remote-only requirement'
 
         [IO.File]::WriteAllText((Join-Path $tools.Bin 'context7-mcp.cmd'), "@echo 3.2.2`r`n")
         [IO.File]::WriteAllText($braveMeta, '{"version":"0.0.0"}')

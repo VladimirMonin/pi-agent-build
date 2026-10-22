@@ -1,7 +1,9 @@
 {
   "mcpServers": {
     "context7": {
-      "url": "https://mcp.context7.com/mcp"
+      "url": "https://mcp.context7.com/mcp",
+      "httpTransport": "streamable-http",
+      "lifecycle": "lazy"
     },
     "fetch": {
       "command": "mcp-server-fetch"

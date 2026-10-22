@@ -1,6 +1,6 @@
-# Pi-memory 1.6.0: границы проектов и обрезание памяти
+# Memory 1.6: границы проектов и целые записи
 
-**Статус:** для закреплённого `@samfp/pi-memory@1.6.0` обобщённое исправление встроено в единый [version-guarded patcher](../../patches/memory-windows-runtime/apply.py). Это локальный patch сборки, **не исправление upstream**; новая версия плагина требует отдельной проверки. Публичный навык содержит [процедуру диагностики](../../skills/memory-ops/instructions/10-tags-budget.md).
+**Статус:** локальный patch сборки для exact Memory из [manifest](../../manifests/pi-packages.lock.json) (текущий target `1.6.1`); [контракт patcher-а](../../patches/memory-windows-runtime/README.md). Это **не исправление upstream**. Исторические причины ниже сохраняются на своих версиях; новая версия требует проверки затронутого контракта. Публичный навык содержит [процедуру диагностики](../../skills/memory-ops/instructions/10-tags-budget.md).
 
 ## Наблюдение и причины
 
@@ -13,7 +13,9 @@
 
 ## Патч сборки и перенос локальных привязок
 
-`injection.py` преобразует только сверенный pristine 1.6.0 в **один canonical bundle**: все пути добавления фактов (текстовый поиск, embedding hits и соседи) проверяются одним scope; несколько местных уроков выбираются первыми; бюджет 8000 символов наполняется только **целыми строками**. Если записей больше, часть пропускается: полнота всех релевантных записей не гарантируется. База памяти не изменяется patcher’ом.
+`injection.py` строит **один canonical bundle** из сверенного pristine target: все пути добавления фактов (текстовый поиск, embedding hits и соседи) проверяются одним scope; несколько местных уроков выбираются первыми; бюджет 8000 символов наполняется только **целыми строками**. Если записей больше, часть пропускается: полнота всех релевантных записей не гарантируется. База памяти не изменяется patcher’ом.
+
+Тот же `projectFactScope()` теперь определяет recall, `memory_remember`, применение consolidation и допустимый префикс в её prompt. Запись `project.<current-scope>.<fact>` проверяется точно: дефис/подчёркивание не объединяются, чужой scope получает отказ с ожидаемым префиксом. Глобальные `pref.*`, `user.*`, `tool.*` сохраняют свою область. Факт о другом проекте нельзя молча записывать в текущий; старые записи БД не переименовываются массово.
 
 Для нестандартных корней и worktree используйте **только приватный** `settings.json` выбранного профиля:
 
@@ -26,7 +28,7 @@
 
 `path` сравнивается без учёта регистра и различия `/`/`\\`; без `includeChildren` правило действует только для точного каталога. `scope` — короткий второй сегмент ключа `project.<scope>.*`. Alias читаются **только из настроек профиля**, project-local `.pi/settings.json` не может их переопределить. При отсутствии alias применяется нормализованное имя последней папки. Личные пути, пользовательскую БД и старый локальный bundle **не публикуйте**.
 
-Проверенный локальный injector v1 принимается для разовой миграции **только по точному SHA-256** и только при наличии приватного списка alias; patcher делает backup до записи. Неизвестное состояние остаётся `UNKNOWN` с запретом перезаписи; installer проверяет его **до** `pi install`. Тесты на синтетическом store покрывают Windows/forward-slash cwd, FTS, embedding hits, соседей, местные уроки, отсутствие запроса и целые записи. При смене версии upstream остановитесь и сверяйте исходник заново.
+Прежний local injector v1 принимался исторической процедурой только по exact hash и с private aliases, не по marker. Для текущего перехода действует [набор распознаваемых состояний](../../patches/memory-windows-runtime/README.md): installer проверяет и сохраняет known bundle **до** `pi install`; unknown не перезаписывается. Alias не делает произвольный локальный bundle известным. Новая automatic consolidation проверяется новым synthetic фактом без `memory_remember`: запись/source/scope, включение в подходящую сессию и исключение из чужой. Исполнение и область такого case называются отдельно, не предполагаются из текста инструкции.
 
 ## Сообщение автору плагина
 
@@ -34,7 +36,7 @@
 
 > **Title:** Project fact scope filter is bypassed by embedding hits and domain expansion
 >
-> **Historical report version:** `@samfp/pi-memory@1.5.0`; current patch target1.6.0.
+> **Historical report version:** `@samfp/pi-memory@1.5.0`; current build patch target `1.6.1`.
 > **Expected:** when the current project is `alpha`, no `project.beta.*` fact is injected.
 > **Actual:** `buildSelectiveBlock` filters FTS results by `parts[1] === slug`, but appends embedding hits and domain siblings *after* that filter without the same check. An embedding hit for `project.beta.one` can bring in `project.beta.two` as well.
 > **Suggested fix:** enforce project scope for every candidate before adding it, including embeddings and sibling expansion. Add a synthetic regression test for a nonmatching project.

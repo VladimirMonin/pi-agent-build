@@ -17,7 +17,7 @@ python patches/trace-ru-windows-profile/apply.py --agent-dir "<PROFILE_DIR>" --a
 
 ### Конфигурация и данные
 
-После profile patch данные пишутся в `<PROFILE_DIR>/traces/<session-id>/`; dashboard — `<PROFILE_DIR>/traces/index.html`. `PI_TRACE_PYTHON` задаёт interpreter. В сборке patch также русифицирует UI и переводит stdout/stderr renderer в UTF-8.
+Пакет установлен, но canonical Code/Task выключают extension по умолчанию. При [явном opt-in](../trace.md) после profile patch данные пишутся в `<PROFILE_DIR>/traces/<session-id>/`; dashboard — `<PROFILE_DIR>/traces/index.html`. `PI_TRACE_PYTHON` задаёт interpreter. Patch также русифицирует UI и переводит stdout/stderr renderer в UTF-8.
 
 ### Команды, tools и skills
 
@@ -31,7 +31,7 @@ Trace содержит prompts, model responses, tool args/results и может
 
 ### Проверка
 
-После `/reload` запустите `/trace` и `/trace all`, откройте HTML и убедитесь, что UI русский, а каталог принадлежит активному профилю. Patch state проверяется `--check`.
+Для изменённого Trace используйте [разовый opt-in/off recipe](../trace.md), затем `/trace`/`/trace all` и фактический private output. На default-off не вызывайте отсутствующую команду: Pi может отправить её модели как текст. Для обычной установки достаточно проверить, что Trace остаётся inactive; полный browser/TUI-обход не нужен. Patch state проверяется `--check`.
 
 ### Удаление/откат
 

@@ -1,6 +1,6 @@
 # pi-memory 1.6.1: runtime, lifecycle и автоматический scoped recall
 
-Поддерживается только `@samfp/pi-memory@1.6.1`, pristine SHA-256 `9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f` и canonical output. Неизвестные версии, mixed/marker-shaped изменения не перезаписываются.
+Целевой patch — `@samfp/pi-memory@1.6.1`, pristine SHA-256 `9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f` и canonical output. Распознавание установленного прежнего состояния перед replacement отделено от применения target patch: принимаются лишь конкретные известные hashes прежних опубликованных bundles. Неизвестные версии, mixed/marker-shaped изменения не перезаписываются.
 
 ## Что меняет patch
 
@@ -9,6 +9,7 @@
 - Settings выбранного `PI_CODING_AGENT_DIR`, включая upstream `embedding` и `injectionMode`; DeepSeek-консолидация не меняется.
 - Session ID из `ctx.sessionManager.getSessionId()`; source сессии получают lessons (facts upstream сохраняет как `consolidation`).
 - Facts/lessons scope, приватные `memory.factProjectAliases`, section quotas и бюджет 8000 символов из целых записей.
+- Один `projectFactScope()` определяет automatic recall, `memory_remember`, применение consolidation и допустимый префикс в consolidation prompt. `project.<current-scope>.<fact>` проверяется точно; дефис и подчёркивание не становятся alias автоматически. Чужая область отвергается с ожидаемым префиксом. Глобальные `pref.*`, `user.*`, `tool.*` сохраняют глобальность.
 - Automatic injection вызывает upstream `searchMemory`: configurable embedder, hybrid/RRF, diagnostics и dimension-aware backfill. Stock1.6 automatic injection использует только FTS; patch возвращает vector recall.
 
 Upstream ephemeral `context` hook сохранён: память доступна в tool continuation, но не добавляется в system prompt, session history или consolidation transcript.
@@ -19,13 +20,32 @@ Upstream1.6.1 добавляет диагностику AWS credential_process; 
 
 ## Применение
 
+Перед package replacement installer вызывает `--prepare-replace`, не target-only check. Для ручной read-only диагностики сначала используйте `--inspect-installed`:
+
+```sh
+python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --inspect-installed
+python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --prepare-replace
+```
+
+Принимаются ровно пять version/hash состояний:
+
+| Package/state | SHA-256 `dist/index.js` |
+|---|---|
+| 1.5.0 published stock | `b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58` |
+| 1.5.0 published patched (build.5) | `e3cf2b202f12c8053a769d23dd8f6e21e6088937d4bcbe83f44328401ee66ad2` |
+| 1.6.1 stock | `9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f` |
+| 1.6.1 previous canonical | `d05d1b54a59a69da08458d6a896be36fbc19286360642d1a0672169211c7d5a9` |
+| 1.6.1 current canonical | `c4ba7cfd1a6bcbb5270092e4deb400b5ab32dc4f92840e428ce7cdcbf04d2fcd` |
+
+`--inspect-installed` не пишет; `--prepare-replace` сохраняет проверенный bundle, package metadata и receipt с version/hash в `<PROFILE_DIR>/.pi-agent-build-backups/memory-windows-runtime/`, не патчит старую версию. Для 1.5.0 затем требуется штатный package replacement на 1.6.1 и target apply. Unknown version/hash отказывает **exit 2** без перезаписи.
+
 ```powershell
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --check
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>"
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --restore
 ```
 
-Без `--check`/`--restore` выполняется apply. Exit: `0` canonical; `1` pristine требует apply; `2` неизвестное состояние/ошибка. Backup bundle создаётся внутри выбранного профиля; restore возвращает byte-exact stock1.6.1, **не откатывает SQLite или настройки**.
+Без явного mode выполняется apply. Target apply/check/restore требуют ровно 1.6.1: `--check` возвращает 0 для current canonical, 1 для known stock/previous canonical, 2 для unknown/fatal. Apply переводит stock/previous в current; current — no-op без нового backup. Installer распознаёт и сохраняет прежний bundle **до package writes**, затем проверяет target. Не применяйте target patch к произвольной старой версии и не обходите отказ полным reinstall. Backup bundle создаётся внутри выбранного профиля; restore возвращает byte-exact stock1.6.1, **не откатывает SQLite или настройки**. Для прежней версии сохранённая receipt связывает её metadata/hash с исходным bundle; rollback данных — отдельно.
 
 ## Backend и данные
 
@@ -35,7 +55,11 @@ python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --res
 
 ## Проверки
 
+Текущий ремонт требует fresh, known previous, current no-op и unknown refusal, а также scope cases (точный ключ, дефис/подчёркивание, чужой проект, явный alias, глобальные факты). Новая консолидация проверяется уникальным synthetic фактом без `memory_remember`: новая запись/source/scope и automatic recall в подходящей сессии, исключение в чужом проекте. Старые факты/повтор без новой записи этот case не закрывают. Фактический результат текущего запуска указывается в release evidence; исторический mock/canary ниже не переименовывается в новый live PASS.
+
 Structural: `test-memory-{pushturn,pairing,embedder,sessionid,injection,settings-path}.mjs <patched-dist>`; lifecycle/drift: `python patches/session-search-profile/tests/test_runtime.py` и Windows script regressions.
+
+В Pi 1.4.0 на Windows авторский `tests/sdk/memory-project-scope.mjs` подтвердил новый факт через обычный shutdown consolidation hook, source=`consolidation`, точный scope, recall своего/alias и исключение чужого проекта на **искусственной SQLite + synthetic HTTP**. Это не live paid proof. Все пять predecessor states и marker-preserving unknown refusal проверены native CLI. Restore возвращает target stock 1.6.1; старый backup 1.5.0 можно возвращать только после восстановления соответствующей версии package по receipt. Atomic install не обещается.
 
 Native SDK с synthetic SQLite и local mock embedder (без платной LLM):
 

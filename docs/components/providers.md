@@ -43,7 +43,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-ollama-cloud
 
 Удалите credential через Pi, config и cache отдельно. Для отката установите точную прежнюю версию, не `latest`.
 
-## `pi-polza` 0.2.1
+## `pi-polza`
 
 ### Назначение
 
@@ -51,14 +51,11 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi remove npm:pi-ollama-cloud
 
 ### Установка
 
-```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" \
-  pi install https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139
-```
+Используйте [установщик сборки](../../INSTALL_FOR_AGENTS.md): exact source/version/commit принадлежат [packages lock](../../manifests/pi-packages.lock.json). Не подставляйте соседний локальный checkout или старый тег вместо выбранного Git pin. [Самостоятельная установка provider](https://github.com/VladimirMonin/pi-polza#установка).
 
 ### Конфигурация и данные
 
-Credential — Pi `/login` или `POLZA_API_KEY`; plugin не хранит отдельный ключ. OpenRouter enrichment cache находится в project `.pi/pi-polza-cache/`; cost state входит в session data.
+Credential — Pi `/login` (обычный путь) либо optional `POLZA_API_KEY`; plugin не хранит отдельный ключ. `.env` не prerequisite сохранённого auth. OpenRouter enrichment cache находится в cwd `.pi/pi-polza-cache/`; cost state входит в session data.
 
 ### Команды, tools и skills
 
@@ -70,7 +67,7 @@ Credential — Pi `/login` или `POLZA_API_KEY`; plugin не хранит от
 
 ### Проверка
 
-`pi --list-models`, `/polza-refresh`, `/polza-model-info`, `/polza-balance`; платный smoke — только с явным бюджетом и последующей проверкой `/polza-cost`/Coverage.
+Catalog и `/polza-model-info` должны относиться к **основному `polza`**. Для новой сессии сравните expected provider/model с actual SDK/RPC state и структурированным результатом; `polza-memory` не заменяет эту проверку. Missing/rejected credential, network failure, пустой catalog и неизвестная model имеют разные причины. `/polza-refresh` — диагностика, не обход cold-start приёмки. Платный smoke — в разрешённом scope, с `/polza-cost`/Coverage.
 
 ### Удаление/откат
 

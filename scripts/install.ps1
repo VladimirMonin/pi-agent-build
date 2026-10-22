@@ -291,6 +291,8 @@ try {
                 Invoke-CheckedCommand -Command $candidate -Arguments @('install', [string]$entry.source) -WorkingDirectory $cwd -SanitizeEnvironment -Environment $profileEnv
                 Assert-InstalledProfilePackage -ProfileRoot $profileRoot -Entry $entry
             }
+            $sdkRoot = Join-Path (Join-Path $prefix 'node_modules') ([string]$runtime.runtime.pi.package)
+            Invoke-CheckedCommand -Command $node -Arguments @((Join-Path $PSScriptRoot 'ensure-context7.mjs'), '--profile-dir', $profileRoot, '--sdk-root', $sdkRoot, '--cwd', $cwd) -WorkingDirectory $cwd -SanitizeEnvironment -Environment $profileEnv
         }
         foreach ($tool in $external.codeProfile) {
             if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
@@ -382,7 +384,7 @@ try {
             $profileRoot = Join-Path $PiRoot $selected.Directory
             $dist = Join-Path $profileRoot 'npm\node_modules\@samfp\pi-memory\dist\index.js'
             if (Test-Path -LiteralPath $dist -PathType Leaf) {
-                $probe = Get-CommandOutput -Command 'python' -Arguments @((Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'), '--check', '--agent-dir', $profileRoot)
+                $probe = Get-CommandOutput -Command 'python' -Arguments @((Join-Path $RepoRoot 'patches\memory-windows-runtime\apply.py'), '--prepare-replace', '--agent-dir', $profileRoot)
                 if (-not $probe.Found -or $probe.ExitCode -gt 1) { throw "Memory preflight refused $($selected.Name) before reinstall: $($probe.Output)" }
                 Write-Host "PASS $($selected.Name) memory preflight (known state; exit $($probe.ExitCode))"
             }
@@ -451,6 +453,19 @@ try {
                 Write-Host "merged $destination"
             }
         }
+        $adapterMetadata = Join-Path $profileRoot 'npm/node_modules/pi-mcp-adapter/package.json'
+        if (Test-Path -LiteralPath $adapterMetadata -PathType Leaf) {
+            if ($env:PI_AGENT_BUILD_NPM_PREFIX) {
+                $coreModules = Join-Path $env:PI_AGENT_BUILD_NPM_PREFIX 'node_modules'
+            } else {
+                $resolvedModules = Get-CommandOutput -Command 'npm' -Arguments @('root', '--global') -SanitizeEnvironment
+                if (-not $resolvedModules.Found -or $resolvedModules.ExitCode -ne 0) { throw 'Cannot locate installed SDK for MCP configuration.' }
+                $coreModules = $resolvedModules.Output.Trim()
+            }
+            $sdkRoot = Join-Path $coreModules ([string]$runtime.runtime.pi.package)
+            Invoke-CheckedCommand -Command 'node' -Arguments @((Join-Path $PSScriptRoot 'ensure-context7.mjs'), '--profile-dir', $profileRoot, '--sdk-root', $sdkRoot) -SanitizeEnvironment
+        } elseif (-not $SkipPackageInstall) { throw 'Installed MCP adapter missing.' }
+        else { Write-Warning 'Context7 configuration NOT TESTED: package installation skipped and adapter unavailable.' }
     }
 
     if (-not $SkipPackageInstall -and @($profiles | Where-Object { $_.Name -eq 'Code' }).Count -gt 0) {

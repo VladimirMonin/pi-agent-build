@@ -10,7 +10,7 @@ export async function runPolza(sdkRoot, profile, root) {
   const polza = path.join(profile, 'git/github.com/VladimirMonin/pi-polza');
   const aiRoot = path.join(sdkRoot, 'node_modules/@earendil-works/pi-ai');
   const metadata = JSON.parse(fs.readFileSync(path.join(aiRoot, 'package.json'), 'utf8'));
-  assert.equal(metadata.version, '1.3.0');
+  assert.equal(metadata.version, JSON.parse(fs.readFileSync(path.join(sdkRoot, 'package.json'), 'utf8')).version);
   const compat = pathToFileURL(path.join(aiRoot, metadata.exports['./compat'].import)).href;
   const hooks = registerHooks({ resolve(specifier, context, next) {
     return specifier === '@earendil-works/pi-ai/compat' ? { url: compat, shortCircuit: true } : next(specifier, context);
@@ -31,7 +31,7 @@ export async function runPolza(sdkRoot, profile, root) {
     value.enqueue(new TextEncoder().encode(chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n'));
     timer = setTimeout(close, 2000);
   }, cancel() { cancelled = true; clearTimeout(timer); } }), { headers: { 'content-type': 'text/event-stream' } });
-  const records = [], events = [], report = { status: 'STARTED', scope: 'PINNED_POLZA_REAL_PI130_TRANSPORT_SYNTHETIC_SSE' };
+  const records = [], events = [], report = { status: 'STARTED', scope: 'PINNED_POLZA_REAL_PI_TRANSPORT_SYNTHETIC_SSE', piVersion: metadata.version };
   try {
     const model = { id: 'offline/model', name: 'Offline', api: 'openai-completions', provider: 'polza',
       baseUrl: 'https://offline.invalid/v1', reasoning: true, input: ['text'], contextWindow: 8192, maxTokens: 64,

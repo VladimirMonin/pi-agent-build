@@ -1,6 +1,12 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Принятый выпуск Pi 1.3.0 build.1
+## Принятый выпуск Pi 1.4.0 build.1
+
+[Release notes и область приёмки](../releases/pi-1.4.0-build.1.md). Exact Pi 1.4.0 / Node 25.8.1 / npm 11.11.0; Polza 0.2.2 закреплён опубликованным commit в manifest и Code/Task. Source, установленный Windows candidate и один public Context7 resolve/query chain разделены в notes; остальные неизменённые результаты R/B переиспользованы в исходной области.
+
+Обязательный R1 sanitized-child finding закрыт адресным независимым regression; исходный aggregate 23 PASS / 1 FAIL сохранён как исторический, а не переименован. Итоговые source/Tree/package gates относятся к финальному согласованному кандидату. Рабочая установка владельца не переключалась, личные profiles/auth/settings/память/история и Goal X не менялись. Обычный установочный маршрут — [INSTALL_FOR_AGENTS](../../INSTALL_FOR_AGENTS.md).
+
+## Исторический принятый выпуск Pi 1.3.0 build.1
 
 [Release notes и полный состав](../releases/pi-1.3.0-build.1.md); [архитектурные решения](../notes/pi-1.3.0-upgrade-decisions.md). Evidence ID: `pi130-review03`. Publication не является рабочей установкой.
 

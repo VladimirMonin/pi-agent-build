@@ -1,8 +1,24 @@
 # Журнал изменений
 
-Все значимые изменения сборки документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); до первого release tag изменения остаются в `Unreleased`.
+Все значимые изменения сборки документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/). Старые накопленные записи `Unreleased` ниже сохранены без переатрибуции новому выпуску.
+
+## [pi-v1.4.0-build.1] — 2026-10-22
+
+- Pi **1.4.0**, Node **25.8.1**, npm **11.11.0**; exact установленный SDK family graph и оба профиля проверены. Остальные top-level версии сохранены, кроме исправленного Polza.
+- `pi-polza` **0.2.2** закреплён опубликованным commit `e91b09504f7a445b477eaab77cc02d1db067a1e7` в manifest и обоих templates. Штатный сохранённый credential обеспечивает cold-start каталог без обязательного env-обхода.
+- Новый `check-main-model.mjs` сверяет expected/actual provider/model и структурированный ответ новой сессии; mismatch, unavailable, error, abort и timeout дают настоящий отказ.
+- Memory 1.6.1: единый exact project scope для remember/consolidation/recall, aliases и global keys сохранены; guarded переход из конкретных известных состояний без принятия unknown edits.
+- Session Search 1.6.0: display использует настоящий cwd, fallback сохраняет slug; согласованы main/worker, hashes, backup и restore без массового reindex.
+- Remote Context7 устанавливается по умолчанию Code/Task через adapter 5.3.2; effective loader сохраняет shared sources, пользовательский URL/auth и явный disable. Новые npm/node child boundaries используют существующую sanitization.
+- Короткий [установочный вход](INSTALL_FOR_AGENTS.md), реальные launcher paths, companion links и правила affected checks/logging согласованы с PFK. [Результаты и ограничения выпуска](docs/releases/pi-1.4.0-build.1.md); рабочие auth/профили/БД/Goal X не менялись.
 
 ## [Unreleased]
+
+### Документация установки
+
+- Добавлен [короткий установочный вход](INSTALL_FOR_AGENTS.md) из README/AGENTS: источник и commit, fresh/update/reinstall, Windows/POSIX, Code/Task, отдельные main/consolidation/embedding/search routes, Context7 и короткая приёмка/restore.
+- Исторический ручной Pi 0.87 рецепт отделён в [справку](docs/history/pi-0.87-install.md); обычная установка принятой ревизии не требует заново разрабатывать выпуск.
+- Правила affected checks, переиспользования доказательств и диагностики уточнены у существующих owners по методам PFK. Целевой номер ремонта не переименовывает исторические результаты в новую runtime/live-приёмку.
 
 ### Добавлено
 

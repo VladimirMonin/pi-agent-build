@@ -6,6 +6,8 @@ Exact `@samfp/pi-memory@1.6.1` поддерживается единым [patche
 
 [Scope/aliases/целые записи](memory-injection.md) перенесены на1.6. Automatic injection использует upstream hybrid/RRF search с configurable embedder, а не stock FTS-only injector. Ephemeral context hook остаётся upstream: повторная инъекция при tool continuation, без записи в system prompt/history/consolidation. `injectionMode`, `embedding`, profile aliases и остальные настройки сохраняются.
 
+Текущий scope contract един для recall, `memory_remember`, применения consolidation и её prompt: точный `project.<current-scope>.<fact>`. `foo-bar` и `foo_bar` не объединяются; чужой ключ получает ожидаемый префикс, глобальные `pref.*`/`user.*`/`tool.*` не теряют свою область. Явные aliases поддерживаются по private settings. Обсуждение чужого проекта не разрешает записывать его факты в текущий scope; mass migration старой БД не выполняется patcher-ом.
+
 ## User/custom lifecycle
 
 В начале нового run patch очищает pending recall до любых early returns или поиска. Непустой user prompt получает новый block; custom/пустой prompt/error не наследуют прежний и не ищут по system prompt. Внутри одного user-run context/tool continuation сохраняет block. Session start/before-switch тоже сбрасывают его. Для explicit recall в служебных Goal/Intercom продолжениях доступен `memory_search`.
@@ -28,7 +30,9 @@ python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR>
 python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR> --restore
 ```
 
-Exit0 — canonical;1 — exact stock требует apply;2 — refusal. Apply/restore сохраняют прежний bundle в выбранном профиле, unknown/mixed state не перезаписывается. Restore возвращает stock1.6, но не откатывает vectors/settings. Reinstall стирает patch.
+Target check, распознавание installed previous и подготовка replacement — разные операции; точные state/exit значения задаёт CLI выбранной ревизии. Installer до перезаписи сохраняет только доказанно известное исходное состояние. Apply/restore сохраняют прежний bundle в выбранном профиле, unknown/mixed state не перезаписывается. Restore возвращает stock1.6.1, но не откатывает vectors/settings. Reinstall стирает patch.
+
+Новая automatic consolidation после guard доказывается новым уникальным synthetic фактом, без `memory_remember`: запись действительно создана, source=`consolidation`, scope корректен, автоматический контекст подходящей новой сессии включает её и чужой — исключает. Пересказ модели и старый разговор без новой записи не достаточны; фактический результат этого case отделяется от прежних mock/canary.
 
 Native SDK mock checks Both проверили scope/aliases, automatic vectors, ephemeral hook, ordered consolidation, Windows Node/CLI/profile и session ID; платный Polza canary проверил русский paraphrase без keyword match на synthetic facts. Commands/scope: [build.6](../releases/pi-1.0.4-build.6.md).
 

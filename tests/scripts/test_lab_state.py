@@ -45,6 +45,11 @@ def write_json(path, value):
 
 
 class PrivateStateTests(unittest.TestCase):
+    def test_active_example_uses_manifest_core_version(self):
+        example = state.read_json(REPO / 'config/lab-stand.example.json')
+        runtime = state.read_json(REPO / 'manifests/runtime.lock.json')
+        self.assertEqual(example['expectedPiVersion'], runtime['runtime']['pi']['version'])
+
     def test_pinned_runtime_metadata_is_narrow_and_fail_closed(self):
         common = json.loads((REPO / 'manifests/pi-packages.lock.json').read_text())['profiles']['common']
         versions = {entry['package']: entry['version'] for entry in common}
@@ -107,6 +112,7 @@ class PrivateStateTests(unittest.TestCase):
             for destination, source in [('models.json', 'models.polza-memory.example.json'), ('ollama-cloud.json', 'ollama-cloud.example.json')]:
                 write_json(root / destination, state.read_json(REPO / 'config' / source))
             write_json(root / 'mcp.json', {'mcpServers': {}, 'settings': {'scriptMode': False}})
+            write_json(root / 'mcp-adapter.json', state.read_json(REPO / 'config/mcp-adapter.default.json'))
             write_json(root / 'auth.json', {})
             shutil.copytree(REPO / 'skills/memory-ops', root / 'skills/memory-ops')
             for entry in self.manifest['common'] + (self.manifest['codeOnly'] if name == 'agent' else []):

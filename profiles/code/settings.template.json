@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.3.0",
+  "lastChangelogVersion": "1.4.0",
   "theme": "dark",
   "defaultProvider": "polza",
   "defaultModel": "z-ai/glm-5.3-flash",
@@ -24,7 +24,7 @@
     },
     "npm:pi-context-inspector@1.3.0",
     "npm:@juicesharp/rpiv-todo@2.12.0",
-    "https://github.com/VladimirMonin/pi-polza@cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139",
+    "https://github.com/VladimirMonin/pi-polza@e91b09504f7a445b477eaab77cc02d1db067a1e7",
     "npm:pi-subagents@0.79.1",
     "npm:pi-goal-x@0.32.3",
     "npm:pi-intercom@0.17.1",

@@ -17,6 +17,12 @@ from injection import apply_injection, is_injection_safe
 VERSION = "1.6.1"
 BACKUP = HERE / "stock-index.js"
 EXPECTED_STOCK_SHA256 = "9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f"
+PREVIOUS_161_SHA256 = "d05d1b54a59a69da08458d6a896be36fbc19286360642d1a0672169211c7d5a9"
+# Published build source 248b6cb (last 1.5.0 canonical), not arbitrary old versions.
+PREVIOUS_150_HASHES = {
+    "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58": "previous-stock-1.5.0",
+    "e3cf2b202f12c8053a769d23dd8f6e21e6088937d4bcbe83f44328401ee66ad2": "previous-patched-1.5.0",
+}
 
 
 WIN_MARKER = "// win32: `pi` — это .cmd-шим"
@@ -248,7 +254,7 @@ def digest(data: bytes) -> str:
 def short(data: bytes) -> str:
     return digest(data)[:12]
 
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True) -> bytes:
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, project_writes=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -257,7 +263,7 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
             raise RuntimeError(f"stock anchor count {count}, expected 1: {anchor}")
         text = text.replace(old, new, 1)
     if replacements is CANONICAL_REPLACEMENTS and injector:
-        text = apply_injection(text)
+        text = apply_injection(text, project_writes=project_writes)
     if replacements is CANONICAL_REPLACEMENTS:
         old = "    const { text } = await buildContextBlock(store, ctx.cwd, event.prompt, injectorConfig);"
         new = "    // pi-memory automatic hybrid recall: reuse upstream provider/RRF\n    const recall = await searchMemory(event.prompt, SEARCH_LIMIT, ctx);\n    const { text } = await buildContextBlock(store, ctx.cwd, event.prompt, injectorConfig, recall);"
@@ -299,12 +305,27 @@ def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) ->
     root.mkdir(parents=True, exist_ok=True)
     destination = root / f"index.js.{label}-{stamp}"
     shutil.copy2(target, destination)
+    if destination.read_bytes() != target.read_bytes(): raise RuntimeError("backup verification failed")
+    metadata = (target.parent.parent / "package.json").read_bytes()
+    destination.with_suffix(destination.suffix + ".package.json").write_bytes(metadata)
+    destination.with_suffix(destination.suffix + ".receipt.json").write_text(json.dumps({
+        "packageVersion": json.loads(metadata)["version"], "file": "dist/index.js",
+        "sha256": digest(destination.read_bytes()), "packageJsonSha256": digest(metadata),
+        "restore": "Reinstall the exact recorded package version, then restore this index.js backup after verifying its SHA256.",
+    }, indent=2), encoding="utf-8")
     return destination
 
 def classify(target, stock, canonical):
     if target == stock: return "stock-pristine"
     if target == canonical: return "runtime-safe"
+    if digest(target) == PREVIOUS_161_SHA256: return "previous-patched-1.6.1"
     return "noncanonical-drift" if is_runtime_safe(target.decode("utf-8")) else "unknown"
+
+
+def installed_state(version, current, stock, canonical):
+    if version == VERSION: return classify(current, stock, canonical)
+    if version == "1.5.0": return PREVIOUS_150_HASHES.get(digest(current), "unknown")
+    return "unknown"
 
 
 def main():
@@ -312,21 +333,29 @@ def main():
     modes = ap.add_mutually_exclusive_group()
     modes.add_argument("--check", action="store_true")
     modes.add_argument("--restore", action="store_true")
+    modes.add_argument("--inspect-installed", action="store_true", help="read-only exact known pre-replacement state")
+    modes.add_argument("--prepare-replace", action="store_true", help="recognize and back up before package replacement; never patches old versions")
     ap.add_argument("--agent-dir")
     args = ap.parse_args()
     agent = pathlib.Path(args.agent_dir or os.environ.get("PI_CODING_AGENT_DIR", "") or pathlib.Path.home() / ".pi" / "agent").expanduser().resolve()
     target = agent / "npm/node_modules/@samfp/pi-memory/dist/index.js"
     try:
         version = json.loads((target.parent.parent / "package.json").read_text(encoding="utf-8")).get("version")
-        if version != VERSION: raise RuntimeError(f"expected exactly {VERSION}, found {version}")
         stock = BACKUP.read_bytes()
         if digest(stock) != EXPECTED_STOCK_SHA256: raise RuntimeError("immutable stock hash mismatch")
         canonical = build_canonical(stock)
         current = target.read_bytes()
-        state = classify(current, stock, canonical)
-        print(f"version={VERSION} state={state}")
-        if args.check: return 0 if state == "runtime-safe" else 1 if state == "stock-pristine" else 2
-        if state not in {"stock-pristine", "runtime-safe"}: raise RuntimeError("unknown/noncanonical installed state")
+        state = installed_state(version, current, stock, canonical)
+        print(f"version={version} target={VERSION} state={state}")
+        known = state in {"stock-pristine", "runtime-safe", "previous-patched-1.6.1", *PREVIOUS_150_HASHES.values()}
+        if args.inspect_installed or args.prepare_replace:
+            if not known: raise RuntimeError("unknown installed bytes/version; preserve the package and compare with backups before replacement")
+            if args.prepare_replace:
+                print(f"pre-replacement backup: {runtime_backup(agent, target, state)}")
+            return 0
+        if version != VERSION: raise RuntimeError(f"target patch requires exactly {VERSION}, found {version}; use --prepare-replace before reinstall")
+        if args.check: return 0 if state == "runtime-safe" else 1 if state in {"stock-pristine", "previous-patched-1.6.1"} else 2
+        if not known: raise RuntimeError("unknown/noncanonical installed state; restore from the verified runtime backup, not marker-based repair")
         desired = stock if args.restore else canonical
         if current == desired:
             print("ALREADY STOCK" if args.restore else "ALREADY PATCHED")

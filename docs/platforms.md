@@ -1,6 +1,6 @@
 # Платформы: Windows x64 и POSIX (macOS/Linux)
 
-Состав/templates предусмотрены для двух семейств платформ, но это не доказательство одинаковой native функциональности. Current Pi **1.0.2** accepted scope — [Windows SDK/CLI/RPC/functional local-mock checks](releases/pi-1.0.2.md); native Linux/macOS пока NOT TESTED. Git Bash syntax/fakes не заменяют запуск на POSIX. Переносимость лаборатории на другую Windows машину проверяется по [паспорту](lab-stand.md) и [readiness board](plans/lab-readiness-board.md), отдельно от layout portability.
+Состав/templates предусмотрены для Windows x64 и POSIX; они не доказывают одинаковую native функциональность. Актуальные pins — в manifests, принятые результаты — в release notes соответствующей ревизии. [Исторический Windows Pi 1.0.2 scope](releases/pi-1.0.2.md) не переименовывается в проверку нового ядра. Ранее полученный результат на Mac сохраняет свою область и не является Windows PASS; Git Bash syntax/fakes не заменяют POSIX runtime. Обычная установка начинается с [INSTALL_FOR_AGENTS](../INSTALL_FOR_AGENTS.md), не с лаборатории.
 
 ## Матрица поддержки
 
@@ -85,7 +85,7 @@ bash tests/scripts/mcp-probes-posix.sh    # Brave без запуска серв
 bash tests/scripts/settings-sync-posix.sh # package pins + запрет перезаписи UNKNOWN memory
 ```
 
-Проверка синтаксиса Bash и синтетический тест verifier'а возможны и в Git Bash на Windows, но **не заменяют запуск установки и Pi на macOS**. Перед объявлением macOS-совместимости повторите plan/apply/verify и headless-создание тестовой цели на реальном Mac.
+Проверка синтаксиса Bash и synthetic verifier возможны в Git Bash на Windows, но **не заменяют native macOS/Linux**. Переиспользуйте уже применимую приёмку на её версии/платформе; новые affected native claims требуют именно своей проверки, не обязательного повторения всей матрицы на каждой машине.
 
 ## Известные ограничения POSIX
 

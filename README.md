@@ -1,8 +1,10 @@
 # Pi Agent Build
 
+**[Установить сборку — короткий вход для агента и человека](INSTALL_FOR_AGENTS.md).** Проверка источника → PLAN/Apply для своей ОС → Code/Task → credentials → короткая приёмка. [Настройка и специальные случаи](docs/setup.md).
+
 Переносимое, version-pinned описание Pi Agent для Windows x64 и POSIX (macOS/Linux): два профиля, 15 верхнеуровневых Pi-пакетов, провайдер Polza AI, внешние инструменты Code-профиля, локальные исправления и проверки.
 
-> **Текущий выпуск: [Pi 1.3.0 build.1](docs/releases/pi-1.3.0-build.1.md).** Node **25.8.1** / npm **11.11.0**; Memory **1.6.1 patched**, Adapter **5.3.2**, Subagents **0.79.1**, Intercom **0.17.1**. Independent acceptance и actual WVM schema-only cases: Code legacy SSE, Task streamable HTTP. Полный состав 15 пакетов, proof и limits — в release notes; [решения обновления](docs/notes/pi-1.3.0-upgrade-decisions.md). Это рабочая принятая сборка в описанном release scope, не общий экспериментальный runtime. Рабочая установка/full restart **в том цикле выпуска** не выполнялись; нынешний doc-only срез не повторяет установку и не доказывает новый restart.
+> **Текущий принятый выпуск: [Pi 1.4.0 build.1](docs/releases/pi-1.4.0-build.1.md).** Windows candidate: exact Pi 1.4.0, опубликованный Polza 0.2.2, Code/Task и remote Context7 по умолчанию. [Release и source ZIP](https://github.com/VladimirMonin/pi-agent-build/releases/tag/pi-v1.4.0-build.1). Область synthetic/runtime/live-проверок и ограничения указаны в release notes; публикация не обновляет рабочие профили владельца. [Предыдущий Pi 1.3.0](docs/releases/pi-1.3.0-build.1.md) и его [решения](docs/notes/pi-1.3.0-upgrade-decisions.md) сохраняют историческую область.
 
 Это не копия `~/.pi` и не курс. Репозиторий хранит декларативную конфигурацию, безопасные шаблоны, patchers, manifests, проверки и документацию. API-ключи, память, сессии, traces и другие личные данные сюда не входят.
 
@@ -10,7 +12,7 @@
 
 ## Граница повторяемости
 
-Сборка закрепляет и проверяет **верхнеуровневые** версии: Pi `1.3.0` (предыдущий baseline — `1.0.4`), Node.js/npm, 15 Pi-пакетов, внешние CLI и immutable Git object для Git-источника. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
+Сборка закрепляет **верхнеуровневые** версии из [runtime lock](manifests/runtime.lock.json), [packages lock](manifests/pi-packages.lock.json) и [external-tools lock](manifests/external-tools.lock.json), включая immutable Git source. Installer вызывает штатный `pi install` для каждого profile package, а patchers принимают только поддержанные версии/структуры; правила сохранения существующего `settings.json` описаны в [setup](docs/setup.md).
 
 Это даёт повторяемую установку заявленных top-level versions, но **не bit-for-bit reproducibility**. Репозиторий пока не содержит переносимых transitive lockfiles/полного dependency graph, integrity hashes всех скачиваемых artifacts, lock Python dependencies или идентичного образа ОС. Повторная установка может получить иной transitive dependency tree даже при тех же верхнеуровневых версиях. Для самодостаточного runtime artifact нужно отдельно зафиксировать transitive locks/hashes и затем проверить итоговый bundle. Source ZIP этого выпуска содержит описание сборки, а не установленный `node_modules`/offline runtime.
 
@@ -26,9 +28,10 @@
 
 Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
 
-## Отдельная переносимая методика
+## Связанные проекты
 
-[Project Foundation Kit](https://github.com/VladimirMonin/Project-Foundation-Kit) — переносимые методы инженерной работы, проверки поведения, сопровождения знаний и UI-дизайна. Подключается отдельно **полным pack** по инструкции PFK, с ресурсами и notices. Эта ссылка не устанавливает навыки, не делает их автоматически доступными Pi и не меняет профили Code/Task, runtime или провайдера. Обнаружение, чтение и применение проверяются отдельно.
+- [pi-polza](https://github.com/VladimirMonin/pi-polza) — нативный динамический provider Polza AI с отдельным учётом RUB; сборка устанавливает ревизию из своего manifest.
+- [Project Foundation Kit](https://github.com/VladimirMonin/Project-Foundation-Kit) — переносимые инженерные методы, инструкции и шаблоны. Подключается отдельно **полным pack** по инструкции PFK, с ресурсами и notices; ссылка не устанавливает навыки и не меняет Code/Task автоматически.
 
 ## Автономный Goal X
 
@@ -70,7 +73,7 @@ instructions/       постоянные правила сопровождени
 
 Скрипты существуют в двух вариантах: `.ps1` для Windows x64 и `.sh` для POSIX (macOS/Linux). Оба набора читают одни и те же manifests и применяют одни и те же patchers.
 
-`update.ps1`/`update.sh` сейчас отсутствуют: обновление выполняется только как осознанное изменение manifests/templates/patches с повторной установкой и проверкой. Не используйте `latest` и не предполагайте наличие автоматического update workflow.
+`update.ps1`/`update.sh` отсутствуют. Переход к выбранному **опубликованному** составу — preserving installer и короткая приёмка из [установочного входа](INSTALL_FOR_AGENTS.md); разработка новых pins — [отдельный upgrade workflow](docs/pi-upgrade-workflow.md). Конкретный дефект: существующий owner → воспроизведение → минимальная правка → адресная проверка → конец. Не используйте `latest` и не заставляйте обычного установщика заново разрабатывать выпуск.
 
 ## Исторический кандидат Pi 0.99.1
 
@@ -81,7 +84,8 @@ instructions/       постоянные правила сопровождени
 
 ## Начало работы
 
-- Перед следующим обновлением: [паспорт стенда](docs/lab-stand.md), [upgrade workflow](docs/pi-upgrade-workflow.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) отделяют исторические эксперименты от текущего обычного обновления. Source pin — exact Pi 1.3.0; [release scope](docs/releases/pi-1.3.0-build.1.md) отделяет independent fresh checks от reused evidence. Trace default-off и explicit opt-in/off проверены SDK Both на 1.3.0; прежний CLI evidence сохранён отдельно; [команды](docs/trace.md).
+- Установка принятой ревизии: **[INSTALL_FOR_AGENTS.md](INSTALL_FOR_AGENTS.md)**. Исторические [команды Pi 0.87](docs/history/pi-0.87-install.md) не являются текущим рецептом.
+- Для **разработки нового состава**, не обычной установки: [upgrade workflow](docs/pi-upgrade-workflow.md), [паспорт стенда](docs/lab-stand.md), [контракт доказательств](docs/lab-evidence.md). [План D0–D6](docs/plans/lab-repeatability-and-portability.md) и [readiness board](docs/plans/lab-readiness-board.md) хранят ход разработки. Исторический [Pi 1.3.0 release scope](docs/releases/pi-1.3.0-build.1.md) отделяет independent fresh checks от reused evidence; его Trace SDK Both и прежние CLI результаты сохраняются на исходной версии. Текущие pins берите из manifests, [команды Trace](docs/trace.md) — из справки.
 - Установка и точные prerequisites: [`docs/setup.md`](docs/setup.md)
 - Границы профилей: [`docs/profiles.md`](docs/profiles.md)
 - Перенос приватного state: [`docs/state-migration.md`](docs/state-migration.md)

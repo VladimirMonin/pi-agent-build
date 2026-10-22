@@ -2,13 +2,15 @@
 
 Вход: [AGENTS](../AGENTS.md), [BUILD.LabUpgrade](../instructions/BUILD.lab_upgrade.instructions.md), [паспорт стенда](lab-stand.md). Текущий status/target — [readiness board](plans/lab-readiness-board.md). Этот runbook не обновляет рабочий Pi и не является разрешением на commands с mutation/actors.
 
+**Область:** разработка нового состава и выпуск. Установка/обновление выбранной принятой ревизии — [короткий установочный вход](../INSTALL_FOR_AGENTS.md), не повтор всей лабораторной квалификации. Для конкретного дефекта: воспроизвести → минимально исправить у существующего owner → проверить изменённую границу → закончить. Применимые прежние результаты переиспользуются со своей версией/ОС/scope. Отдельный live-эксперимент нужен при существенной неопределённости внешнего контракта, не ради каждой реализации.
+
 ## 1. Baseline и exact target
 
 - Зафиксировать working ref/runtime, ref кандидата и tracking state. До первого изменения выполнить [проверку фактической готовности](../instructions/BUILD.lab_upgrade.instructions.md#до-изменения-runtime); чужую работу сохранить, private payload/diff не использовать для metadata admission.
-- Проверить latest **stable** через официальный release/npm HTTP metadata. npm CLI metadata использовать только с private environment/cache/config, даже без install.
+- Проверить выбранный пользователем target через официальный release/npm metadata; latest выбирать только при таком запросе. npm CLI metadata использовать только с private environment/cache/config, даже без install.
 - Перед первым runtime manifest change закрепить exact target. Следующий релиз не меняет его автоматически внутри цикла.
-- Создать отдельную candidate branch/worktree и начальный doc commit до runtime edits. Исторический source/approval/version не переносится на target по номеру.
-- Составить delta matrix: CLI/SDK/extensions/peers, profiles/filters, patches, lifecycle, TUI, codemode/MCP, model catalog/auth/response и support scope.
+- При необходимости отделить candidate branch/worktree с одним owner файла/index; это не обязательная инфраструктура малого фикса. Нужный контракт и документация входят в связный результат, не требуют отдельной предварительной цепочки doc commits. Исторический source/approval/version не переносится на target по номеру.
+- Коротко связать фактическую delta с риском и достаточной проверкой у existing owner: CLI/SDK, profiles/filters, patches/lifecycle, MCP или model catalog/auth/response — только затронутые области, не полная новая матрица всех сочетаний.
 - Проверить actual внутренние dependency edges и настоящий SDK import: один top-level CLI version не доказывает coherent Pi graph при caret dependencies. Failed промежуточный graph сохранять; согласованный successor устанавливать fresh, а не repair/override старого root. Это не обещание byte-identical всех сторонних transitive dependencies.
 
 Working baseline и исследовательский кандидат — разные сущности. Candidate acceptance не переключает личные profiles и не закрывает автоматически историческую цель.
@@ -107,14 +109,14 @@ Required tests на synthetic profiles:
 
 При FAIL сохранить raw error/reached stages, остановить dependent actor, устранить конкретный дефект и продолжить разрешённые independent steps. Следующая risky попытка bounded/frozen, не автоматический flags sweep. Не обещать успех от компиляции helper.
 
-## 7. Общие проверки и WVM LAST
+## 7. Проверки по влиянию и WVM LAST
 
-- Unit/contract/seam checks, оба verifier, schemas/syntax, byte-exact patch guards, applied state/no-op.
+- Сначала existing affected unit/contract/seam checks; после ремонта — исходный case. На согласованной release boundary или при общем impact — применимый полный suite, оба verifier, schemas/syntax, byte-exact guards, applied state/no-op. Не повторять неизменённые достаточные результаты только из-за даты.
 - Platform claims: Windows native; Git Bash только shell syntax/fakes, Linux/macOS без native proof NOT TESTED.
 - Model matrix разделяет catalog/mock/auth/live/quota; actual paid вызов не входит по умолчанию.
-- Затем WVM legacy SSE и streamable HTTP — отдельные candidate configurations/handshakes/function cases. Gateway tool list/schema parent процесса не заменяют их.
+- Если меняются core/MCP/client/transport и соответствующая совместимость входит в scope, WVM legacy SSE и streamable HTTP проверяются последними техническими cases. Это отдельные configurations/handshakes, не parent gateway proof; локальный текст или несвязанный исправленный owner не требует заново запускать WVM.
 - Adapter KEEP до доказанного functional parity; builtin unsupported transport фиксируется честно. Не запускать два /mcp owners и не переписывать working configs/auth.
-- После WVM разрешены final doc/link/safety/manual publication gates. Новый технический runtime/code срез требует новой last assessment, но изменение статуса/плана не требует дергать WVM само по себе.
+- После применимых technical cases — final doc/link/safety/manual publication gates. Новая затронутая MCP/runtime граница требует своей проверки, не весь прошлый эксперимент; изменение статуса/плана само по себе не требует дергать WVM.
 
 CLI terminal output-limit проверяй stimulus, реально достигшим declared max output; early-length recovery — другой case. Нужны current partial/warning/text exit1 и JSON proof без omission/recovery, отдельно normal/resume/excluded tools. Неверный stimulus не обосновывает production print patch; [принятое решение](notes/pi-1.3.0-upgrade-decisions.md#5-почему-нет-speculative-goalcorepolza-patches).
 

@@ -20,14 +20,6 @@
   ],
   "mcp": [
     {
-      "package": "@upstash/context7-mcp",
-      "version": "3.2.2",
-      "command": "context7-mcp",
-      "optional": true,
-      "probe": "command-version",
-      "probeArguments": ["--version"]
-    },
-    {
       "package": "@brave/brave-search-mcp-server",
       "version": "2.0.85",
       "command": "brave-search-mcp-server",

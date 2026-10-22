@@ -171,7 +171,7 @@ FALLBACK = r'''function buildFallbackBlock(store, cwd, config) {
 '''
 
 
-def apply_injection(text: str) -> str:
+def apply_injection(text: str, *, project_writes: bool = True) -> str:
     """Apply only to the verified stock-derived base (not to an arbitrary bundle)."""
     if INJECTION_MARKER in text:
         raise RuntimeError("injector already patched")
@@ -203,6 +203,46 @@ def apply_injection(text: str) -> str:
       typeof alias.path === "string" && typeof alias.scope === "string");
   }
 }''')
+    if project_writes:
+        text = apply_project_writes(text)
+    return text
+
+
+def apply_project_writes(text: str) -> str:
+    helper = r'''// pi-memory project writes: same scope as automatic recall, never infer aliases.
+function projectFactScopeError(key, cwd, config) {
+  if (!key.toLowerCase().startsWith("project.")) return null;
+  const scope = projectFactScope(cwd, config);
+  const prefix = `project.${scope}.`;
+  if (scope && key.startsWith(prefix) && key.length > prefix.length) return null;
+  return scope ? `Project fact rejected: expected ${prefix}<fact>.` : "Project fact rejected: no current project scope.";
+}
+'''
+    text = replace_once(text, "function projectSlug(cwd) {", helper + "function projectSlug(cwd) {")
+    text = replace_once(text,
+        'const belongsHere = (key) => !key.startsWith("project.") || key.split(".")[1] === factScope;',
+        'const belongsHere = (key) => projectFactScopeError(key, cwd, config) === null;')
+    text = replace_once(text,
+        '.filter((entry) => entry.key.split(".")[1] === factScope);',
+        '.filter((entry) => projectFactScopeError(entry.key, cwd, config) === null);')
+    text = replace_once(text,
+        '        store.setSemantic(rememberParams.key, rememberParams.value, 0.95, "user");',
+        '''        if (!isValidKey(rememberParams.key)) return { ...ok("Invalid fact key: use a lowercase dotted key."), isError: true };
+        const scopeError = projectFactScopeError(rememberParams.key, ctx.cwd, injectorConfig);
+        if (scopeError) return { ...ok(scopeError), isError: true };
+        store.setSemantic(rememberParams.key, rememberParams.value, 0.95, "user");''')
+    text = replace_once(text,
+        'function applyExtracted(store, extracted, source = "consolidation", project) {',
+        'function applyExtracted(store, extracted, source = "consolidation", project, cwd, config) {')
+    text = replace_once(text, '  for (const s of extracted.semantic) {', '''  for (const s of extracted.semantic) {
+    const scopeError = projectFactScopeError(s.key, cwd, config);
+    if (scopeError) { console.error(`pi-memory: consolidation ${scopeError}`); continue; }''')
+    text = replace_once(text, '      cwd: sessionCwd,', '      cwd: sessionCwd,\n      factScope: projectFactScope(sessionCwd, injectorConfig),')
+    text = replace_once(text,
+        'const applied = applyExtracted(store, extracted, `session:${sessionId ?? "unknown"}`, slug || void 0);',
+        'const applied = applyExtracted(store, extracted, `session:${sessionId ?? "unknown"}`, slug || void 0, sessionCwd, injectorConfig);')
+    text = replace_once(text, '${memorySection}${input.cwd ?', '''${input.factScope ? `Allowed project fact prefix: project.${input.factScope}.<fact>. Use this exact scope, including hyphens/underscores. Do not extract facts about other projects discussed in this conversation. Global pref.*, user.* and tool.* keys remain global.\\n` : "No project scope is available: do not emit project.* facts.\\n"}
+${memorySection}${input.cwd ?''')
     return text
 
 
