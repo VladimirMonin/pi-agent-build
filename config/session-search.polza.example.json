@@ -1,4 +1,5 @@
 {
+  "fusion": "vector-primary",
   "embedder": {
     "type": "openai-compatible",
     "baseUrl": "https://polza.ai/api",

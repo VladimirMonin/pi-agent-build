@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact pi-session-search 1.6.0 roots, safe discovery and local FTS repair."""
+"""Exact pi-session-search 1.6.0 roots, safe discovery and embedding prefixes."""
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -14,7 +14,7 @@ VERSION = "1.6.0"
 HERE = pathlib.Path(__file__).resolve().parent
 STORE = HERE / "store" / VERSION
 REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/index.js", "src/index.ts",
-                                   "src/utils.ts", "src/session-index.ts", "dist/index-worker.js", "src/fts-index.ts", "src/index-service.ts")))
+                                   "src/utils.ts", "src/session-index.ts", "dist/index-worker.js", "src/fts-index.ts", "src/index-service.ts", "src/embedder.ts")))
 STOCK_HASHES = (
     "e6103a7010615e059a01a3954d3135092b46e197cec6ce878ae84271c9211427",
     "2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a",
@@ -25,6 +25,7 @@ STOCK_HASHES = (
     "7901989942a790c549d328a3d49e491090f514c0b5a650a4547dad9b73a99b57",
     "9f01a4fe3cf51ad1db8663be34603b9d71cee5ead30fbd18d0e7d590bb92316f",
     "369d4d64531f82fcaae93f1354813328db73aead72488263f5e7d0f928d93d58",
+    "0aa80d061c9973993c85b4df85c6f342f2180351003966afab94ae507008e5be",
 )
 BACKUP_ROOT = pathlib.Path()
 TIMER_NEW = '''const runSync = () => {
@@ -267,8 +268,57 @@ def patch_display(text, typed=False):
     return text
 
 
-def canonical_files(runtime_only=False, *, previous=False, published=False):
-    if previous and published:
+def patch_embedding_prefixes(text, *, source=False):
+    """One model table and two literal overrides; no provider/index migration."""
+    if source:
+        text = replace_once(text, '  dimensions?: number;\n}',
+            '  dimensions?: number;\n  /** Override model defaults; an empty string disables the prefix. */\n  documentPrefix?: string;\n  queryPrefix?: string;\n}', 'prefix config')
+    signature = 'export function createEmbedder(config: EmbedderConfig): Embedder {' if source else 'function createEmbedder(config) {'
+    provider_signature = signature.replace('export ', '').replace('createEmbedder(', 'createProviderEmbedder(')
+    wrapper = r'''const MODEL_PREFIXES = [
+  {
+    model: /(?:^|[\/_-])qwen3-embedding-(?:0\.6b|8b)(?:$|[-_.])/i,
+    documentPrefix: "",
+    queryPrefix: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
+  },
+  {
+    model: /(?:^|[\/_-])(?:gemini-embedding-2(?:-preview)?|embeddinggemma-2)(?:$|[-_.])/i,
+    documentPrefix: "title: none | text: ",
+    queryPrefix: "task: search result | query: ",
+  },
+];
+
+SIGNATURE
+  const rule = MODEL_PREFIXES.find((rule) => rule.model.test(config.model ?? ""));
+  const documentPrefix = config.documentPrefix ?? rule?.documentPrefix ?? "";
+  const queryPrefix = config.queryPrefix ?? rule?.queryPrefix ?? "";
+  const provider = createProviderEmbedder(config);
+  return {
+    embed: (text, signal) => provider.embed(queryPrefix + text, signal),
+    embedBatch: (texts, signal) => provider.embedBatch(texts.map((text) => documentPrefix + text), signal),
+  };
+}
+
+'''.replace('SIGNATURE', signature)
+    return replace_once(text, signature, wrapper + provider_signature, 'embedding factory')
+
+
+def patch_semantic_first(text, *, source=False):
+    """Keep existing vector order/scores, without running the noisy FTS arm."""
+    text = replace_once(text, '    const ftsRanks = this.fts.searchRanks(query, poolSize, allowedIds);\n', '', 'defer keyword arm')
+    start = '    if (this.fusion === "vector-primary") {'
+    end = '      const K = 60;'
+    cast = ' as [string, number]' if source else ''
+    body = (start + '\n      // Semantic-only: preserve vector order and existing score semantics.\n'
+            '      sorted = cosineScored.slice(0, limit).map((s, rank) =>\n'
+            f'        [s.entry.session.id, 1 / (60 + rank + 1)]{cast});\n'
+            '    } else {\n'
+            '      const ftsRanks = this.fts.searchRanks(query, poolSize, allowedIds);\n')
+    return replace_body(text, start, end, body)
+
+
+def canonical_files(runtime_only=False, *, previous=False, published=False, released=False):
+    if sum((previous, published, released)) > 1:
         raise ValueError('select one exact historical state')
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
@@ -301,6 +351,22 @@ def canonical_files(runtime_only=False, *, previous=False, published=False):
             if leaf != 'src/fts-index.ts':
                 text = patch_partial_fts(text, source=rel.suffix == '.ts')
             canonical[rel] = text.encode('utf-8')
+    if not (previous or published or released):
+        for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_embedding_prefixes(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/session-index.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_semantic_first(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/config.ts', 'dist/index.js'):
+            rel = pathlib.Path(leaf)
+            text = replace_once(canonical[rel].decode('utf-8'),
+                'fusion: file.fusion === "vector-primary" ? "vector-primary" : "rrf"',
+                'fusion: file.fusion === "rrf" ? "rrf" : "vector-primary"', 'semantic default')
+            if rel.suffix == '.ts':
+                text = text.replace('`"rrf"` (default)', '`"rrf"` (opt-in)').replace('@default "rrf"', '@default "vector-primary"')
+                text = text.replace('Preserve cosine order; append top-5 FTS hits that\n   *   the vector arm missed.', 'Semantic-only cosine order, without FTS fusion.\n   *  ')
+            canonical[rel] = text.encode('utf-8')
     return stock, canonical
 
 
@@ -309,8 +375,10 @@ def classify(root, runtime_only=False):
     current = read_files(root)
     _, previous = canonical_files(runtime_only, previous=True)
     _, published = canonical_files(runtime_only, published=True)
+    _, released = canonical_files(runtime_only, released=True)
     return ("patched" if current == canonical else "stock" if current == stock else
-            "previous-patched" if current == previous else "published-patched" if current == published else "unknown"), stock, canonical
+            "previous-patched" if current == previous else "published-patched" if current == published else
+            "released-patched" if current == released else "unknown"), stock, canonical
 
 
 def runtime_backup(root, label):
@@ -330,7 +398,7 @@ def apply(root, runtime_only=False):
     if state == "patched":
         print("ALREADY PATCHED")
         return
-    if state not in {"stock", "previous-patched", "published-patched"}:
+    if state not in {"stock", "previous-patched", "published-patched", "released-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
@@ -347,7 +415,7 @@ def restore(root, runtime_only=False):
     if state == "stock":
         print("ALREADY STOCK")
         return
-    if state not in {"patched", "previous-patched", "published-patched"}:
+    if state not in {"patched", "previous-patched", "published-patched", "released-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
@@ -373,7 +441,7 @@ def main():
         if args.check:
             state, _, _ = classify(root, args.runtime_only)
             print(f"version={VERSION} state={state}")
-            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "unknown": 2}[state]
+            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "released-patched": 1, "unknown": 2}[state]
         (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:
