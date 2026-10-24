@@ -28,11 +28,13 @@ Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`
 
 ### Риски
 
-Index и embeddings содержат производные от приватной session history. External embedder получает session text. Auto-sync может стартовать в child/noninteractive processes; используйте `sync.disableForChild: true`. Смена model/dimensions требует полного reindex.
+Index и embeddings содержат производные от приватной session history. External embedder получает session text. Auto-sync может стартовать в child/noninteractive processes; используйте `sync.disableForChild: true`. Смена model/dimensions требует отдельной согласованной миграции; этот repair её не выполняет и forced reindex не требует.
+
+Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. Даже доступная и читаемая сессия может не попасть в top25 широкого смыслового запроса. [Ограничение build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) не исправляется одним restart; отсутствие результата не доказывает отсутствие разговора.
 
 ### Проверка
 
-`/session-sync`, затем `session_list` и точный keyword query. Для ранее настроенных embeddings достаточно короткой semantic query: обновление1.6 не требует forced `/session-reindex`. В Task убедитесь, что Code sessions/index не подмешаны; `session_read` должен читать Windows paths и отклонять чужие roots.
+После обычного sync проверьте `session_list`, точный keyword query и чтение возвращённого file reference через `session_read`; Windows paths должны читаться, чужие roots — отклоняться. Для ранее настроенных embeddings короткая разрешённая semantic query проверяет **этот запрос**, не полноту архива. В Task убедитесь, что Code sessions/index не подмешаны. Build.2 не требует forced `/session-reindex`, смены модели или повторной отправки всей истории.
 
 ### Удаление/откат
 

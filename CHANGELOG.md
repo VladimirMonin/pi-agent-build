@@ -2,6 +2,14 @@
 
 Все значимые изменения сборки документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/). Старые накопленные записи `Unreleased` ниже сохранены без переатрибуции новому выпуску.
 
+## [pi-v1.4.0-build.2] — 2026-10-24
+
+- Версии сохранены: Pi **1.4.0**, Node **25.8.1**, npm **11.11.0**, Polza **0.2.2**, Session Search **1.6.0**, Memory **1.6.1**; manifests, installer и профильные templates не менялись.
+- Session Search: native Windows без `HOME` использует системный home; file reference из поиска читается через `session_read`. Missing/unreadable source не удаляет прежние записи; доступное пустое дерево по-прежнему очищает действительно исчезнувшие сессии. Legacy FTS дополняется по отсутствующим session IDs без перезаписи vectors и существующего полного текста.
+- CBM: известный полный current/previous patch body распознаётся при CRLF/LF, включая mixed endings; stock/version/unknown guards, byte-exact restore и no-op без перезаписи сохранены.
+- Preserving рабочее обновление Windows, обычный Code/Task SDK startup, регистрация tools, patch checks/verifier и сохранность приняты. Основной live LLM-запрос в этом ремонте не выполнялся.
+- **Известное ограничение:** фиксированный широкий semantic query дошёл до настоящего provider/SDK, но нужная сессия не вошла в top25. Сохранённое и одно свежее embedding дают ranks39/33; это не PASS точности поиска и не доказанный новый implementation defect. Без `project` scope межпроектный внутри выбранного индекса, а не гарантия нужного результата. [Проверки и ограничения](docs/releases/pi-1.4.0-build.2.md).
+
 ## [pi-v1.4.0-build.1] — 2026-10-22
 
 - Pi **1.4.0**, Node **25.8.1**, npm **11.11.0**; exact установленный SDK family graph и оба профиля проверены. Остальные top-level версии сохранены, кроме исправленного Polza.

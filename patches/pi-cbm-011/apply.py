@@ -341,6 +341,14 @@ def build_patched(pristine_text: str) -> tuple[str, list[str]]:
     return text, problems
 
 
+def same_patched_body(text: str, canonical: str) -> bool:
+    """Match a complete known patched body, allowing only CRLF/LF differences.
+
+    Compare without rewriting the target; bare CR and all other drift still fail.
+    """
+    return text.replace("\r\n", "\n") == canonical.replace("\r\n", "\n")
+
+
 def previous_patched(expected: str) -> str:
     """Exact previous canonical body: grouped search results were not expanded."""
     current = "Array.isArray(data.cols) && (Array.isArray(data.rows) || Array.isArray(data.groups))"
@@ -403,13 +411,11 @@ def cmd_check() -> int:
     if not cbm_supports_format():
         print("  UNSUPPORTED: CBM 0.11.x does not expose the required --format flag.")
         return 2
-    # An editor may normalize the mixed-CRLF/LF canonical output to LF-only.
-    # Accept that one exact, derivable byte state; never accept arbitrary drift.
-    if text in (expected, expected.replace("\r\n", "\n")):
+    if same_patched_body(text, expected):
         print("  ALREADY PATCHED. Nothing to do.")
         return 0
     previous = previous_patched(expected)
-    if text in (previous, previous.replace("\r\n", "\n")):
+    if same_patched_body(text, previous):
         print("  PATCH REQUIRED: exact previous canonical lacks grouped search results.")
         return 1
     if text == base:
@@ -458,11 +464,11 @@ def cmd_apply() -> int:
         for p in problems:
             print(f"    - {p}")
         return 2
-    if text in (new_text, new_text.replace("\r\n", "\n")):
+    if same_patched_body(text, new_text):
         print("  file already in canonical patched state (idempotent)")
         return 0
     previous = previous_patched(new_text)
-    if text not in (base, previous, previous.replace("\r\n", "\n")):
+    if text != base and not same_patched_body(text, previous):
         print("  REFUSING: installed file differs from immutable stock and canonical patch")
         return 2
 
@@ -507,7 +513,7 @@ def cmd_restore() -> int:
         print("  file is already stock — nothing to restore")
         return 0
     previous = previous_patched(expected)
-    if text not in (expected, expected.replace("\r\n", "\n"), previous, previous.replace("\r\n", "\n")):
+    if not (same_patched_body(text, expected) or same_patched_body(text, previous)):
         print("  REFUSING: installed file is neither stock nor canonical patched state")
         return 2
 

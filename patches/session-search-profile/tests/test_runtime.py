@@ -1,5 +1,6 @@
 """Focused canonical migration, mode and timer regression checks."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -76,6 +77,55 @@ class RuntimeTests(unittest.TestCase):
                 (root / s.REL_FILES[2]).write_bytes(canonical[s.REL_FILES[2]])
                 s.restore(root, runtime)
                 self.assertEqual(s.read_files(root), stock)
+
+    def test_exact_historical_transitions_and_backups(self):
+        # Fingerprints retained before this repair, in REL_FILES order. A marker
+        # or a freshly regenerated "previous" alone cannot validate old bytes.
+        expected = {
+            False: {'published': 'e609de573f69a7b74fac1b1c4ae3c405085a4c25a175853fa3bccf18254bcdbf',
+                    'previous': '2af764d247ad59e83b58addeee26c10e2207d9fe76b11152d5ad4c64140805b2'},
+            True: {'published': '098c746f0802e8e2d2723d9a7c71be1fc82cd6c93d5ab06868586144b50d332a',
+                   'previous': 'a9f642673f17a9d3c9a57544ee1f86990500b50d18d1b178bcea89dad326c5d9'},
+        }
+        for mode in (False, True):
+            for revision in ('published', 'previous'):
+                with self.subTest(mode=mode, revision=revision), tempfile.TemporaryDirectory() as td:
+                    stock, historical = s.canonical_files(mode, **{revision: True})
+                    _, current = s.canonical_files(mode)
+                    self.assertEqual(hashlib.sha256(b''.join(historical[r] for r in s.REL_FILES)).hexdigest(), expected[mode][revision])
+                    root = Path(td)
+                    (root / 'package.json').write_text('{"version":"1.6.0"}')
+                    for rel, body in historical.items():
+                        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                        (root / rel).write_bytes(body)
+                    s.configure_paths(root)
+                    self.assertEqual(s.classify(root, mode)[0], revision + '-patched')
+                    s.apply(root, mode)
+                    self.assertEqual(s.read_files(root), current)
+                    receipts = list(s.BACKUP_ROOT.glob('*/receipt.json'))
+                    self.assertEqual(len(receipts), 1)
+                    receipt = json.loads(receipts[0].read_text())
+                    self.assertEqual(receipt['state'], revision + '-patched')
+                    for rel, body in historical.items():
+                        self.assertEqual((receipts[0].parent / rel).read_bytes(), body)
+                        self.assertEqual(receipt['sha256'][rel.as_posix()], hashlib.sha256(body).hexdigest())
+                    s.apply(root, mode)
+                    self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), 1)
+                    self.assertEqual(s.read_files(root), current)
+                    s.restore(root, mode)
+                    self.assertEqual(s.read_files(root), stock)
+                    # Mixed main/worker is unknown even if every file is from
+                    # a recognized state; refusal must not make a backup/write.
+                    (root / 'dist/index-worker.js').write_bytes(current[Path('dist/index-worker.js')])
+                    before = s.read_files(root)
+                    count = len(list(s.BACKUP_ROOT.glob('*/receipt.json')))
+                    self.assertEqual(s.classify(root, mode)[0], 'unknown')
+                    for action in (s.apply, s.restore):
+                        with self.assertRaises(RuntimeError): action(root, mode)
+                        self.assertEqual(s.read_files(root), before)
+                    self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), count)
+                    (root / 'package.json').write_text('{"version":"1.6.1"}')
+                    with self.assertRaises(RuntimeError): s.assert_version(root)
 
     def test_real_timer_settlement(self):
         # Execute the exact generated production bodies, with real timers and

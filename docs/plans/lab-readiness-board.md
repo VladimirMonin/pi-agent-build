@@ -1,6 +1,16 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Принятый выпуск Pi 1.4.0 build.1
+## Кандидат выпуска Pi 1.4.0 build.2
+
+[Release notes](../releases/pi-1.4.0-build.2.md). Все version pins build.1 сохранены; новый срез — Session Search no-HOME/read/scan/FTS fixes и bounded CBM mixed-EOL admission. Независимые source verdicts: Session Search **ACCEPTED** (retained 13 tests / 36 native scenario cases и fresh partial-scan discriminator), CBM **ACCEPTED** (9/9). Это не повтор общей Pi 1.4 матрицы.
+
+Preserving рабочее обновление Windows завершено: actual Pi и семь SDK nodes **1.4.0**, Polza **0.2.2** Both, Memory **1.6.1** сохранён, Search **1.6.0 patched**. Обычные Code/Task SDK startup, registration/tools, исходные main-model selections, шесть CLI surfaces, patch Check и verifier **0 failures / 0 warnings** приняты; сохранность исходных данных/векторов и SQLite integrity подтверждена. **Pi Code/Task можно запускать**: публикационная стадия не удерживает рабочие окна закрытыми. Новый main-model live answer в этом ремонте не выполнялся; прежние Pi/Trace/Context7/Polza checks переиспользуются только для неизменённых inputs и в исходном scope.
+
+**Исходный semantic top25 FAIL сохранён.** Реальный provider/SDK получил query и вернул результаты, но нужная читаемая сессия не вошла в top25. Offline replay: сохранённый vector — cosine rank39, active RRF rank95 (pool125); один свежий exact-payload embedding — cosine rank33. Saved/fresh vectors различаются (cosine≈0.99578); historical provenance не сохранён, точная причина небольшого расхождения unknown. Новый implementation defect не установлен; это известное ограничение model/representation/ranking, не PASS полноты поиска и не основание для rollback/reindex. [Подробности и scope](../fixes/session-search.md#scope-и-качество-выдачи).
+
+Финальные source/docs gates и поставка относятся к этому кандидату; commit, аннотированный `pi-v1.4.0-build.2`, source ZIP/checksum и GitHub readback выполняются отдельно после приёмки. Старые notes/receipts не переписываются.
+
+## Исторический принятый выпуск Pi 1.4.0 build.1
 
 [Release notes и область приёмки](../releases/pi-1.4.0-build.1.md). Exact Pi 1.4.0 / Node 25.8.1 / npm 11.11.0; Polza 0.2.2 закреплён опубликованным commit в manifest и Code/Task. Source, установленный Windows candidate и один public Context7 resolve/query chain разделены в notes; остальные неизменённые результаты R/B переиспользованы в исходной области.
 

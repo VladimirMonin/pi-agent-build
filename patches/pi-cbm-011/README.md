@@ -49,4 +49,14 @@ Stock `pi-cbm 1.2.1` после отката остаётся несовмест
 
 Candidate 0.99.1 tiny-project smoke подтвердил дополнительный дефект: CBM0.11.0 `search_graph` возвращает `cols + groups[].rows`, а прежний normalizer запускал expansion только при top-level `rows`; Pi терял symbol/qn/file/lines при `total=1`. Условие исправлено на rows **или** groups; существующий `expandTable` сохраняет group file/prefix и line range. `--check` для exact previous canonical (включая LF-only) возвращает 1, `--apply` делает backup и мигрирует; `--restore` принимает обе точные canonical версии. Произвольный drift всё ещё exit2. `tests/scripts/run-tests.ps1` проверяет captured grouped response и миграцию; actual MCP и composed Pi tool proof хранятся privately (`mcp-functional`, `compat-functional`). Source correction получила targeted independent Source APPROVE; это не blanket CBM feature PASS.
 
-Pristine store в Git immutable. Apply принимает только точный stock/canonical body и **байтово точный LF-only вариант canonical** (редактор мог нормализовать CRLF исходника); произвольный drift по-прежнему запрещён. Для `--check`, `--apply` и `--restore` эти два canonical-состояния равноправны; `--apply` не переписывает уже установленный LF-only вариант. При изменении stock создаётся backup под `.pi-agent-build-backups/pi-cbm-011` выбранного профиля.
+Pristine store в Git immutable; stock распознаётся только byte-exact. Текущий и известный previous canonical допускают различия **только CRLF/LF**, включая смешанные endings: сравнивается весь body после замены CRLF→LF с обеих сторон, а не marker/anchors или произвольный whitespace. Version guards остаются прежними. Для `--check`, `--apply` и `--restore` используется один discriminator. Уже установленный current canonical `--apply` не переписывает и не создаёт backup ради чистых endings. Переход stock/previous→current и restore сохраняют исходные байты в `.pi-agent-build-backups/pi-cbm-011` выбранного профиля; restore возвращает byte-exact pristine.
+
+Синтетическая regression-проверка без установленных профилей и вызовов CBM:
+
+```powershell
+python -B .\patches\pi-cbm-011\tests\test_admission.py -v
+```
+
+Она проверяет mixed-EOL check/apply no-op (байты, mtime и backups неизменны), known transitions и byte-exact restore/backup, отказ на semantic/whitespace drift, bare CR, неизвестную версию и отсутствие `--format`. Только внешние CBM version/help responses подменены; реальные команды patcher выполняются в отдельных процессах на временном synthetic profile.
+
+В [build.2](../../docs/releases/pi-1.4.0-build.2.md) эта bounded delta независимо принята: 9/9 synthetic tests и exact public reconstruction известного mixed-EOL body. Это исправление распознавания уже известного patch, не новая CBM schema/feature qualification; versions, normalizer и installed current bytes не меняются ради endings.

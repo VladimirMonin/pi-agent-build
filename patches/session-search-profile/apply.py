@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact pi-session-search 1.6.0 profile roots, containment and timer patch."""
+"""Exact pi-session-search 1.6.0 roots, safe discovery and local FTS repair."""
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -72,8 +72,8 @@ def replace_body(text, start, end, body):
     return text[:a] + body + text[b:]
 
 
-def patch_parser(text, runtime_only, dist=False):
-    join = "join2" if dist else "join"
+def patch_parser(text, runtime_only, dist=False, *, worker=False):
+    join = "join2" if dist and not worker else "join"
     typed = "" if dist else ": string"
     exported = "" if dist else "export "
     def body(name, override, leaf, modern=""):
@@ -94,6 +94,119 @@ def patch_parser(text, runtime_only, dist=False):
         b = text.index("\n}", a) + 2
         text = text[:a] + body(name, override, leaf, modern) + text[b:]
     return text
+
+
+def patch_roots(text):
+    text = 'import { homedir as sessionHomedir } from "node:os";\n' + text
+    return text.replace('process.env.HOME || "~"', 'sessionHomedir()').replace('process.env.HOME || ""', 'sessionHomedir()')
+
+
+def patch_discovery(text, *, source=False, worker=False):
+    """Retain deletion authority only for successfully enumerated directories."""
+    join = "join" if source or worker else "join2"
+    text = 'import { resolve as sourceResolve, relative as sourceRelative, isAbsolute as sourceIsAbsolute, sep as sourceSep } from "node:path";\n' + text
+    signature = '''export function discoverSessionFiles(
+  extraSessionDirs: string[] = [],
+  extraArchiveDirs: string[] = [],
+  sessionDir?: string,
+  archiveDir?: string,
+): { files: { file: string; archived: boolean }[]; scannedDirs: string[]; unavailableDirs: string[] } {''' if source else 'function discoverSessionFiles(extraSessionDirs = [], extraArchiveDirs = [], sessionDir, archiveDir) {'
+    array_type = ': string[]' if source else ''
+    results_type = ': { file: string; archived: boolean }[]' if source else ''
+    walk_signature = 'function walkJsonl(dir: string, scannedDirs: string[], unavailableDirs: string[]): string[] {' if source else 'function walkJsonl(dir, scannedDirs, unavailableDirs) {'
+    predicate_signature = 'export function canRemoveSession(file: string, scannedDirs: string[], unavailableDirs: string[]): boolean {' if source else 'function canRemoveSession(file, scannedDirs, unavailableDirs) {'
+    dir_type = ': string' if source else ''
+    body = f'''{signature}
+  const sDirs = [sessionDir ?? getDefaultSessionDir(), ...extraSessionDirs];
+  const aDirs = [archiveDir ?? getDefaultArchiveDir(), ...extraArchiveDirs];
+  const files{results_type} = [];
+  const scannedDirs{array_type} = [];
+  const unavailableDirs{array_type} = [];
+  for (const [dirs, archived] of [[sDirs, false], [aDirs, true]]{' as const' if source else ''}) {{
+    for (const dir of dirs) {{
+      for (const file of walkJsonl(dir, scannedDirs, unavailableDirs)) {{
+        files.push({{ file, archived }});
+      }}
+    }}
+  }}
+  return {{ files, scannedDirs, unavailableDirs }};
+}}
+
+{walk_signature}
+  const files{array_type} = [];
+  try {{
+    const entries = readdirSync(dir, {{ withFileTypes: true }});
+    scannedDirs.push(dir);
+    for (const entry of entries) {{
+      const full = {join}(dir, entry.name);
+      if (entry.isDirectory()) {{
+        files.push(...walkJsonl(full, scannedDirs, unavailableDirs));
+      }} else if (entry.name.endsWith(".jsonl") && entry.name !== "pins.json" && entry.name !== "active-sessions.json") {{
+        files.push(full);
+      }}
+    }}
+  }} catch {{
+    unavailableDirs.push(dir);
+  }}
+  return files;
+}}
+
+{predicate_signature}
+  const within = (dir{dir_type}) => {{
+    const rel = sourceRelative(sourceResolve(dir), sourceResolve(file));
+    return rel === "" || (rel !== ".." && !rel.startsWith(".." + sourceSep) && !sourceIsAbsolute(rel));
+  }};
+  return scannedDirs.some(within) && !unavailableDirs.some(within);
+}}
+
+'''
+    # Keep the source header-read documentation and every parse/read predicate.
+    start = ('export ' if source else '') + 'function discoverSessionFiles('
+    end = '// ─── Header-only read' if source else 'function readSessionId('
+    return replace_body(text, start, end, body)
+
+
+def patch_safe_removal(text, *, source=False):
+    if source:
+        text = replace_once(text, 'import { discoverSessionFiles, parseSession, readSessionId }',
+                            'import { discoverSessionFiles, canRemoveSession, parseSession, readSessionId }', 'discovery import')
+    text = text.replace('const discovered = discoverSessionFiles(',
+                        'const { files: discovered, scannedDirs, unavailableDirs } = discoverSessionFiles(')
+    text = text.replace('if (!discoveredIds.has(id)) {',
+                        'if (!discoveredIds.has(id) && canRemoveSession(this.data.sessions[id].session.file, scannedDirs, unavailableDirs)) {')
+    text = text.replace('if (!idToFile.has(id)) {',
+                        'if (!idToFile.has(id) && canRemoveSession(currentById.get(id)' + ('!' if source else '') + '.file, scannedDirs, unavailableDirs)) {')
+    # A discovered file that cannot be stat'ed/read is not proof of deletion.
+    text = text.replace("} catch { continue; }", "} catch { unavailableDirs.push(file); continue; }")
+    text = text.replace("continue; // can't stat — skip", "unavailableDirs.push(file); continue; // unavailable, not deleted")
+    if not source:
+        text = text.replace('} catch {\n        continue;\n      }', '} catch {\n        unavailableDirs.push(file); continue;\n      }')
+        text = text.replace('} catch {\n          continue;\n        }', '} catch {\n          unavailableDirs.push(file); continue;\n        }')
+    return text.replace('if (!id) continue;', 'if (!id) { unavailableDirs.push(file); continue; }')
+
+
+def patch_partial_fts(text, *, source=False):
+    old = '''  count(): number {
+    return (this.db.prepare("SELECT count(*) as c FROM s").get() as any).c;
+  }''' if source else '''  count() {
+    return this.db.prepare("SELECT count(*) as c FROM s").get().c;
+  }'''
+    new = '''  ids(): Set<string> {
+    return new Set((this.db.prepare("SELECT DISTINCT id FROM s").all() as { id: string }[]).map(row => row.id));
+  }''' if source else '''  ids() {
+    return new Set(this.db.prepare("SELECT DISTINCT id FROM s").all().map(row => row.id));
+  }'''
+    text = replace_once(text, old, new, 'hybrid FTS IDs')
+    text = replace_once(text, 'sessionCount > 0 && this.fts.count() === 0', 'sessionCount > 0', 'partial FTS load')
+    signature = 'private populateFtsFromIndex(): void {' if source else 'populateFtsFromIndex() {'
+    text = replace_once(text, signature, signature + '\n    const existingIds = this.fts.ids();', 'FTS existing IDs')
+    pos = text.index(signature)
+    prefix, tail = text[:pos], text[pos:]
+    tail = tail.replace('for (const [id, entry] of Object.entries(this.data.sessions)) {',
+                        'for (const [id, entry] of Object.entries(this.data.sessions)) {\n      if (existingIds.has(id)) continue;', 1)
+    text = prefix + tail
+    text = text.replace("Populate FTS side-car if it's empty but the JSON index has sessions", "Fill missing legacy FTS IDs from saved metadata, preserving existing full text")
+    return text.replace('Used when the JSON index is loaded but the FTS DB is empty (e.g. first', 'Used when the JSON index has IDs missing from the FTS DB (e.g. first')
 
 
 def patch_index(text, source=False):
@@ -154,7 +267,9 @@ def patch_display(text, typed=False):
     return text
 
 
-def canonical_files(runtime_only=False, *, previous=False):
+def canonical_files(runtime_only=False, *, previous=False, published=False):
+    if previous and published:
+        raise ValueError('select one exact historical state')
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
         raise RuntimeError("immutable stock hash mismatch")
@@ -169,6 +284,23 @@ def canonical_files(runtime_only=False, *, previous=False):
     if not previous:
         for rel in (REL_FILES[2], *REL_FILES[4:]):
             canonical[rel] = patch_display(canonical[rel].decode("utf-8"), rel.suffix == '.ts').encode("utf-8")
+    if not (previous or published):
+        for leaf in ('src/parser.ts', 'src/index.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            text = canonical[rel].decode('utf-8')
+            worker = leaf.endswith('index-worker.js')
+            if worker:
+                text = patch_parser(text, runtime_only, True, worker=True)
+            text = patch_roots(text)
+            if leaf != 'src/index.ts':
+                text = patch_discovery(text, source=rel.suffix == '.ts', worker=worker)
+            canonical[rel] = text.encode('utf-8')
+        for leaf in ('src/session-index.ts', 'src/fts-index.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            text = patch_safe_removal(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
+            if leaf != 'src/fts-index.ts':
+                text = patch_partial_fts(text, source=rel.suffix == '.ts')
+            canonical[rel] = text.encode('utf-8')
     return stock, canonical
 
 
@@ -176,8 +308,9 @@ def classify(root, runtime_only=False):
     stock, canonical = canonical_files(runtime_only)
     current = read_files(root)
     _, previous = canonical_files(runtime_only, previous=True)
+    _, published = canonical_files(runtime_only, published=True)
     return ("patched" if current == canonical else "stock" if current == stock else
-            "previous-patched" if current == previous else "unknown"), stock, canonical
+            "previous-patched" if current == previous else "published-patched" if current == published else "unknown"), stock, canonical
 
 
 def runtime_backup(root, label):
@@ -197,7 +330,7 @@ def apply(root, runtime_only=False):
     if state == "patched":
         print("ALREADY PATCHED")
         return
-    if state not in {"stock", "previous-patched"}:
+    if state not in {"stock", "previous-patched", "published-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
@@ -214,7 +347,7 @@ def restore(root, runtime_only=False):
     if state == "stock":
         print("ALREADY STOCK")
         return
-    if state not in {"patched", "previous-patched"}:
+    if state not in {"patched", "previous-patched", "published-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
@@ -240,7 +373,7 @@ def main():
         if args.check:
             state, _, _ = classify(root, args.runtime_only)
             print(f"version={VERSION} state={state}")
-            return {"patched": 0, "stock": 1, "previous-patched": 1, "unknown": 2}[state]
+            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "unknown": 2}[state]
         (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:
