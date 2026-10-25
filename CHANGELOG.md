@@ -2,6 +2,13 @@
 
 Все значимые изменения сборки документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/). Старые накопленные записи `Unreleased` ниже сохранены без переатрибуции новому выпуску.
 
+## [pi-v1.4.0-build.3] — 2026-10-25
+
+- Exact package/runtime pins сохранены. Session Search: раздельные префиксы документов/вопросов по модели и независимые overrides, включая пустые строки; semantic-first default без FTS arm, явный RRF сохранён. Контрольный installed поиск дал нужную сессию на rank1 из1293 без пересчёта исходных vectors.
+- Memory: только векторный вопрос общего `searchMemory` получает Qwen3-инструкцию; необязательный `memory.embedding.queryPrefix` сохраняет точную/пустую строку. Документы, FTS, RRF и консолидация неизменны. Exact previous-state admission, backup/check/apply/no-op/restore и unknown refusal проверены.
+- Code/Task обновлены до документации/публикации: normal SDK startup и штатный verifier0/0. Собственный временный факт в Code найден tool-ом и настоящим automatic context-hook, доступен в continuation, удалён через product tool с readback; три реальных Qwen1024d запроса. Main/consolidation LLM в рабочей проверке не вызывалась.
+- Переиндексация/compatibility registry/migration не добавлены. Один контрольный результат не оценивает полноту архива или качество всех моделей. [Компонентные контракты и область выпуска](docs/releases/pi-1.4.0-build.3.md).
+
 ## [pi-v1.4.0-build.2] — 2026-10-24
 
 - Версии сохранены: Pi **1.4.0**, Node **25.8.1**, npm **11.11.0**, Polza **0.2.2**, Session Search **1.6.0**, Memory **1.6.1**; manifests, installer и профильные templates не менялись.

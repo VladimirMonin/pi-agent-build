@@ -20,6 +20,12 @@ Fresh Pi1.3.0 SDK + patched Memory1.6.1: synthetic Code/Task проверили 
 - Recall facts: Polza `qwen/qwen3-embedding-8b`,1024d, upstream openai-compatible backend.
 - Session Search использует свой независимый embedder/config/index.
 
+### Query-only формат Qwen
+
+Stock 1.6.1 передаёт в `emb.embed` один и тот же raw формат для документа и вопроса. В сборке Qwen3-Embedding получает инструкцию **только в общем `searchMemory`**, которым пользуются явный поиск и automatic recall. Точная строка: `Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:` (один LF, без пробела после последнего двоеточия). `embedEntry`, `embedBatch`/backfill, FTS query, RRF и консолидация не меняются.
+
+Правило определяется по case-insensitive `qwen3-embedding` в имени модели, не по URL. Другие/неизвестные модели остаются raw. Необязательный `memory.embedding.queryPrefix` — точная строка без trim; `""` явно отключает инструкцию, собственная строка заменяет её. Сохраните остальные поля существующего embedding config. Серверная автовставка не доказана; пустой override позволяет избежать двойного форматирования, если её подтвердит владелец backend. Индексатор, совместимость индекса и автоматическая миграция не добавляются; документы прежнего Qwen не пересчитываются ради query-only исправления.
+
 Xenova1.5 и его timeout patch больше не используются. До изменения vectors сделана одна consistent SQLite backup API-копия вне Git. Facts/lessons/events не удаляются. Старые384d vectors не сравниваются с новыми1024d; upstream backfill постепенно заменяет missing/wrong-dimension vectors после нового session start. Это не обещание немедленного полного reindex личной БД. При смене модели на другую с теми же dimensions старые vectors нужно отдельно перестроить: равная длина не означает одинаковое пространство.
 
 ## Проверка и применение
@@ -32,8 +38,10 @@ python patches/memory-windows-runtime/apply.py --agent-dir <PROFILE_DIR> --resto
 
 Target check, распознавание installed previous и подготовка replacement — разные операции; точные state/exit значения задаёт CLI выбранной ревизии. Installer до перезаписи сохраняет только доказанно известное исходное состояние. Apply/restore сохраняют прежний bundle в выбранном профиле, unknown/mixed state не перезаписывается. Restore возвращает stock1.6.1, но не откатывает vectors/settings. Reinstall стирает patch.
 
-Новая automatic consolidation после guard доказывается новым уникальным synthetic фактом, без `memory_remember`: запись действительно создана, source=`consolidation`, scope корректен, автоматический контекст подходящей новой сессии включает её и чужой — исключает. Пересказ модели и старый разговор без новой записи не достаточны; фактический результат этого case отделяется от прежних mock/canary.
+При изменении консолидации/scope новая automatic consolidation после guard доказывается новым уникальным synthetic фактом, без `memory_remember`: запись действительно создана, source=`consolidation`, scope корректен, автоматический контекст подходящей новой сессии включает её и чужой — исключает. Пересказ модели и старый разговор без новой записи не достаточны; фактический результат этого case отделяется от прежних mock/canary. Query-only repair не меняет этот путь и не требует повторять платную консолидацию ради прежнего evidence.
 
 Native SDK mock checks Both проверили scope/aliases, automatic vectors, ephemeral hook, ordered consolidation, Windows Node/CLI/profile и session ID; платный Polza canary проверил русский paraphrase без keyword match на synthetic facts. Commands/scope: [build.6](../releases/pi-1.0.4-build.6.md).
+
+Свежий [build.3](../releases/pi-1.4.0-build.3.md): 12 source behavioral cases и exact previous/current transitions приняты независимо. После установки обычные Code/Task SDK запущены без ошибок и со своими прежними main-model selections. В Code один собственный временный факт через product tools найден и попал в automatic context-hook и tool continuation, не в историю; удаление подтверждено. Реальный Polza ответил на три embedding-запроса (raw document + два prefixed query), все HTTP200/1024d; других запросов в наблюдаемом Memory transport не было. Это не full live-model/quality matrix и не новый тест DeepSeek-консолидации.
 
 Полный перезапуск открытых Code/Task выполняет владелец; старые процессы сохраняют старые closures. Consolidation prompt передаётся child через `-p` и виден локальным наблюдателям process command line. Не используйте секреты как memory/test fixtures.

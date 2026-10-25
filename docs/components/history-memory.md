@@ -4,7 +4,7 @@
 
 ### Назначение
 
-Индексирует active/archive Pi sessions. FTS5 keyword search работает без provider; optional embeddings добавляют hybrid cosine + BM25/RRF.
+Индексирует active/archive Pi sessions. FTS5 keyword search работает без provider. После patch при embeddings по умолчанию выбирается смысловое cosine ранжирование; явный `fusion: "rrf"` сохраняет смешивание с BM25/FTS.
 
 ### Установка
 
@@ -30,7 +30,7 @@ Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`
 
 Index и embeddings содержат производные от приватной session history. External embedder получает session text. Auto-sync может стартовать в child/noninteractive processes; используйте `sync.disableForChild: true`. Смена model/dimensions требует отдельной согласованной миграции; этот repair её не выполняет и forced reindex не требует.
 
-Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. Даже доступная и читаемая сессия может не попасть в top25 широкого смыслового запроса. [Ограничение build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) не исправляется одним restart; отсутствие результата не доказывает отсутствие разговора.
+Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. [Build.3](../releases/pi-1.4.0-build.3.md) добавляет раздельные model-specific document/query prefixes и смысловой default; прежний контрольный запрос нашёл нужную сессию на rank1 из1293. Это не гарантия полноты других запросов: отсутствие результата не доказывает отсутствие разговора. Исторический FAIL [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) сохранён.
 
 ### Проверка
 
@@ -65,6 +65,8 @@ Scope `@samfp/` обязателен; unscoped `pi-memory` — другой pack
 
 Automatic vector recall использует upstream provider/hybrid/RRF с Polza `qwen/qwen3-embedding-8b`,1024d в `memory.embedding`. DeepSeek-консолидация и Session Search — независимые механизмы. Patch сохраняет upstream ephemeral context-hook, фильтрует project scope и помещает только целые записи.
 
+В общем `searchMemory` Qwen3-Embedding получает query-инструкцию; документы и FTS остаются raw, Memory RRF не меняется. `memory.embedding.queryPrefix` допускает собственную точную строку или `""` для отключения клиентского форматирования. Другие/неизвестные модели не получают новый default. [Точный формат, данные и overrides](../fixes/memory.md#query-only-формат-qwen).
+
 Автоматический block очищается в начале каждого нового run и на смене сессии. Только непустой user prompt получает свежий recall; custom/пустой prompt/error не наследуют прошлый block. Tool continuation того же user-run сохраняет его. В служебном Goal/Intercom run при необходимости используйте `memory_search`. [Lifecycle и проверки](../fixes/memory.md#usercustom-lifecycle).
 
 Patch также читает id сессии через `sessionManager.getSessionId()`: stock-выражение `ctx.sessionId ?? ctx.session?.id` всегда даёт `undefined` (в `ExtensionContext` нет таких полей), из-за чего консолидированные lessons помечались `session:unknown`.
@@ -83,7 +85,7 @@ Memory DB содержит персональные preferences/identity и proj
 
 ### Проверка
 
-Patch `--check` должен вернуть0 и `runtime-safe`. Build.6: Native SDK Both на synthetic SQLite/local mock проверил Windows Node child, ordered consolidation, profile/session ID, scope/aliases и ephemeral injection. Installed real Polza canary: русский paraphrase без keyword match автоматически recalled,2 successful embedding requests. Личные факты не fixtures; real DeepSeek consolidation не повторялась. Подробности: [memory fix](../fixes/memory.md).
+Patch `--check` должен вернуть0 и `runtime-safe`. [Build.3](../releases/pi-1.4.0-build.3.md): обычные installed SDK Both, явный поиск/automatic context-hook/tool continuation собственного временного факта в Code и его product removal подтверждены; три successful embedding requests, без main/consolidation LLM. Исторический build.6: synthetic SQLite/local-mock проверил Windows child, ordered consolidation, profile/session ID и scope/aliases; отдельный real Polza paraphrase canary дал два successful embedding requests. Эти области не складываются в новую full-model матрицу; личные факты не используются как fixtures. [Memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 

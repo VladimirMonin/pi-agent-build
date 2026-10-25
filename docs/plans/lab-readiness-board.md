@@ -1,6 +1,14 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Кандидат выпуска Pi 1.4.0 build.2
+## Текущая сборка Pi 1.4.0 build.3
+
+[Release notes](../releases/pi-1.4.0-build.3.md). Те же exact pins; source changes ограничены Search prefixes/semantic-first и Memory query-only Qwen formatting. Независимые scoped source reviews приняты. Новые index compatibility checks, migrations, forced/manual reindex и смена model/provider/dimensions не добавлены.
+
+Рабочие Code/Task обновлены **до** финальной документации и публикации. Normal installed SDK startup Both прошёл без extension errors и с сохранёнными main-model selections; штатный verifier/patch Check Both — **0 failures /0 warnings**. Контрольный настоящий `session_search` вернул нужную сессию на **rank1 из1293**. В Memory один собственный временный факт найден через tool, включён настоящим automatic context-hook/tool continuation и удалён через product API с readback. Три Qwen1024d embedding requests успешны; main/consolidation LLM в этой рабочей проверке не вызывалась. Source/mock/replay/live scopes и ограничения разделены в release notes; исходный build.2 FAIL остаётся историческим.
+
+Прежние user data/настройки/Goal X сохраняются; единственная целевая настройка Search в Code — `fusion: vector-primary`, остальные поля не переписаны. Recovery остаётся приватным, Source ZIP не содержит installed runtime/личные данные. [GitHub Release и исходники](https://github.com/VladimirMonin/pi-agent-build/releases/tag/pi-v1.4.0-build.3). После завершённой установки публикация не удерживает пользовательские Pi закрытыми.
+
+## Исторический принятый выпуск Pi 1.4.0 build.2
 
 [Release notes](../releases/pi-1.4.0-build.2.md). Все version pins build.1 сохранены; новый срез — Session Search no-HOME/read/scan/FTS fixes и bounded CBM mixed-EOL admission. Независимые source verdicts: Session Search **ACCEPTED** (retained 13 tests / 36 native scenario cases и fresh partial-scan discriminator), CBM **ACCEPTED** (9/9). Это не повтор общей Pi 1.4 матрицы.
 

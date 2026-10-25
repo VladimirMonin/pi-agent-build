@@ -18,6 +18,7 @@ VERSION = "1.6.1"
 BACKUP = HERE / "stock-index.js"
 EXPECTED_STOCK_SHA256 = "9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f"
 PREVIOUS_161_SHA256 = "d05d1b54a59a69da08458d6a896be36fbc19286360642d1a0672169211c7d5a9"
+PREVIOUS_RAW_QUERY_SHA256 = "c4ba7cfd1a6bcbb5270092e4deb400b5ab32dc4f92840e428ce7cdcbf04d2fcd"
 # Published build source 248b6cb (last 1.5.0 canonical), not arbitrary old versions.
 PREVIOUS_150_HASHES = {
     "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58": "previous-stock-1.5.0",
@@ -254,7 +255,21 @@ def digest(data: bytes) -> str:
 def short(data: bytes) -> str:
     return digest(data)[:12]
 
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, project_writes=True) -> bytes:
+QUERY_REPLACEMENTS = [
+    ('  "url",\n  "dimensions"\n];',
+     '  "url",\n  "dimensions",\n  "queryPrefix"\n];'),
+    ('  if (typeof e.sendDimensions === "boolean") out.sendDimensions = e.sendDimensions;\n  return out;',
+     '  if (typeof e.sendDimensions === "boolean") out.sendDimensions = e.sendDimensions;\n  if (typeof e.queryPrefix === "string") out.queryPrefix = e.queryPrefix;\n  return out;'),
+    ('      const vec = await emb.embed(query);',
+     r'''      // pi-memory query-only prefix: documents and lexical query stay raw.
+      const prefix = injectorConfig.embedding?.queryPrefix ??
+        (injectorConfig.embedding?.model?.toLowerCase().includes("qwen3-embedding")
+          ? "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:" : "");
+      const vec = await emb.embed(prefix + query);'''),
+]
+
+
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, project_writes=True, query_formatting=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -270,6 +285,11 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
         if text.count(old) != 1:
             raise RuntimeError("automatic recall anchor mismatch")
         text = text.replace(old, new, 1)
+    if replacements is CANONICAL_REPLACEMENTS and query_formatting:
+        for old, new in QUERY_REPLACEMENTS:
+            if text.count(old) != 1:
+                raise RuntimeError("query formatting anchor mismatch")
+            text = text.replace(old, new, 1)
     result = text.encode("utf-8")
     if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
@@ -318,7 +338,7 @@ def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) ->
 def classify(target, stock, canonical):
     if target == stock: return "stock-pristine"
     if target == canonical: return "runtime-safe"
-    if digest(target) == PREVIOUS_161_SHA256: return "previous-patched-1.6.1"
+    if digest(target) in {PREVIOUS_161_SHA256, PREVIOUS_RAW_QUERY_SHA256}: return "previous-patched-1.6.1"
     return "noncanonical-drift" if is_runtime_safe(target.decode("utf-8")) else "unknown"
 
 

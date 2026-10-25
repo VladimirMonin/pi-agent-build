@@ -20,9 +20,11 @@ args,rest=parser.parse_known_args()
 
 class KnownStates(unittest.TestCase):
  def test_exact_transitions_and_backups(self):
-  stock=m.BACKUP.read_bytes();current=m.build_canonical(stock);previous=m.build_canonical(stock,project_writes=False)
+  stock=m.BACKUP.read_bytes();current=m.build_canonical(stock);previous=m.build_canonical(stock,project_writes=False,query_formatting=False)
   self.assertEqual(m.digest(previous),m.PREVIOUS_161_SHA256)
-  sources=[('1.6.1',stock,'stock-pristine'),('1.6.1',previous,'previous-patched-1.6.1'),('1.6.1',current,'runtime-safe')]
+  raw_query=m.build_canonical(stock,query_formatting=False)
+  self.assertEqual(m.digest(raw_query),m.PREVIOUS_RAW_QUERY_SHA256)
+  sources=[('1.6.1',stock,'stock-pristine'),('1.6.1',previous,'previous-patched-1.6.1'),('1.6.1',raw_query,'previous-patched-1.6.1'),('1.6.1',current,'runtime-safe')]
   if args.previous_150:
    for filename in ['stock-index.js','canonical.js']:
     body=(args.previous_150/filename).read_bytes();self.assertIn(m.digest(body),m.PREVIOUS_150_HASHES)
