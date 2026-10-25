@@ -1,4 +1,4 @@
-"""Document/query formatting and no-FTS semantic-first regressions. Synthetic only."""
+"""Frozen build.3 regressions. Current strict behavior: test_embedding_contracts."""
 import importlib.util
 import os
 from pathlib import Path
@@ -14,7 +14,7 @@ spec.loader.exec_module(patch)
 
 class PrefixTests(unittest.TestCase):
     def run_case(self, kind, scenario='prefixes'):
-        _, files = patch.canonical_files(True)
+        _, files = patch.canonical_files(True, build3=True)
         with tempfile.TemporaryDirectory(prefix='embedding-prefixes-') as td:
             root = Path(td)
             for rel, body in files.items():

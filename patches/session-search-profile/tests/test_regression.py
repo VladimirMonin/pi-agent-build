@@ -96,5 +96,16 @@ class NativeRegressionTests(unittest.TestCase):
             with self.subTest(worker=worker):
                 self.run_case('env-roots', 'code', worker)
 
+    def test_actual_indexer_input_formats_and_preservation(self):
+        for scenario in ('format-qwen', 'format-google', 'format-role'):
+            for worker in ('main', 'worker', 'source'):
+                with self.subTest(scenario=scenario, worker=worker):
+                    self.run_case(scenario, 'code', worker, 'hybrid')
+
+    def test_actual_setup_preservation_and_explicit_mapping(self):
+        for worker in ('main', 'source'):
+            with self.subTest(worker=worker):
+                self.run_case('setup', 'code', worker)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

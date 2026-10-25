@@ -77,18 +77,27 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 
 ```json
 {
+  "fusion": "semantic-only",
   "embedder": {
     "type": "openai-compatible",
     "baseUrl": "https://polza.ai/api",
     "model": "qwen/qwen3-embedding-8b",
     "dimensions": 1024,
     "sendDimensions": true,
-    "apiKey": "<LOCAL_SECRET>"
+    "apiKey": "<LOCAL_SECRET>",
+    "modelPrefixes": {
+      "qwen/qwen3-embedding-8b": {
+        "queryPrefix": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
+        "documentPrefix": ""
+      }
+    }
   }
 }
 ```
 
-`pi-session-search` сам добавляет `/v1/embeddings`, итоговый endpoint — `https://polza.ai/api/v1/embeddings`. `sendDimensions: true` отправляет `dimensions: 1024`. Смена **модели или размерности** требует отдельного согласованного rebuild/reindex; одинаковая длина не делает разные embedding spaces совместимыми. Обычный update/cwd display fix не является такой миграцией.
+`modelPrefixes` обязателен: точный `model` должен иметь две string-prefixes, включая явные пустые строки; неизвестная/неполная запись даёт ошибку, не fallback. При обновлении дополните только эти поля в своём конфиге, сохранив секрет/endpoint/roots/прочие настройки. `semantic-only` не вызывает FTS и возвращает cosine; прежний `rrf` остаётся явным opt-in. [Форматы, preserving setup и Nemotron](fixes/session-search.md).
+
+Без `embeddingsEndpoint` `pi-session-search` сам добавляет `/v1/embeddings`, итоговый endpoint — `https://polza.ai/api/v1/embeddings`. `sendDimensions: true` отправляет `dimensions: 1024`. Смена **модели или размерности** требует отдельного согласованного rebuild/reindex; одинаковая длина не делает разные embedding spaces совместимыми. Обычный update/cwd display fix не является такой миграцией.
 
 Пути в этой сборке:
 

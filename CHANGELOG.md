@@ -2,6 +2,14 @@
 
 Все значимые изменения сборки документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/). Старые накопленные записи `Unreleased` ниже сохранены без переатрибуции новому выпуску.
 
+## [pi-v1.4.0-build.4] — 2026-10-25
+
+- Session Search: обязательный exact-ID `embedder.modelPrefixes`, обе literal string-prefixes, отказ неизвестной/неполной записи до HTTP. Форматирование документов/вопросов у индексатора, общий formatter source/main/worker; providers не добавляют повторные prefixes.
+- Новый default `semantic-only` возвращает фактический cosine без FTS/fusion и без скрытого lexical fallback; проектный фильтр сохранён. Явные legacy `rrf`/`vector-primary` остаются opt-in. Мастер настройки сохраняет весь существующий config и неизвестные поля.
+- Четыре точных Nemotron 3/3.5 HF ID в публичном примере, раздельные NIM API-role records и optional `embeddingsEndpoint`/`input_type`. Открытые источники проверены; live Nemotron/LM Studio и OpenRouter forwarding не заявлены. Новые endpoints не включались для личной истории.
+- Code/Task сначала установлены и проверены, затем обновлены docs. Normal SDK Both без extension errors, Code control rank1/1293 с cosine32,1%, все прежние1293 vectors сохранены; Task получает недостающий config того же Qwen, его собственный индекс пуст. Pinned verifier0/0. Memory, основной provider/model, package pins и пользовательские данные не мигрировались; forced reindex не запускался.
+- До установки 17 адресных методов и независимое узкое ревью приняты. Exact build.3 transition/backup/no-op/restore сохранены; build.3 не переиздаётся задним числом. [Контракт, проверки и ограничения](docs/releases/pi-1.4.0-build.4.md).
+
 ## [pi-v1.4.0-build.3] — 2026-10-25
 
 - Exact package/runtime pins сохранены. Session Search: раздельные префиксы документов/вопросов по модели и независимые overrides, включая пустые строки; semantic-first default без FTS arm, явный RRF сохранён. Контрольный installed поиск дал нужную сессию на rank1 из1293 без пересчёта исходных vectors.

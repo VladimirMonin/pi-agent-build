@@ -1,6 +1,14 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Текущая сборка Pi 1.4.0 build.3
+## Текущая сборка Pi 1.4.0 build.4
+
+[Release notes](../releases/pi-1.4.0-build.4.md). Exact pins/Memory сохранены; только Search strict exact-ID mapping, formatter у индексатора, отдельный semantic-only/cosine/no FTS, preserving setup и optional API input_type/endpoint. Четыре Nemotron подтверждены первичными источниками, но новые routes/модели не запускались; OpenRouter forwarding/LM Studio остаются NOT TESTED.
+
+До установки source17/17 и независимое узкое ревью приняты, frozen bytes совпали. Code/Task установлены **до** документации: normal installed SDK Both без extension errors, прежний основной provider/model сохранён, Code control rank1 из1293/cosine32,1%, все исходные1293 vectors неизменны. Task получил только недостающий Search config того же Qwen/провайдера, его собственный индекс пуст. Patch Check Both и verifier на pinned Node/Python/Git —0failures/0warnings. Первые ошибки проверочного запуска (неинициализированная SDK theme и выбор bundled Git вместо pinned) диагностированы отдельно; они не исправлялись изменением production или manifests.
+
+Рабочий Code сохраняет прочие поля config; целевые добавления — modelPrefixes и fusion semantic-only. Auth/settings/Goal X/Memory runtime и исходная история не менялись, ручная/массовая переиндексация не запускалась. Recovery приватный, собственные helpers/fixture-копии очищаются после освобождения; release source ZIP не содержит runtime или личные данные. [Новый Release](https://github.com/VladimirMonin/pi-agent-build/releases/tag/pi-v1.4.0-build.4); build.3 ниже не переписан задним числом.
+
+## Исторический принятый выпуск Pi 1.4.0 build.3
 
 [Release notes](../releases/pi-1.4.0-build.3.md). Те же exact pins; source changes ограничены Search prefixes/semantic-first и Memory query-only Qwen formatting. Независимые scoped source reviews приняты. Новые index compatibility checks, migrations, forced/manual reindex и смена model/provider/dimensions не добавлены.
 

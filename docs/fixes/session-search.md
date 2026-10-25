@@ -18,13 +18,15 @@ Incremental sync удаляет записи только из успешно п
 
 Без `project` `session_search` ищет по всем проектам **выбранного индекса**; явный `project` сужает выборку. Профильные config/index и project `localPath` по-прежнему могут выбирать разные хранилища. Стартовая подсказка недавних сессий текущего проекта не ограничивает subsequent search.
 
-В [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) исправлены доступ и сохранность, но не ранжирование: нужная сессия оставалась вне top25. Тот результат остаётся FAIL. Текущая delta отдельно добавляет инструкции embedding-моделей и смысловой режим по умолчанию; она не меняет модель, размерность или индекс. Наличие vector и успешный `session_read` не заменяют проверку ранжирования, а один контрольный вопрос не доказывает качество всех запросов.
+В [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) нужная сессия оставалась вне top25; тот FAIL сохранён. [Build.3](../releases/pi-1.4.0-build.3.md) исправил контрольный поиск, но использовал эвристику имён и прежнюю шкалу fusion. [Build.4](../releases/pi-1.4.0-build.4.md) заменяет их обязательным точным mapping и отдельным `semantic-only`. Модель, размерность и исходные векторы не меняются. Наличие vector и успешный `session_read` не заменяют проверку ранжирования, а один контрольный вопрос не доказывает качество всех запросов.
 
 Отсутствие нужного результата не означает отсутствия разговора. Раздельно проверяйте выбранный index/project scope, доступность list/read и качество ранжирования. Чтение по известному ID не подменяет semantic search; не меняйте query/model/vectors и не запускайте массовый reindex ради формального PASS.
 
 ## Правила документов и вопросов
 
-Правила выбираются по имени **модели**, не по провайдеру или совместимости API с OpenAI. Одна таблица в `createEmbedder` обслуживает main и worker. `embedBatch` получает документы, `embed` — поисковый вопрос; внутренний batch-вызов провайдера не добавляет второй префикс.
+Обязательный `embedder.modelPrefixes` содержит запись по **точному** `embedder.model`. Обе строки `queryPrefix` и `documentPrefix` обязательны, включая намеренно пустые `""`. Регистр, локальные aliases и суффиксы не угадываются. Неизвестная модель, отсутствующая запись или неверный тип дают ошибку до embedding-запроса, а не raw/keyword fallback. Каталог находится в [безопасном примере](../../config/session-search.polza.example.json); наличие записи не доказывает доступность модели на выбранном сервере.
+
+Общие `resolveModelPrefixes` / `prepareEmbeddingInput` работают в source/main/worker. **Индексатор** форматирует документ перед `embedBatch`, вопрос перед `embed`. Провайдер передаёт уже подготовленный текст без повторного форматирования; внутренний singleton→batch сохраняет роль. Прежние поля `embedder.queryPrefix/documentPrefix` больше не выбирают формат: перенесите строки внутрь точной записи `modelPrefixes`.
 
 | Модель | `documentPrefix` | `queryPrefix` |
 |---|---|---|
@@ -32,29 +34,34 @@ Incremental sync удаляет записи только из успешно п
 | `openai/text-embedding-3-small` | `""` | `""` |
 | `qwen/qwen3-embedding-8b` | `""` | Qwen ниже |
 | `google/gemini-embedding-2-preview` | `"title: none \| text: "` | `"task: search result \| query: "` |
-| `Qwen3-Embedding-0.6B`, включая узнаваемые GGUF-имена | `""` | Qwen ниже |
-| `embeddinggemma-2`, включая узнаваемые локальные имена | `"title: none \| text: "` | `"task: search result \| query: "` |
+| `Qwen/Qwen3-Embedding-0.6B` | `""` | Qwen ниже |
+| `google/embeddinggemma-2` | `"title: none \| text: "` | `"task: search result \| query: "` |
+| Четыре точных HF ID Nemotron ниже, локальный подготовленный текст | `"passage: "` | `"query: "` |
 
 Точная строка Qwen в JSON: `"Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"`. `\n` — перевод строки; после последнего двоеточия пробела нет. Google использует пробел после последнего двоеточия. Текст документа/вопроса присоединяется без других преобразований. Для документа без отдельного заголовка используется `title: none`.
 
-Настройки `embedder.documentPrefix` и `embedder.queryPrefix` независимо переопределяют таблицу. Отсутствующее поле выбирает правило модели; **явная пустая строка `""` ничего не добавляет**, даже у Qwen/Google. Для новой модели достаточно указать две строки в конфиге. Для общего автоматического правила добавьте одну строку таблицы в существующем `patch_embedding_prefixes` и соответствующий regression case — новый provider/adapter не нужен.
+Для новой модели или непрозрачного локального alias добавьте одну явную запись в конфиге; новый provider/adapter не нужен. Возьмите точный ID, который обслуживает сервер, не название семейства или предположительный GGUF alias. Пример ниже задаёт Google-формат явно; он подходит только если этот сервер ожидает такую строку.
 
 Пример для непрозрачного локального alias (значение `model` заменяется точным ID из API LM Studio):
 
 ```json
 {
-  "fusion": "vector-primary",
+  "fusion": "semantic-only",
   "embedder": {
     "type": "openai-compatible",
     "baseUrl": "http://localhost:1234",
     "model": "opaque-local-alias",
-    "documentPrefix": "title: none | text: ",
-    "queryPrefix": "task: search result | query: "
+    "modelPrefixes": {
+      "opaque-local-alias": {
+        "documentPrefix": "title: none | text: ",
+        "queryPrefix": "task: search result | query: "
+      }
+    }
   }
 }
 ```
 
-Неизвестное имя без overrides сохраняет прежнюю передачу текста без префиксов. Произвольный локальный alias не распознаётся по содержимому модели: задайте строки явно. Автовставка инструкций на стороне конкретного backend Polza/LM Studio не подтверждена; если сервер уже форматирует текст, отключите соответствующий клиентский префикс через `""`. Для поиска кода у Google можно явно выбрать `"task: code retrieval | query: "`; автоматического определения типа/языка запроса нет.
+Автовставка инструкций конкретным backend Polza/LM Studio не подтверждена. Если сервер уже форматирует текст, задайте обе строки явно с учётом его контракта; `""` отключает соответствующий клиентский префикс. Для поиска кода у Google можно явно выбрать `"task: code retrieval | query: "`; автоматического определения типа/языка запроса нет.
 
 Первоисточники; для Hugging Face указаны карточка, файл и точная проверенная ревизия:
 
@@ -66,9 +73,51 @@ Incremental sync удаляет записи только из успешно п
 
 Для Gemini preview карточка направляет на текущую инструкцию stable Embedding 2: это основание формата, **не подтверждение точного alias/версии backend Polza**. Форматирование проверяется отдельно от доступности каждой модели у провайдера.
 
+## Nemotron: четыре модели и два способа передачи роли
+
+Проверены официальные карточки и `config_sentence_transformers.json` на закреплённых ревизиях. Все четыре задают `query: ` / `passage: `, включая пробел. Это **правила подготовки текста**, не подтверждение установленного GGUF или совместимости LM Studio.
+
+| Точный HF ID | Размерность HF | Проверенный prompt config / revision |
+|---|---|---|
+| [nvidia/Nemotron-3-Embed-1B-BF16](https://huggingface.co/nvidia/Nemotron-3-Embed-1B-BF16) | 2048 | `config_sentence_transformers.json` @ `c0c9fea93ea424587517f2c59e20db9f1d6bf615` |
+| [nvidia/Nemotron-3-Embed-8B-BF16](https://huggingface.co/nvidia/Nemotron-3-Embed-8B-BF16) | 4096 | `config_sentence_transformers.json` @ `d1f2f25730bbd775b99b29185134bc86653bf2d1` |
+| [nvidia/Nemotron-3.5-Embed-1B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Embed-1B-BF16) | 2048 | `config_sentence_transformers.json` @ `e24ca1e346bcc53572bd7bdc02b3e8ebf66c197c` |
+| [nvidia/Nemotron-3.5-Embed-8B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Embed-8B-BF16) | 4096 | `config_sentence_transformers.json` @ `781e779ee4ca9c2d2a4f38321993556baeab49a1` |
+
+- **Локальный подготовленный текст:** одна запись с двумя префиксами. Если фактический served ID отличается от HF ID, добавьте его явно. Если сервер сам применяет native processor, не дублируйте его форматирование. Native templates 3.5 дополнительно экранируют `[` и `<` символом U+200C; две строки не воспроизводят весь процессор и не добавляют поиск по изображениям.
+- **NVIDIA NIM:** raw input плюс API `input_type: "query"` / `"passage"`, без ручного префикса. [NIM 2.4 API](https://docs.nvidia.com/nim/nemo-retriever/embedding/2.4/use-the-api-openai.html) и [support matrix](https://docs.nvidia.com/nim/nemo-retriever/embedding/2.4/support-matrix.html). Для hosted подтверждены request IDs `nvidia/nemotron-3-embed-1b`, `nvidia/nemotron-3.5-embed-1b`, `nvidia/nemotron-3.5-embed-8b`; это отдельные, явно записанные IDs, не автоматическое приведение регистра. Hosted Nemotron 3 Embed 8B не подтверждён.
+- **OpenRouter:** [API](https://openrouter.ai/docs/api/api-reference/embeddings/submit-an-embedding-request) имеет строковое `input_type`; [каталог embeddings](https://openrouter.ai/api/v1/embeddings/models) перечислял три `:free` ID для 3/1B, 3.5/1B и 3.5/8B. Передача/преобразование NVIDIA `query`/`passage` **не проверены**. Эти routes намеренно не добавлены в готовый mapping. Бесплатные NVIDIA endpoints предупреждают о журналировании запросов; не отправляйте личную историю без отдельного решения.
+
+Для NIM используется тот же необязательный механизм существующего `openai-compatible` адаптера, без отдельной архитектуры. Пример отдельного конфига **для нового индекса**, а не замена работающего Qwen:
+
+```json
+{
+  "fusion": "semantic-only",
+  "embedder": {
+    "type": "openai-compatible",
+    "baseUrl": "https://integrate.api.nvidia.com",
+    "embeddingsEndpoint": "https://integrate.api.nvidia.com/v1/embeddings",
+    "model": "nvidia/nemotron-3-embed-1b",
+    "dimensions": 2048,
+    "sendDimensions": false,
+    "apiKey": "<LOCAL_SECRET>",
+    "modelPrefixes": {
+      "nvidia/nemotron-3-embed-1b": {
+        "queryPrefix": "", "documentPrefix": "",
+        "inputType": { "query": "query", "document": "passage" }
+      }
+    }
+  }
+}
+```
+
+`inputType` разрешён только для `openai-compatible`, с обеими пустыми строками; сочетание API-роли и ручного префикса отвергается. `embeddingsEndpoint` — точный URL; без него сохраняется `baseUrl + /v1/embeddings`. Настройка проверена на loopback transport, **не live NIM**. Размерность 3.5/8B в NIM matrix — 2048, а в HF config/pooling и hosted reference — 4096: фактический endpoint нужно проверять отдельно, конфликт нельзя разрешать предположением. Веса не скачивались, Nemotron inference не выполнялся, рабочий Qwen не переключался.
+
 ## Режим поиска и индексация
 
-Без явного `fusion` конфигурация выбирает `"vector-primary"`: порядок определяется только косинусным сходством, FTS-ранжирование не вызывается. Существующий `"fusion": "rrf"` **сохраняет** смешивание с FTS; для перехода поменяйте только это поле. Явный RRF остаётся доступным, а работа без embedder по-прежнему использует словесный поиск. Профили и проекты не объединяются. Прежняя численная шкала `SearchResult.score` сохранена; это не вероятность ответа и не новая калибровка процентов.
+Без явного `fusion` конфигурация выбирает **`"semantic-only"`**: только cosine, без вызова FTS-поиска и fusion; `SearchResult.score` — фактическое косинусное сходство, отображаемый процент не является вероятностью правильного ответа. Фильтр проекта сохраняется. Отсутствующий embedder или ошибка модели не подменяются словесной выдачей. FTS sidecar может существовать для явных legacy-режимов, но `semantic-only` его не опрашивает.
+
+Явные `"rrf"` и `"vector-primary"` сохраняют прежнее поведение и шкалу. Для чисто словесного поиска без embedder выберите `"fusion": "rrf"` явно. Профили и проекты не объединяются. Для перехода с build.3 добавьте точную запись mapping и выберите `"fusion": "semantic-only"`; patcher сам не перезаписывает конфиг.
 
 Автоматических проверок совместимости индекса, миграций и переиндексации не добавлено. При смене модели, размерности или **формата документа** пользователь сам управляет `/session-reindex`. Старый индекс Google, созданный без document-префикса, не преобразуется автоматически. У текущего Qwen document-префикс остаётся пустым: исправление только вопроса не требует пересчитывать документы той же модели. Не смешивайте векторы разных моделей только потому, что их размерность совпадает.
 
@@ -81,7 +130,13 @@ python patches/session-search-profile/apply.py --agent-dir "<CODE_PROFILE_DIR>" 
 python patches/session-search-profile/apply.py --agent-dir "<TASK_PROFILE_DIR>" --apply
 ```
 
-С тем же режимом доступны `--check` и byte-exact `--restore`. Check: `patched` (exit 0), `stock`/`previous-patched`/`published-patched`/`released-patched` (exit 1), unknown/unsupported (exit 2). Исторические состояния — root/timer без display, последующий display patch и build.2 без новых prefix/ranking изменений — различаются по полным точным bytes всех файлов, не marker. Unknown/mixed main/worker, чужой режим и другая версия отвергаются до writes. Verified backups всех `REL_FILES` с hash receipt пишутся под выбранным профилем; immutable store не меняется. Interrupted mixed writes требуют verified backup recovery.
+С тем же режимом доступны `--check` и byte-exact `--restore`. Check: `patched` (exit 0), `stock`/`previous-patched`/`published-patched`/`released-patched`/`build3-patched` (exit 1), unknown/unsupported (exit 2). Исторические состояния — root/timer без display, последующий display patch и build.2 без новых prefix/ranking изменений — различаются по полным точным bytes всех файлов, не marker. Unknown/mixed main/worker, чужой режим и другая версия отвергаются до writes. Verified backups всех `REL_FILES` с hash receipt пишутся под выбранным профилем; immutable store не меняется. Interrupted mixed writes требуют verified backup recovery.
+
+## Мастер настройки и обновление прежнего конфига
+
+`/session-embeddings-setup` читает весь существующий JSON, показывает точные строки/роль и сохраняет изменяемые поля поверх него. Неизвестные будущие поля, `fusion`, `sync`, roots, размерность, endpoint и остальные embedder-настройки не теряются из-за частичного сохранения. Отмена до save ничего не записывает. Для нового ID мастер просит две буквальные строки и подтверждение; API `inputType` задаётся явно в JSON. После изменения — `/reload`.
+
+При обновлении build.3 **не заменяйте свой конфиг публичным примером**: сохраните endpoint, ключ, модель, размерность, roots и остальные поля; добавьте нужную запись `embedder.modelPrefixes` и измените только выбранный режим на `semantic-only`. Installer сохраняет существующие config files, а package patcher не дописывает в них каталог. Без обязательной записи поиск сообщит об ошибке настройки. Новую конфигурацию можно создать из безопасного примера; Code и Task настраиваются раздельно. Не запускайте `/session-reindex` ради этого перехода при прежнем Qwen document-формате.
 
 ## Конфигурация и данные
 
@@ -101,6 +156,6 @@ Tools/commands остаются `session_search`, `session_list`, `session_read`
 
 Новые no-HOME/data-preservation regressions: `python -B -m unittest discover -s patches/session-search-profile/tests -p "test_*.py" -v`. Locked Node, peer entry `SESSION_SEARCH_TYPEBOX` и private temp root — по [patch README](../../patches/session-search-profile/README.md#проверка-и-данные). Выполняются настоящие handlers в main/worker/affected TS, но Pi registry/UI — fixture. Недоступный существующий root проверяется реальным native `ENOTDIR`; native permission-denied не заявляется. Loopback fixture embeddings не подтверждают live semantic retrieval, real SDK lifecycle или личную историю.
 
-`test_embedding_prefixes.py` дополнительно выполняет 15 пар document/query, включая шесть запрошенных моделей, узнаваемые локальные имена и пустые/собственные overrides, на настоящих factory/transport bodies исходника и обоих bundles. Проверяются точные HTTP input/model/dimensions, отсутствие двойного префикса, сохранение AbortSignal/лимита текста, default/явный RRF и отсутствие вызова keyword arm в смысловом режиме. Внешний HTTP заменён fixture; доступность всех шести backend-моделей этим не заявляется.
+`test_embedding_contracts.py` проверяет текущие exact mapping, отказ неизвестным/неполным записям, literal empty, все четыре Nemotron, role-aware HTTP без двойного префикса, прямой endpoint, чистый cosine/проектный фильтр/no FTS/error и preserving save. `test_regression.py` выполняет реальные пути форматирования документов/вопросов Qwen/Google/API-role в main/worker/affected source и сохранение полей мастера. Сетевой ответ синтетический, не подтверждение доступности моделей у провайдеров. `test_embedding_prefixes.py` сохраняет frozen build.3 поведение для exact historical transition, не спецификацию текущего formatter.
 
-Prefix/ranking delta и настоящая installed приёмка относятся к [build.3](../releases/pi-1.4.0-build.3.md): прежний контрольный query нашёл target на rank1 из1293. Offline replay source/main/worker на сохранённом query vector — отдельное evidence, не свежий provider call. Исторические no-HOME/preservation результаты build.2 не переименованы в новый полный runtime/model PASS.
+Текущая [build.4 приёмка](../releases/pi-1.4.0-build.4.md): 17 адресных методов на pinned runtime и независимое source review приняты до установки; затем normal Code/Task SDK, настоящий Code search rank1/32,1%, сохранение 1293 исходных vectors и verifier0/0. Task имеет собственную конфигурацию, но пустой индекс; качество Task retrieval не заявляется. Результаты build.2/build.3 сохранены отдельно, не переименованы в новую полную runtime/model матрицу.

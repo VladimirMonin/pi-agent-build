@@ -4,7 +4,7 @@
 
 ### Назначение
 
-Индексирует active/archive Pi sessions. FTS5 keyword search работает без provider. После patch при embeddings по умолчанию выбирается смысловое cosine ранжирование; явный `fusion: "rrf"` сохраняет смешивание с BM25/FTS.
+Индексирует active/archive Pi sessions. После patch default `fusion: "semantic-only"` требует embedder с явным exact-ID `modelPrefixes` и возвращает настоящий cosine без FTS/fusion. Для FTS5 keyword search без provider нужен явный `fusion: "rrf"`; с embedder этот режим сохраняет смешивание с BM25/FTS. `vector-primary` остаётся отдельным legacy opt-in.
 
 ### Установка
 
@@ -18,7 +18,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-session-search@1.6.0
 
 Code: `~/.pi/session-search/config.json` и `index/`; Task после patch: `<TASK_PROFILE>/session-search/`. Источники — profile `sessions/` и `sessions-archive/`. Project `pi-session-search.localPath` может перенести config/index, но не session source.
 
-Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`; см. [Polza memory](../polza-memory.md). Config содержит literal API key.
+Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`, обязательная запись `embedder.modelPrefixes` с Qwen query-инструкцией и пустым documentPrefix; см. [Polza memory](../polza-memory.md). Config содержит literal API key. Мастер сохраняет прочие/unknown поля. [Четыре Nemotron и API-роли](../fixes/session-search.md#nemotron-четыре-модели-и-два-способа-передачи-роли) — проверенные правила, не live-сертификация; личный Qwen автоматически не переключается.
 
 ### Команды, tools и skills
 
@@ -30,7 +30,7 @@ Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`
 
 Index и embeddings содержат производные от приватной session history. External embedder получает session text. Auto-sync может стартовать в child/noninteractive processes; используйте `sync.disableForChild: true`. Смена model/dimensions требует отдельной согласованной миграции; этот repair её не выполняет и forced reindex не требует.
 
-Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. [Build.3](../releases/pi-1.4.0-build.3.md) добавляет раздельные model-specific document/query prefixes и смысловой default; прежний контрольный запрос нашёл нужную сессию на rank1 из1293. Это не гарантия полноты других запросов: отсутствие результата не доказывает отсутствие разговора. Исторический FAIL [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) сохранён.
+Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. [Build.4](../releases/pi-1.4.0-build.4.md) требует точный mapping, не угадывает unknown model и выделяет настоящий `semantic-only`: контрольный Code query дал rank1/1293 и cosine32,1%; Task имеет собственный пустой индекс. Это не гарантия полноты других запросов. [Build.3](../releases/pi-1.4.0-build.3.md) и исторический FAIL [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) сохранены.
 
 ### Проверка
 

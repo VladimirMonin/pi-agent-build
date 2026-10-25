@@ -89,7 +89,7 @@ FORBIDDEN_PATH = re.compile(r"(?i)(?:^|/)(?:sessions|traces|missions|memory|node
 
 SECRET_PREFIX = re.compile(r"(?i)(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,})")
 JWT = re.compile(r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])")
-CRED_ASSIGN = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*[\"']?([A-Za-z0-9_./+=-]{16,})")
+CRED_ASSIGN = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*([\"']?)([A-Za-z0-9_./+=-]{16,})")
 PERSONAL_PATH = re.compile(r"(?i)(?:[A-Z]:[\\/](?:Users[\\/][A-Za-z0-9][^<%$\\/\s]*|PY[\\/][A-Za-z0-9][^<%$\\/\s]*)|/(?:home|Users)/[A-Za-z0-9][^<${}/\s]*/)")
 LONG_RANDOM = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/_-]{48,}={0,2}(?![A-Za-z0-9+/=_-])")
 
@@ -161,7 +161,9 @@ for full in files:
         if JWT.search(line):
             add(rel, idx, "jwt-like-token")
         m = CRED_ASSIGN.search(line)
-        if m and not PLACEHOLDER.match(m.group(1)):
+        # Match the Windows scanner: only this unquoted variable reference is safe.
+        config_reference = m and not m.group(1) and m.group(2) == 'existing.embedder.apiKey'
+        if m and not config_reference and not PLACEHOLDER.match(m.group(2)):
             add(rel, idx, "credential-assignment")
         if PERSONAL_PATH.search(line):
             add(rel, idx, "personal-absolute-path")

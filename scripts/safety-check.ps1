@@ -90,9 +90,11 @@ function Scan-File {
         if ($line -match '(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])') {
             Add-Finding -RelativePath $relative -Line $lineNumber -Class 'jwt-like-token'
         }
-        if ($line -match '(?i)(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*["'']?([A-Za-z0-9_./+=-]{16,})') {
-            $candidate = $Matches[1]
-            if (-not (Test-IgnorablePlaceholder $candidate)) {
+        if ($line -match '(?i)(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*(["'']?)([A-Za-z0-9_./+=-]{16,})') {
+            $candidate = $Matches[2]
+            # A preserving assignment references a variable, not its secret value.
+            $configReference = $Matches[1] -eq '' -and $candidate -ceq 'existing.embedder.apiKey'
+            if (-not $configReference -and -not (Test-IgnorablePlaceholder $candidate)) {
                 Add-Finding -RelativePath $relative -Line $lineNumber -Class 'credential-assignment'
             }
         }

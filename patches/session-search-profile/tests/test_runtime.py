@@ -52,15 +52,12 @@ class RuntimeTests(unittest.TestCase):
         for runtime in (False, True):
             stock, canonical = s.canonical_files(runtime)
             if runtime:
-                # Code retains stock paths; only the declared search policy/docs change.
-                restored_config = canonical[s.REL_FILES[0]].decode().replace(
-                    'fusion: file.fusion === "rrf" ? "rrf" : "vector-primary"',
-                    'fusion: file.fusion === "vector-primary" ? "vector-primary" : "rrf"')
-                restored_config = restored_config.replace('`"rrf"` (opt-in)', '`"rrf"` (default)').replace(
-                    '@default "vector-primary"', '@default "rrf"').replace(
-                    'Semantic-only cosine order, without FTS fusion.\n   *  ',
-                    'Preserve cosine order; append top-5 FTS hits that\n   *   the vector arm missed.')
-                self.assertEqual(restored_config.encode(), stock[s.REL_FILES[0]])
+                # Code's complete path selection stays stock; changed load/save
+                # semantics have separate behavioral coverage.
+                def paths(body):
+                    text = body.decode()
+                    return text[text.index('function globalConfigDir'):text.index('// ─── Load / Save')]
+                self.assertEqual(paths(canonical[s.REL_FILES[0]]), paths(stock[s.REL_FILES[0]]))
                 self.assertIn(b'PI_CODING_AGENT_SESSION_DIR', canonical[s.REL_FILES[1]])
                 self.assertIn(b'relative(canonicalRoot, resolvedPath)', canonical[s.REL_FILES[2]])
             else:
@@ -92,20 +89,24 @@ class RuntimeTests(unittest.TestCase):
         expected = {
             False: {'published': 'e609de573f69a7b74fac1b1c4ae3c405085a4c25a175853fa3bccf18254bcdbf',
                     'previous': '2af764d247ad59e83b58addeee26c10e2207d9fe76b11152d5ad4c64140805b2',
-                    'released': '7a03ba46925a00030c342235051d9cf22ec5b5d2df14360780ee59f3e3e557ea'},
+                    'released': '7a03ba46925a00030c342235051d9cf22ec5b5d2df14360780ee59f3e3e557ea',
+                    'build3': '01517f8f424605a5f8b7d40bc0cff4633ae73e049e9775eb24ab7c127775f1fa'},
             True: {'published': '098c746f0802e8e2d2723d9a7c71be1fc82cd6c93d5ab06868586144b50d332a',
                    'previous': 'a9f642673f17a9d3c9a57544ee1f86990500b50d18d1b178bcea89dad326c5d9',
-                   'released': 'b9e9c903709bc7ceff7800f81ba6c87e317c94d764b43ea1202b3ee02bc4d5fc'},
+                   'released': 'b9e9c903709bc7ceff7800f81ba6c87e317c94d764b43ea1202b3ee02bc4d5fc',
+                   'build3': 'b0673ece7f61c833e062ab6b3b614d3fcbdf02d014e7436f35f186b3bcab2bb2'},
         }
         for mode in (False, True):
-            for revision in ('published', 'previous', 'released'):
+            for revision in ('published', 'previous', 'released', 'build3'):
                 with self.subTest(mode=mode, revision=revision), tempfile.TemporaryDirectory() as td:
                     stock, historical = s.canonical_files(mode, **{revision: True})
                     _, current = s.canonical_files(mode)
                     # Original nine-file fingerprints stay frozen. The newly
                     # guarded embedder was untouched in all those exact releases.
-                    self.assertEqual(hashlib.sha256(b''.join(historical[r] for r in s.REL_FILES[:-1])).hexdigest(), expected[mode][revision])
-                    self.assertEqual(historical[Path('src/embedder.ts')], stock[Path('src/embedder.ts')])
+                    fingerprint_files = s.REL_FILES if revision == 'build3' else s.REL_FILES[:-1]
+                    self.assertEqual(hashlib.sha256(b''.join(historical[r] for r in fingerprint_files)).hexdigest(), expected[mode][revision])
+                    if revision != 'build3':
+                        self.assertEqual(historical[Path('src/embedder.ts')], stock[Path('src/embedder.ts')])
                     root = Path(td)
                     (root / 'package.json').write_text('{"version":"1.6.0"}')
                     for rel, body in historical.items():

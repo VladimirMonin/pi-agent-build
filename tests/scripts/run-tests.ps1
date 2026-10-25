@@ -622,7 +622,7 @@ try {
         & git -C $root init --quiet
         & git -C $root config user.email 'test@example.invalid'
         & git -C $root config user.name 'Test'
-        [System.IO.File]::WriteAllText((Join-Path $root 'clean.txt'), 'portable')
+        [System.IO.File]::WriteAllText((Join-Path $root 'clean.txt'), 'embedder.apiKey = existing.embedder.apiKey;')
         & git -C $root add clean.txt
         $secret = ('gh' + 'p_' + ('A' * 36))
         [System.IO.File]::WriteAllText((Join-Path $root 'untracked.txt'), "token=$secret")
@@ -637,7 +637,9 @@ try {
         [System.IO.File]::WriteAllText((Join-Path $root 'path.txt'), $personalPath)
         $scanner = Join-Path $RepoRoot 'scripts\safety-check.ps1'
         $tracked = Invoke-PowerShellFile $scanner @('-Root', $root, '-Scope', 'Tracked')
-        Assert-Equal 0 $tracked.ExitCode 'tracked-only scan should ignore untracked fixture'
+        Assert-Equal 0 $tracked.ExitCode 'tracked scan must accept a variable reference and ignore untracked fixture'
+        # The same characters quoted as a value are not a reference exemption.
+        [System.IO.File]::WriteAllText((Join-Path $root 'literal.txt'), ('apiKey = "' + 'existing.embedder.' + 'apiKey";'))
         $stagedSecret = ('github' + '_pat_' + ('B' * 30))
         [System.IO.File]::WriteAllText((Join-Path $root 'staged.txt'), $stagedSecret)
         & git -C $root add staged.txt
@@ -651,6 +653,7 @@ try {
         $tree = Invoke-PowerShellFile $scanner @('-Root', $root, '-Scope', 'Tree')
         Assert-True ($tree.ExitCode -ne 0) 'tree scan did not detect secret fixture'
         Assert-True ($tree.Output -match 'secret-prefix') 'secret finding class missing'
+        Assert-True ($tree.Output -match 'literal.txt:1 \[credential-assignment\]') 'quoted value bypassed credential scan'
         Assert-True ($tree.Output -match 'long-random-string') 'high-entropy finding class missing'
         Assert-True ($tree.Output -match 'runtime-data-path') 'runtime data finding class missing'
         Assert-True ($tree.Output -match 'personal-absolute-path') 'personal path finding class missing'

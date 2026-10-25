@@ -25,7 +25,7 @@ const bundledModule = (start, end, exports) => {
   return 'data:text/javascript;base64,' + Buffer.from(bundle.slice(a, b) + `\nexport {${exports}};`).toString('base64');
 };
 const dependencies = {
-  './embedder': bundledModule('// src/embedder.ts', '// src/fts-index.ts', 'createEmbedder'),
+  './embedder': bundledModule('// src/embedder.ts', '// src/fts-index.ts', 'createEmbedder,resolveModelPrefixes,prepareEmbeddingInput'),
   './fts5-probe': bundledModule('// src/fts5-probe.ts', '// src/fts-index.ts', 'assertFts5Available'),
   './reader': bundledModule('// src/reader.ts', '// src/index.ts', 'readSessionConversation')
 };
@@ -56,6 +56,7 @@ for (const p of [cwd, sessions, archive, extra, extraArchive, store]) fs.mkdirSy
 fs.mkdirSync(path.join(cwd, '.pi'));
 fs.writeFileSync(path.join(cwd, '.pi/settings.json'), JSON.stringify({'pi-session-search': {localPath: store}}));
 const config = {extraSessionDirs: [extra], extraArchiveDirs: [extraArchive], sync: {interval: -1, initialDelay: -1}, primer: {enabled: false}};
+config.fusion = backend === 'fts' ? 'rrf' : 'semantic-only';
 if (scenario === 'configured') {
   const ignored = path.join(root, 'ignored-env');
   process.env.PI_SESSION_DIR = ignored;
@@ -74,10 +75,10 @@ if (scenario === 'env-roots') {
   archive = process.env.PI_SESSION_ARCHIVE_DIR = path.join(root, 'env-archive');
   for (const p of [sessions, archive]) fs.mkdirSync(p);
 }
-const requests = [];
+const requests = [], wireBodies = [];
 const server = http.createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
-  const payload = JSON.parse(body); requests.push(payload.input);
+  const payload = JSON.parse(body); requests.push(payload.input); wireBodies.push(payload);
   assert.equal(payload.model, 'fixture');
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({data: payload.input.map((_, index) => ({index, embedding: [1, 0]}))}));
@@ -86,6 +87,13 @@ if (backend === 'hybrid') {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   config.embedder = {type: 'openai-compatible', model: 'fixture', dimensions: 2, sendDimensions: false, apiKey: '', baseUrl: `http://127.0.0.1:${server.address().port}`};
 }
+if (config.embedder) config.embedder.modelPrefixes = {fixture: {queryPrefix: '', documentPrefix: ''}};
+const formats = {
+  'format-qwen': {queryPrefix: 'Instruct: Retrieve previous coding sessions.\nQuery: ', documentPrefix: ''},
+  'format-google': {queryPrefix: 'task: search result | query: ', documentPrefix: 'title: none | text: '},
+  'format-role': {queryPrefix: '', documentPrefix: '', inputType: {query: 'query', document: 'passage'}}
+};
+if (formats[scenario]) config.embedder.modelPrefixes.fixture = formats[scenario];
 fs.writeFileSync(path.join(store, 'config.json'), JSON.stringify(config));
 const tools = new Map(), commands = new Map(), handlers = new Map(), notices = [];
 const pi = {registerTool: tool => tools.set(tool.name, tool), registerCommand: (name, command) => commands.set(name, command),
@@ -133,7 +141,64 @@ function indexSnapshot() {
     : keywordRows();
 }
 try {
-  if (scenario === 'partial-fts') {
+  if (scenario === 'setup') {
+    await start();
+    const file = path.join(store, 'config.json');
+    const existing = {...config, future: {retained: true}, fusion: 'semantic-only',
+      embedder: {type: 'openai-compatible', model: 'known', apiKey: 'EXAMPLE', dimensions: 1024, sendDimensions: true,
+        baseUrl: 'http://127.0.0.1:1', embeddingsEndpoint: 'http://127.0.0.1:1/full',
+        modelPrefixes: {known: {queryPrefix: ' Q:  ', documentPrefix: ' D: '}}}};
+    let selected = 'known', confirmed = true;
+    ctx.ui.select = async (title, choices) => title === 'Embedding provider:'
+      ? choices.find(x => x.startsWith('openai-compatible ')) : confirmed ? 'Use explicit prefixes' : 'Cancel';
+    ctx.ui.input = async (title, initial) => {
+      if (title.startsWith('Base URL')) return existing.embedder.baseUrl;
+      if (title === 'API key:') return '';
+      if (title === 'Model:') return selected;
+      if (title.startsWith('Dimensions')) return '1024';
+      if (title.startsWith('Send dimensions')) return 'true';
+      if (title.startsWith('Query prefix') || title.startsWith('Document prefix')) return '';
+      return initial;
+    };
+    const setup = () => commands.get('session-embeddings-setup').handler('', ctx);
+    fs.writeFileSync(file, JSON.stringify(existing));
+    await setup();
+    const known = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual(known, existing, 'setup preserves settings, API route, credential and literal known prefixes');
+    assert(notices.some(n => n.message.includes('query=" Q:  "') && n.message.includes('document=" D: "')));
+    selected = 'explicit-new'; confirmed = false;
+    const before = fs.readFileSync(file, 'utf8');
+    await setup(); assert.equal(fs.readFileSync(file, 'utf8'), before, 'unconfirmed empty prefixes must not be saved');
+    confirmed = true; await setup();
+    const added = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual(added.embedder.modelPrefixes['explicit-new'], {queryPrefix: '', documentPrefix: ''});
+    assert.deepEqual(added.embedder.modelPrefixes.known, existing.embedder.modelPrefixes.known);
+    assert.equal(added.embedder.model, selected);
+    assert.deepEqual(added.sync, existing.sync); assert.deepEqual(added.primer, existing.primer);
+    assert.equal(added.fusion, existing.fusion); assert.deepEqual(added.future, existing.future);
+    assert.equal(requests.length, 0, 'wizard must not test a model or replace existing vectors');
+  } else if (formats[scenario]) {
+    const prefixes = formats[scenario];
+    const file = writeSession(sessions, 'format-session', 'Как исправляли ошибку авторизации?');
+    const textSource = fs.readFileSync(path.join(pkg, 'src/session-index.ts'), 'utf8');
+    const a = textSource.indexOf('function buildEmbeddingText('), b = textSource.indexOf('\n}', a);
+    const {slugToProject} = await import(pathToFileURL(path.join(pkg, 'src/utils.ts')));
+    const buildText = Function('slugToProject', stripTypeScriptTypes(textSource.slice(a, b + 2), {mode: 'transform'}) + ';return buildEmbeddingText;')(slugToProject);
+    const expectedDocument = buildText(main.parseSession(file, false));
+    await start(); await sync();
+    assert.equal(requests.length, 1);
+    assert.deepEqual(wireBodies[0].input, [prefixes.documentPrefix + expectedDocument]);
+    assert.equal(wireBodies[0].input_type, prefixes.inputType?.document);
+    const indexFile = path.join(store, 'index/session-index.json'), before = hash(indexFile);
+    const result = await call('session_search', {query: 'Где обсуждали ошибку?'});
+    assert(result.includes('format-session'), result);
+    assert.deepEqual(wireBodies[1].input, [prefixes.queryPrefix + 'Где обсуждали ошибку?']);
+    assert.equal(wireBodies[1].input_type, prefixes.inputType?.query);
+    await sync();
+    assert.equal(requests.length, 2, 'unchanged source must not recreate document vectors');
+    assert.equal(hash(indexFile), before, 'search and no-change sync preserve stored vector bytes');
+    console.log(JSON.stringify({stage: 'indexer-inputs', scenario, path: workerFlag, status: 'PASS', noReembedding: true}));
+  } else if (scenario === 'partial-fts') {
     assert.equal(backend, 'hybrid');
     const indexDir = path.join(store, 'index'); fs.mkdirSync(indexDir);
     const a = writeSession(sessions, 'partial-a', 'alpha metadata');

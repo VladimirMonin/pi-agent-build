@@ -47,6 +47,10 @@ Reuse предыдущих checks допустим только при unchanged
 
 ## Приёмка
 
+Для Session Search сохраняй exact-ID `embedder.modelPrefixes` и форматирование на call sites индексатора; отсутствие записи не заменяй эвристикой имени или raw fallback. Проверяй source/main/worker, настоящий cosine и отсутствие FTS в `semantic-only` отдельно от старых fusion-режимов. Правила NIM/API-роли не доказывают forwarding другого провайдера; не дублируй роль текстовым префиксом. [Контракт и форматы](../docs/fixes/session-search.md).
+
+Package patch и пользовательский config — разные поверхности. После изменения обязательного config-формата документируй preserving переход и проверяй мастер на неизвестных/несвязанных полях; не заменяй рабочий файл публичным примером и не запускай переиндексацию ради установки. Actual normal-profile SDK/tool проверку отличай от fixture и от version/check; неисправный helper исправляй без переписывания production для формального PASS.
+
 Patch принимается, когда:
 
 - Python/Node/PowerShell синтаксис валиден;

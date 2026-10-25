@@ -100,9 +100,11 @@ Launchers задают `PI_CODING_AGENT_DIR` процессу и выбираю�
 | Основной агент `polza/<model-id>` | Нативный login + модель профиля/явные параметры запуска | Каталог и ожидаемые **provider/model**, не случайный fallback |
 | Консолидация `polza-memory/deepseek/deepseek-v4.1-flash` | `<PROFILE_DIR>/models.json` + `memory.consolidationModel` | Служебный child без extensions; отдельный доступный credential |
 | Embeddings Memory | `memory.embedding` в приватных settings | Модель и размерность векторов; это не модель консолидации |
-| Поиск истории | Собственный session-search config/index | FTS работает без embeddings; semantic mode отдельно передаёт текст внешнему endpoint |
+| Поиск истории | Собственный session-search config/index | Default `semantic-only` требует embedder + точный `modelPrefixes`; FTS без embeddings — только явный `rrf`. Внешний endpoint получает текст |
 
 Installer добавляет отсутствующий статический `polza-memory`, но **не обеспечивает ему секрет**. Login для `polza` сам по себе не настраивает этот route. Пример служебного provider использует `POLZA_API_KEY`; допустим существующий проверенный secret helper. Memory embeddings и session-search настраиваются отдельно по [справке](docs/polza-memory.md). Не меняйте модель/размерность и не запускайте массовые backfill/reindex ради проверки установки. Общая Memory DB по умолчанию не означает общие настройки профилей.
+
+**Переход с build.3:** patcher обновляет package, а installer сохраняет существующий session-search config. Перед приёмкой дополните его обязательным `embedder.modelPrefixes[точный model]` с обеими string-prefixes и выберите `fusion: "semantic-only"`, если нужен только cosine. Не заменяйте свой файл публичным примером и не меняйте ключ/модель/размерность/roots попутно. Для прежнего Qwen documentPrefix остаётся `""`, forced reindex не нужен. Code/Task имеют отдельные config/index; отсутствующий конфиг надо настроить, а не считать готовым по наличию пакета. [Точный preserving recipe и настройки](docs/fixes/session-search.md#мастер-настройки-и-обновление-прежнего-конфига).
 
 ## 5. Context7 по умолчанию
 

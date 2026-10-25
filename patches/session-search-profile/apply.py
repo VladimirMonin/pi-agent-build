@@ -317,8 +317,237 @@ def patch_semantic_first(text, *, source=False):
     return replace_body(text, start, end, body)
 
 
-def canonical_files(runtime_only=False, *, previous=False, published=False, released=False):
-    if sum((previous, published, released)) > 1:
+def patch_embedding_contracts(text, *, source=False):
+    """Exact configuration records; formatting belongs to indexer call sites."""
+    if source:
+        text = replace_once(text, 'export interface EmbedderConfig {', '''export type EmbeddingInputType = "query" | "passage";
+
+export interface ModelPrefixes {
+  queryPrefix: string;
+  documentPrefix: string;
+  /** API owns the role template; both text prefixes must then be empty. */
+  inputType?: { query: "query"; document: "passage" };
+}
+
+export interface EmbedderConfig {''', 'model mapping type')
+        text = replace_once(text, '  dimensions?: number;\n}', '''  dimensions?: number;
+  /** Required exact-ID records. Empty strings explicitly mean no prefix. */
+  modelPrefixes?: Record<string, ModelPrefixes>;
+  /** Exact endpoint; otherwise keep the existing baseUrl + /v1/embeddings. */
+  embeddingsEndpoint?: string;
+}''', 'mapping config')
+        # Only OpenAI-compatible transport consumes the optional API role. The
+        # other providers keep their existing interface implementation unchanged.
+        text = text.replace('embed(text: string, signal?: AbortSignal):',
+                            'embed(text: string, signal?: AbortSignal, inputType?: EmbeddingInputType):', 1)
+        text = text.replace('    signal?: AbortSignal\n  ): Promise<(number[] | null)[]>;',
+                            '    signal?: AbortSignal,\n    inputType?: EmbeddingInputType\n  ): Promise<(number[] | null)[]>;', 1)
+    exported = 'export ' if source else ''
+    helper = '''EXPORTfunction resolveModelPrefixes(MODEL, MAPPING)RETURN {
+  if (typeof model !== "string" || !mapping || typeof mapping !== "object" ||
+      Array.isArray(mapping) || !Object.hasOwn(mapping, model)) {
+    throw new Error(`Add embedder.modelPrefixes[${JSON.stringify(model)}] with string queryPrefix and documentPrefix (empty strings are explicit).`);
+  }
+  const prefixes = mapping[model];
+  if (!prefixes || typeof prefixes !== "object" || Array.isArray(prefixes) ||
+      typeof prefixes.queryPrefix !== "string" || typeof prefixes.documentPrefix !== "string") {
+    throw new Error(`embedder.modelPrefixes[${JSON.stringify(model)}] requires string queryPrefix and documentPrefix.`);
+  }
+  if (prefixes.inputType !== undefined &&
+      (!prefixes.inputType || prefixes.inputType.query !== "query" || prefixes.inputType.document !== "passage" ||
+       prefixes.queryPrefix !== "" || prefixes.documentPrefix !== "")) {
+    throw new Error("modelPrefixes.inputType requires query/passage roles and empty text prefixes; do not apply both templates.");
+  }
+  return prefixes;
+}
+
+EXPORTfunction prepareEmbeddingInput(TEXT, ROLE, PREFIXES)TEXTRETURN {
+  return prefixes[role === "query" ? "queryPrefix" : "documentPrefix"] + text;
+}
+
+'''
+    tokens = {
+        'EXPORT': exported, 'MODEL': 'model: string | undefined' if source else 'model',
+        'MAPPING': 'mapping?: Record<string, ModelPrefixes>' if source else 'mapping',
+        'TEXT': 'text: string' if source else 'text',
+        'ROLE': 'role: "query" | "document"' if source else 'role',
+        'PREFIXES': 'prefixes: ModelPrefixes' if source else 'prefixes',
+        'TEXTRETURN': ': string' if source else '', 'RETURN': ': ModelPrefixes' if source else '',
+    }
+    # Longer marker first: TEXTRETURN must not become textRETURN.
+    for key in sorted(tokens, key=len, reverse=True):
+        helper = helper.replace(key, tokens[key])
+    signature = 'export function createEmbedder(config: EmbedderConfig): Embedder {' if source else 'function createEmbedder(config) {'
+    text = replace_once(text, signature, helper + signature + '''
+  const prefixes = resolveModelPrefixes(config.model, config.modelPrefixes);
+  if (prefixes.inputType && config.type !== "openai-compatible") {
+    throw new Error("modelPrefixes.inputType requires an openai-compatible provider.");
+  }''', 'strict embedding factory')
+    for suffix in ('true', 'false'):
+        text = text.replace('merged.sendDimensions ?? ' + suffix + '\n',
+                            'merged.sendDimensions ?? ' + suffix + ',\n        merged.embeddingsEndpoint\n')
+    # Keep provider wire behavior, batching and limits; add one optional role
+    # argument and one endpoint override, without any provider-side formatting.
+    start = text.index('class OpenAICompatibleEmbedder' if source else 'var OpenAICompatibleEmbedder = class')
+    end = text.index('class BedrockEmbedder' if source else 'var BedrockEmbedder = class', start)
+    part = text[start:end]
+    if source:
+        part = replace_once(part, '    private sendDimensions: boolean\n',
+                            '    private sendDimensions: boolean,\n    embeddingsEndpoint?: string\n', 'endpoint parameter')
+        part = replace_once(part, 'async embed(text: string, signal?: AbortSignal):',
+                            'async embed(text: string, signal?: AbortSignal, inputType?: EmbeddingInputType):', 'query API role')
+        part = replace_once(part, '    signal?: AbortSignal\n  ): Promise<(number[] | null)[]> {',
+                            '    signal?: AbortSignal,\n    inputType?: EmbeddingInputType\n  ): Promise<(number[] | null)[]> {', 'document API role')
+    else:
+        part = replace_once(part, 'constructor(apiKey, model, dimensions, baseUrl, sendDimensions)',
+                            'constructor(apiKey, model, dimensions, baseUrl, sendDimensions, embeddingsEndpoint)', 'endpoint parameter')
+        part = replace_once(part, 'async embed(text, signal)', 'async embed(text, signal, inputType)', 'query API role')
+        part = replace_once(part, 'async embedBatch(texts, signal)', 'async embedBatch(texts, signal, inputType)', 'document API role')
+    part = replace_once(part, 'this.endpoint = `${baseUrl.replace(/\\/$/, "")}/v1/embeddings`;',
+                        'this.endpoint = embeddingsEndpoint ?? `${baseUrl.replace(/\\/$/, "")}/v1/embeddings`;', 'endpoint URL')
+    part = replace_once(part, 'this.embedBatch([text], signal)', 'this.embedBatch([text], signal, inputType)', 'singleton API role')
+    part = replace_once(part, '      if (this.dimensions && this.sendDimensions)',
+                        '      if (inputType !== undefined) body.input_type = inputType;\n      if (this.dimensions && this.sendDimensions)', 'wire API role')
+    return text[:start] + part + text[end:]
+
+
+def patch_indexer_formatting(text, *, source=False):
+    if source:
+        text = replace_once(text, 'import type { Embedder } from "./embedder";',
+                            'import { prepareEmbeddingInput } from "./embedder";\nimport type { Embedder, ModelPrefixes } from "./embedder";', 'index formatter import')
+        text = replace_once(text, '  private fts: FtsSide;', '  private fts: FtsSide;\n  private prefixes: ModelPrefixes;', 'index format field')
+        text = replace_once(text, '    private fusion: "rrf" | "vector-primary" = "rrf",\n',
+                            '    private fusion: "rrf" | "vector-primary" = "rrf",\n    prefixes?: ModelPrefixes,\n', 'index formatter argument')
+        anchor = '    mkdirSync(indexDir, { recursive: true });'
+    else:
+        text = replace_once(text, 'sessionDir, archiveDir, fusion = "rrf")',
+                            'sessionDir, archiveDir, fusion = "rrf", prefixes)', 'index formatter argument')
+        anchor = '    this.fusion = fusion;'
+    text = replace_once(text, anchor, '''    if (!prefixes) throw new Error("SessionIndex requires resolved modelPrefixes.");
+    this.prefixes = prefixes;
+''' + anchor, 'resolved index format')
+    text = replace_once(text, 'buildEmbeddingText(session));',
+                        'prepareEmbeddingInput(buildEmbeddingText(session), "document", this.prefixes));', 'document input')
+    text = replace_once(text, 'this.embedder.embedBatch(texts);',
+                        'this.embedder.embedBatch(texts, undefined, this.prefixes.inputType?.document);', 'document role')
+    return replace_once(text, 'this.embedder.embed(query);',
+                        'this.embedder.embed(prepareEmbeddingInput(query, "query", this.prefixes), signal, this.prefixes.inputType?.query);', 'query input and role')
+
+
+def patch_index_service_formatting(text, *, source=False):
+    if source:
+        text = replace_once(text, 'import { createEmbedder } from "./embedder";',
+                            'import { createEmbedder, resolveModelPrefixes } from "./embedder";', 'service formatter import')
+    anchor = '            options.fusion,\n' if source else '        options.fusion\n'
+    indent = '            ' if source else '        '
+    return replace_once(text, anchor, indent + 'options.fusion,\n' + indent +
+                        'resolveModelPrefixes(options.embedder.model, options.embedder.modelPrefixes),\n', 'worker/main resolved format')
+
+
+def patch_semantic_only(text, *, source=False):
+    """Early cosine return; explicit legacy fusion modes stay upstream-compatible."""
+    text = text.replace('"rrf" | "vector-primary"', '"rrf" | "vector-primary" | "semantic-only"')
+    return replace_once(text, '    const poolSize = Math.max(limit * 5, 100);', '''    if (this.fusion === "semantic-only") {
+      return cosineScored.slice(0, limit).map(({ entry, score }) => ({
+        session: entry.session,
+        summary: buildSummary(entry.session),
+        score,
+      }));
+    }
+
+    const poolSize = Math.max(limit * 5, 100);''', 'early semantic return')
+
+
+def patch_build_config(text, *, source=False):
+    text = text.replace('"rrf" | "vector-primary"', '"rrf" | "vector-primary" | "semantic-only"')
+    text = replace_once(text, 'fusion: file.fusion === "vector-primary" ? "vector-primary" : "rrf"',
+                        'fusion: file.fusion === "rrf" || file.fusion === "vector-primary" ? file.fusion : "semantic-only"', 'build semantic default')
+    if source:
+        text = text.replace('`"rrf"` (default)', '`"rrf"` (opt-in)').replace('@default "rrf"', '@default "semantic-only"')
+        text = text.replace('   * Fusion strategy used when combining cosine (vector) and FTS ranks.',
+                            '   * Search policy. semantic-only returns cosine scores without querying FTS.').replace(
+                            '   * - `"rrf"` (opt-in)', '   * - `"semantic-only"` (build default): cosine only, no FTS search/fusion.\n   * - `"rrf"` (opt-in)')
+    signature = 'export function saveConfig(file: ConfigFile, cwd?: string): void {' if source else 'function saveConfig(file, cwd) {'
+    reader = '''EXPORTfunction readConfigFile(CWD)RETURN {
+  const path = getConfigPath(cwd);
+  if (!existsSync(path)) return {};
+  const file = JSON.parse(readFileSync(path, "utf8"));
+  if (!file || typeof file !== "object" || Array.isArray(file)) throw new Error("Session search config must be a JSON object.");
+  return file;
+}
+
+'''.replace('EXPORT', 'export ' if source else '').replace('CWD', 'cwd?: string' if source else 'cwd').replace('RETURN', ': ConfigFile' if source else '')
+    text = replace_once(text, signature, reader + signature + '''
+  const current = readConfigFile(cwd);
+  file = { ...current, ...file,
+    ...(file.embedder ? { embedder: { ...current.embedder, ...file.embedder } } : {}),
+  };''', 'preserving save')
+    return text
+
+
+def patch_setup_mapping(text, *, source=False):
+    if source:
+        text = replace_once(text, '  saveConfig,', '  saveConfig,\n  readConfigFile,', 'setup raw config import')
+        text = 'import { resolveModelPrefixes } from "./embedder";\n' + text
+    start = text.index('  pi.registerCommand("session-embeddings-setup"')
+    end = text.index('  pi.registerCommand("session-sync"', start)
+    part = text[start:end].replace('Enable semantic embeddings for hybrid search (FTS5 is always on)',
+                                   'Configure semantic embeddings and explicit model input formats')
+    part = replace_once(part, '    handler: async (_args, ctx) => {',
+                        '    handler: async (_args, ctx) => {\n      const existing = readConfigFile(sessionCwd);', 'setup current config')
+    extra = '''      const mapping = { ...existing.embedder?.modelPrefixes };
+      if (typeof embedder?.model !== "string" || !embedder.model) {
+        ctx.ui.notify("An exact embedding model ID is required.", "warning");
+        return;
+      }
+      if (!Object.hasOwn(mapping, embedder.model)) {
+        const queryPrefix = await ctx.ui.input("Query prefix (literal; empty means explicitly none):", "");
+        const documentPrefix = await ctx.ui.input("Document prefix (literal; empty means explicitly none):", "");
+        if (queryPrefix === undefined || documentPrefix === undefined) return;
+        const confirmed = await ctx.ui.select(
+          `Save explicit prefixes? query=${JSON.stringify(queryPrefix)}, document=${JSON.stringify(documentPrefix)}`,
+          ["Use explicit prefixes", "Cancel"],
+        );
+        if (confirmed !== "Use explicit prefixes") return;
+        mapping[embedder.model] = { queryPrefix, documentPrefix };
+      }
+      const prefixes = resolveModelPrefixes(embedder.model, mapping);
+      if (prefixes.inputType && embedder.type !== "openai-compatible") {
+        ctx.ui.notify("API inputType roles require an openai-compatible provider.", "warning");
+        return;
+      }
+      ctx.ui.notify(`Model input format: query=${JSON.stringify(prefixes.queryPrefix)}, document=${JSON.stringify(prefixes.documentPrefix)}, inputType=${JSON.stringify(prefixes.inputType ?? null)}`, "info");
+      embedder.modelPrefixes = mapping;
+      if (embedder.type === existing.embedder?.type && !embedder.apiKey) embedder.apiKey = existing.embedder.apiKey;
+      if (embedder.type === "openai-compatible") {
+        const endpoint = await ctx.ui.input("Full embeddings endpoint (optional; empty uses base URL):", existing.embedder?.embeddingsEndpoint ?? "");
+        if (endpoint === undefined) return;
+        embedder.embeddingsEndpoint = endpoint || undefined;
+      }
+
+'''
+    part = replace_once(part, '      const extraDirs = await ctx.ui.input(', extra + '      const extraDirs = await ctx.ui.input(', 'setup explicit mapping')
+    part = part.replace('"Extra session directories (comma-separated, optional):",\n        ""',
+                        '"Extra session directories (comma-separated, optional):",\n        (existing.extraSessionDirs ?? []).join(",")').replace(
+                        '"Extra archive directories (comma-separated, optional):",\n        ""',
+                        '"Extra archive directories (comma-separated, optional):",\n        (existing.extraArchiveDirs ?? []).join(",")')
+    part = replace_once(part, '      saveConfig({',
+                        '      if (extraDirs === undefined || extraArchive === undefined) return;\n      saveConfig({', 'cancel before save')
+    part = part.replace(': undefined,', ': [],') if source else part.replace(': void 0,', ': [],').replace(': void 0\n', ': []\n')
+    return text[:start] + part + text[end:]
+
+
+def patch_semantic_service(text, *, source=False):
+    text = text.replace('"rrf" | "vector-primary"', '"rrf" | "vector-primary" | "semantic-only"')
+    signature = 'export function createIndexService(options: IndexOptions): IndexService {' if source else 'function createIndexService(options) {'
+    return replace_once(text, signature, signature + '''
+  if ((options.fusion ?? "semantic-only") === "semantic-only" && !options.embedder) {
+    throw new Error("semantic-only requires an embedder and explicit modelPrefixes. Run /session-embeddings-setup, then /reload.");
+  }''', 'no silent lexical fallback')
+
+
+def canonical_files(runtime_only=False, *, previous=False, published=False, released=False, build3=False):
+    if sum((previous, published, released, build3)) > 1:
         raise ValueError('select one exact historical state')
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
@@ -351,7 +580,7 @@ def canonical_files(runtime_only=False, *, previous=False, published=False, rele
             if leaf != 'src/fts-index.ts':
                 text = patch_partial_fts(text, source=rel.suffix == '.ts')
             canonical[rel] = text.encode('utf-8')
-    if not (previous or published or released):
+    if build3:
         for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
             rel = pathlib.Path(leaf)
             canonical[rel] = patch_embedding_prefixes(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
@@ -367,6 +596,26 @@ def canonical_files(runtime_only=False, *, previous=False, published=False, rele
                 text = text.replace('`"rrf"` (default)', '`"rrf"` (opt-in)').replace('@default "rrf"', '@default "vector-primary"')
                 text = text.replace('Preserve cosine order; append top-5 FTS hits that\n   *   the vector arm missed.', 'Semantic-only cosine order, without FTS fusion.\n   *  ')
             canonical[rel] = text.encode('utf-8')
+    elif not (previous or published or released):
+        for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_embedding_contracts(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/session-index.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            text = patch_indexer_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
+            canonical[rel] = patch_semantic_only(text, source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_index_service_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/config.ts', 'dist/index.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_build_config(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/index.ts', 'dist/index.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_setup_mapping(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+        for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
+            rel = pathlib.Path(leaf)
+            canonical[rel] = patch_semantic_service(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
     return stock, canonical
 
 
@@ -376,9 +625,10 @@ def classify(root, runtime_only=False):
     _, previous = canonical_files(runtime_only, previous=True)
     _, published = canonical_files(runtime_only, published=True)
     _, released = canonical_files(runtime_only, released=True)
+    _, old_build3 = canonical_files(runtime_only, build3=True)
     return ("patched" if current == canonical else "stock" if current == stock else
             "previous-patched" if current == previous else "published-patched" if current == published else
-            "released-patched" if current == released else "unknown"), stock, canonical
+            "released-patched" if current == released else "build3-patched" if current == old_build3 else "unknown"), stock, canonical
 
 
 def runtime_backup(root, label):
@@ -398,7 +648,7 @@ def apply(root, runtime_only=False):
     if state == "patched":
         print("ALREADY PATCHED")
         return
-    if state not in {"stock", "previous-patched", "published-patched", "released-patched"}:
+    if state not in {"stock", "previous-patched", "published-patched", "released-patched", "build3-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
@@ -415,7 +665,7 @@ def restore(root, runtime_only=False):
     if state == "stock":
         print("ALREADY STOCK")
         return
-    if state not in {"patched", "previous-patched", "published-patched", "released-patched"}:
+    if state not in {"patched", "previous-patched", "published-patched", "released-patched", "build3-patched"}:
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
@@ -441,7 +691,7 @@ def main():
         if args.check:
             state, _, _ = classify(root, args.runtime_only)
             print(f"version={VERSION} state={state}")
-            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "released-patched": 1, "unknown": 2}[state]
+            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "released-patched": 1, "build3-patched": 1, "unknown": 2}[state]
         (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:
