@@ -8,7 +8,9 @@
 
 Основной маршрут — [INSTALL_FOR_AGENTS](../INSTALL_FOR_AGENTS.md). Exact версия provider, immutable commit и release metadata принадлежат [packages lock](../manifests/pi-packages.lock.json); ядро и минимальный Node всей сборки — [runtime lock](../manifests/runtime.lock.json). Сам provider требует Node ≥ 22.6 и Git для GitHub-source, не Python.
 
-Не дублируйте прежний SHA в ручном recipe. Исправленный provider должен пройти цепочку «проверенный commit → доступность GitHub → новый pin → установка этой ревизии». Local override не доказывает публичную доставку. Исторический `v0.2.1` имел annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c`, peeled commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`; это сведения прежнего выпуска, не требование отката.
+Не дублируйте прежний SHA в ручном recipe. Исправленный provider должен пройти цепочку «проверенный commit → доступность GitHub → новый pin → установка этой ревизии». Local override не доказывает публичную доставку. Исторический `v0.2.1` имел annotated tag object `a93589ecd0075d3f4c34eb1f13bda891c5983d8c`, peeled commit `cbc8a61262eb682fc61c9ab1b3b1ab72ef08f139`; это сведения прежнего выпуска, не требование отката. Текущий пин — `v0.3.0`: annotated tag object `1e8fc7674e54171df5cd7342fb03b3dce60fe4db`, peeled commit `377b4e6142ae943d7eaf2d33e166139217cae543`.
+
+В 0.3.0 каталог больше не теряет модели из-за отсутствующей цифры: неизвестный предел ответа берётся у Polza, затем из справочника, а если его нет нигде — ограничивается размером контекста. На реальном снимке каталога предлагалось 298 моделей из 300 вместо 274. Уровни рассуждений `xhigh`/`max` показываются только там, где каталог их заявляет; это описание заявленного, а не доказанный контроль уровня.
 
 В 0.2.1 нативный RUB учитывается один раз по последнему `usage.cost_rub` после успешного ответа, независимо от задержки закрытия SSE после `[DONE]`. Ошибки, отмена и некорректная/отсутствующая стоимость остаются unknown; настоящий ноль сохраняется. Неудачное обновление баланса сохраняет последнюю сумму с пометкой `stale`, успешное снимает пометку; частота запросов не меняется. Проверенная граница — Pi **1.0.2**, не все версии 1.x. Evidence и ограничения: [build.3](releases/pi-1.0.2-build.3.md).
 
@@ -22,18 +24,20 @@
 
 Pi сохраняет credential в профильном `auth.json`; plugin отдельный secret store не ведёт. `.env` не обязательное условие ordinary main-provider запуска. Для headless допускается `POLZA_API_KEY`, но не записывайте значение в tracked `.env`, launcher или документацию. Ключ вводится человеком через штатный login; не выводите его для диагностики.
 
-Plugin кэширует OpenRouter enrichment в project-local `.pi/pi-polza-cache/`. Стоимость сессии хранится в session entries; background-subagent cost импортируется после завершения запуска. Эти данные могут раскрывать модели, стоимость и контекст запуска — не публикуйте живые session/trace artifacts.
+Plugin кэширует OpenRouter enrichment: читает свежайшую копию из `<cwd>/.pi/pi-polza-cache/` либо общей `<home>/.pi/pi-polza-cache/`, а записывает в общую. Стоимость сессии хранится в session entries; background-subagent cost импортируется после завершения запуска. Эти данные могут раскрывать модели, стоимость и контекст запуска — не публикуйте живые session/trace artifacts.
 
 ## Команды и интеграции
 
 | Команда | Назначение |
 |---|---|
-| `/polza-model-info` | лимиты, capabilities, цены и provenance текущей модели |
+| `/polza-model-info` | лимиты, capabilities, цены, provenance и уровни рассуждений из каталога (`Catalog levels`) текущей модели |
 | `/polza-cost` | фактические рублёвые расходы и coverage |
 | `/polza-balance` | баланс всего аккаунта |
 | `/polza-refresh` | обновление Polza catalog и OpenRouter enrichment |
 
-Модели выбираются через `/model` под provider id `polza`. Интеграция с `pi-subagents` опциональна: foreground cost входит в root total без attribution по имени, background cost импортируется по завершении.
+Модели выбираются через `/model` под provider id `polza`. Интеграция с `pi-subagents` опциональна: foreground cost входит в root total без attribution по имени, background cost импортируется по завершении. В 0.3.0 ответ `pi-subagents` читается из версионного конверта (`data.events`), поэтому импорт действительно включается; `/polza-cost` показывает состояние импорта отдельной строкой и не заявляет `complete`, когда фоновый учёт отсутствует.
+
+Уровень рассуждений выбирается штатными средствами Pi (`/thinking`, `--thinking`). `thinkingLevelMap` строится из каталога: опубликованный `supported_efforts` даёт ровно перечисленные уровни (`off` → `none`, остальные скрыты), объявленный `reasoning_effort` без списка пропускает имена уровней Pi как есть и скрывает `off`. Влияние выбранного уровня на живой ответ не проверялось.
 
 ## Риски и ограничения
 
@@ -42,7 +46,8 @@ Plugin кэширует OpenRouter enrichment в project-local `.pi/pi-polza-cac
 - Неизвестная стоимость остаётся unknown/`partial`, а не превращается в `0 ₽`.
 - Polza catalog — источник существования и тарификации; OpenRouter используется только для exact-id enrichment. `unknown` означает отсутствие доказательств.
 - Долларовый `cost` Pi намеренно равен нулю; реальные рубли не смешиваются с USD.
-- Полный live-тест background import не является гарантией релиза 0.2.1: эта ветка заявлена как offline-tested. Live acceptance новой сессии сообщена владельцем отдельно, не как полный background-live тест.
+- Полный live-тест background import не является гарантией релиза: ветка заявлена как offline-tested. Live acceptance новой сессии и работающего импорта расходов подагентов сообщена владельцем отдельно, не как инструментальный background-live тест.
+- Уровни `xhigh`/`max` заявлены каталогом, но их влияние на живой запрос не проверено ни для одной модели; уровень может быть отклонён провайдером — это отказ запроса, а не тихая подмена.
 
 ## Проверка
 
