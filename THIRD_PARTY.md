@@ -40,7 +40,7 @@
 
 ³ И npm tarball metadata, и immutable source `pi-serena/package.json` в опубликованном `gitHead` `b5330ac3d014f92dff97a2b90cd9ebdbf0de22fd` декларируют MIT. Tarball не содержит standalone LICENSE и не публикует copyright notice. Репозиторий фиксирует этот факт, не выдумывая attribution, в [`patches/serena-tools/LICENSE.upstream.txt`](patches/serena-tools/LICENSE.upstream.txt).
 
-Для Git-пакета `pi-polza` release `v0.2.2` имеет annotated tag object `363c5476397ad042fcbd0596d372bc450b64977f`, который peels to commit `e91b09504f7a445b477eaab77cc02d1db067a1e7`; release `v0.3.0` — tag object `1e8fc7674e54171df5cd7342fb03b3dce60fe4db`, peeled commit `377b4e6142ae943d7eaf2d33e166139217cae543`. В обоих случаях source `package.json` и `LICENSE` декларируют MIT. Manifest/installer закрепляет конкретный peeled commit, а `tagObject`, `releaseTag` и version остаются отдельной проверяемой release metadata.
+Для Git-пакета `pi-polza` release `v0.2.2` имеет annotated tag object `363c5476397ad042fcbd0596d372bc450b64977f`, который peels to commit `e91b09504f7a445b477eaab77cc02d1db067a1e7`; release `v0.3.1` — tag object `a9dc20ef831a425cd0ab2e26f3a6981fb62e1691`, peeled commit `878fd144fd7eebe12b34342a8eb21a2cb8b143c9`. В обоих случаях source `package.json` и `LICENSE` декларируют MIT. Manifest/installer закрепляет конкретный peeled commit, а `tagObject`, `releaseTag` и version остаются отдельной проверяемой release metadata.
 
 ## Внешние инструменты
 
