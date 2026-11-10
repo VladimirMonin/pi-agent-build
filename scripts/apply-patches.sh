@@ -49,7 +49,7 @@ PYTHON="$(resolve_python)" || { err "python3 is required to check or apply local
 
 # patches_for_profile <Code|Task> -> unique patch names, one per line
 patches_for_profile() {
-  "$PYTHON" - "$MANIFEST" "$1" <<'PY'
+  "$PYTHON" - "$MANIFEST" "$1" <<'PY' | tr -d '\r'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)

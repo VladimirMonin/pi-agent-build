@@ -36,12 +36,19 @@ try {
   } else if (key.startsWith("$")) {
     const envName = /^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))$/.exec(key);
     if (!envName || !process.env[envName[1] || envName[2]]) {
-      throw new Error(`static provider ${providerName} has unresolved credential environment reference`);
+      const readiness = new Error(`static provider ${providerName} has unresolved credential environment reference`);
+      readiness.readiness = true;
+      throw readiness;
     }
     credential = "environment present";
   }
   console.log(`PASS static memory model ${model} (${credential}; request not attempted)`);
 } catch (error) {
-  console.error(`FAIL memory consolidation route: ${error.message}`);
-  process.exitCode = 2;
+  if (error.readiness) {
+    console.error(`NOT TESTED memory consolidation route: ${error.message}`);
+    process.exitCode = 3;
+  } else {
+    console.error(`FAIL memory consolidation route: ${error.message}`);
+    process.exitCode = 2;
+  }
 }

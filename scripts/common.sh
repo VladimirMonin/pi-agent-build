@@ -63,7 +63,7 @@ PY
 manifest_packages() {
   local manifest="$1" profile="$2" py
   py="$(resolve_python)" || { err "python3 is required to read $manifest"; return 2; }
-  "$py" - "$manifest" "$profile" <<'PY'
+  "$py" - "$manifest" "$profile" <<'PY' | tr -d '\r'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)

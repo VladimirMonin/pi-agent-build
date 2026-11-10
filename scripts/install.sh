@@ -110,7 +110,7 @@ done < <(selected_profiles "$PROFILE")
 if [ "$PROFILE" = "Code" ] || [ "$PROFILE" = "Both" ]; then
   while IFS="$IFS_US" read -r pkg ver _rest; do
     [ -n "$pkg" ] && log "external $pkg@$ver"
-  done < <("$(resolve_python)" - "$EXTERNAL_MANIFEST" <<'PY'
+  done < <(manifest_lines_lf "$(resolve_python)" - "$EXTERNAL_MANIFEST" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
@@ -382,7 +382,7 @@ if [ "$SKIP_PACKAGE_INSTALL" != "1" ] && { [ "$PROFILE" = "Code" ] || [ "$PROFIL
     else
       run_checked "npm install -g $pkg@$ver" npm install --global --no-audit --no-fund "$pkg@$ver"
     fi
-  done < <("$(resolve_python)" - "$EXTERNAL_MANIFEST" <<'PY'
+  done < <(manifest_lines_lf "$(resolve_python)" - "$EXTERNAL_MANIFEST" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)

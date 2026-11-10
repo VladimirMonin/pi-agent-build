@@ -146,7 +146,7 @@ function Test-DirectSpawn {
     param([string]$Command, [string[]]$Arguments, [string]$Expected, [string]$Label, [bool]$Required = $true)
     $resolved = Get-Command $Command -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $resolved) {
-        if ($Required) { Fail "$Label command not found: $Command" } else { Warn "$Label not installed (optional)" }
+        if ($Required) { Fail "$Label command not found: $Command" } else { Warn "$Label not found (optional or not on PATH yet)" }
         return
     }
     $path = [string]$resolved.Source
@@ -187,6 +187,20 @@ function Test-CommandPresent {
     Pass "$Label command present"
 }
 
+function Test-InstalledLaunchers {
+    $targetDirectory = if ($env:OS -eq 'Windows_NT') { Join-Path $HOME 'bin' } else { Join-Path $HOME '.local/bin' }
+    foreach ($name in @('pi-code', 'pi-task', 'pi-code.cmd', 'pi-task.cmd')) {
+        $path = Join-Path $targetDirectory $name
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            Warn "launcher $name not installed in $targetDirectory (ожидается до install-launchers)"
+            continue
+        }
+        $content = [string](Get-Content -LiteralPath $path -Raw)
+        if ($content -match '__[A-Za-z0-9_]+__') { Fail "launcher $name содержит незаменённые токены" }
+        else { Pass "launcher $name installed" }
+    }
+}
+
 function Test-ExternalTools {
     param([psobject]$Manifest, [psobject[]]$Profiles)
     $npmRoot = $null
@@ -206,7 +220,8 @@ function Test-ExternalTools {
                 $path = Join-Path $npmRoot (([string]$tool.npmExecutableRelativePath).Replace('/', [IO.Path]::DirectorySeparatorChar))
                 Test-DirectSpawn -Command $path -Arguments $arguments -Expected ([string]$tool.version) -Label ([string]$tool.package) -Required $true
             } elseif ($kind -eq 'direct-version') {
-                Test-DirectSpawn -Command ([string]$tool.command) -Arguments $arguments -Expected ([string]$tool.version) -Label ([string]$tool.package) -Required $true
+                $installer = if ($tool.PSObject.Properties.Name -contains 'installer') { [string]$tool.installer } else { '' }
+                Test-DirectSpawn -Command ([string]$tool.command) -Arguments $arguments -Expected ([string]$tool.version) -Label ([string]$tool.package) -Required ($installer -ne 'uv tool')
             } else {
                 Fail "unsupported external probe '$kind' for $($tool.package)"
             }
@@ -244,10 +259,19 @@ function Test-InstalledProfile {
             Pass "$($Selected.Name) lab static memory route (credential NOT TESTED)"
         } catch { Fail "$($Selected.Name) lab static memory route invalid" }
     } else {
-        $memoryRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot)
-        if (-not $memoryRoute.Found -or $memoryRoute.ExitCode -ne 0) { Fail "$($Selected.Name) $($memoryRoute.Output)" }
-        else { Pass "$($Selected.Name) memory consolidation route (static provider, credential configured)" }
+        $memoryRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot) -SanitizeEnvironment -Environment (Get-CredentialEnvOverrides -ModelsPath (Join-Path $profileRoot 'models.json'))
+        if ($memoryRoute.Found -and $memoryRoute.ExitCode -eq 0) { Pass "$($Selected.Name) memory consolidation route (static provider, credential configured)" }
+        elseif ($memoryRoute.Found -and $memoryRoute.ExitCode -eq 3) { Warn "$($Selected.Name) memory consolidation route: credential NOT TESTED (not configured yet)" }
+        else { Fail "$($Selected.Name) $($memoryRoute.Output)" }
     }
+    $searchConfigPath = Join-Path (Join-Path $Root 'session-search') 'config.json'
+    if (-not (Test-Path -LiteralPath $searchConfigPath -PathType Leaf)) {
+        $searchConfigPath = Join-Path (Join-Path (Join-Path $env:USERPROFILE '.pi') 'session-search') 'config.json'
+    }
+    $searchRoute = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-session-search-config.mjs'), $searchConfigPath)
+    if ($searchRoute.Found -and $searchRoute.ExitCode -eq 0) { Pass "$($Selected.Name) $($searchRoute.Output)" }
+    elseif ($searchRoute.Found -and $searchRoute.ExitCode -eq 3) { Warn "$($Selected.Name) $($searchRoute.Output)" }
+    else { Fail "$($Selected.Name) $($searchRoute.Output)" }
     $goalEntries = @($PackageManifest.profiles.common | Where-Object { $_.package -eq 'pi-goal-x' })
     $packageItems = if ($settings.PSObject.Properties.Name -contains 'packages' -and $null -ne $settings.packages) { @($settings.packages) } else { @() }
     $sources = @($packageItems | ForEach-Object { Get-EntrySource $_ })
@@ -430,6 +454,11 @@ try {
 
         if (-not $SkipExternalChecks) {
             Test-ExternalTools -Manifest $external -Profiles $profiles
+        }
+        Test-InstalledLaunchers
+        if ($env:OS -eq 'Windows_NT') {
+            if (Get-Command 'bash' -ErrorAction SilentlyContinue | Select-Object -First 1) { Pass 'git-bash present (POSIX scripts route)' }
+            else { Warn 'git-bash not found (POSIX scripts route unavailable)' }
         }
     }
 

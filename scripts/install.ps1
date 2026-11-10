@@ -347,8 +347,14 @@ try {
             $expected = @(Get-ProfilePackages -ProfileName $selected.Name -Manifest $packages)
             foreach ($entry in $expected) { Assert-InstalledProfilePackage -ProfileRoot $profileRoot -Entry $entry }
             $template = Join-Path $RepoRoot "profiles\$($selected.Template)\settings.template.json"
-            $route = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot, $template)
-            if (-not $route.Found -or $route.ExitCode -ne 0) { throw "$($selected.Name) settings sync refused unavailable memory model: $($route.Output)" }
+            $route = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), $profileRoot, $template) -SanitizeEnvironment -Environment (Get-CredentialEnvOverrides -ModelsPath (Join-Path $profileRoot 'models.json'))
+            if ($route.Found -and $route.ExitCode -eq 0) {
+                # static memory route validated
+            } elseif ($route.Found -and $route.ExitCode -eq 3) {
+                Write-Host "$($selected.Name) memory route: credential NOT TESTED (ключ ещё не настроен — приёмка проверит после ввода)"
+            } else {
+                throw "$($selected.Name) settings sync refused unavailable memory model: $($route.Output)"
+            }
         }
         # Validate BOTH profiles before writing either settings file.
         foreach ($selected in $profiles) {

@@ -233,7 +233,7 @@ test_exact_tool_version() {
 test_direct_spawn() {
   local cmd="$1" expected="$2" label="$3" required="${4:-1}" path out actual
   if ! command_exists "$cmd"; then
-    [ "$required" = "1" ] && fail "$label command not found: $cmd" || warn "$label not installed (optional)"
+    [ "$required" = "1" ] && fail "$label command not found: $cmd" || warn "$label not found (optional or not on PATH yet)"
     return
   fi
   path="$(command -v "$cmd")"
@@ -246,7 +246,7 @@ test_direct_spawn() {
 
 test_external_tools() {
   if [ "$PROFILE" = "Code" ] || [ "$PROFILE" = "Both" ]; then
-    while IFS="$IFS_US" read -r pkg ver probe command relpath; do
+    while IFS="$IFS_US" read -r pkg ver probe command relpath installer; do
       [ -n "$pkg" ] || continue
       case "$probe" in
         npm-root-executable-version)
@@ -257,16 +257,19 @@ test_external_tools() {
             [ "$actual" = "$ver" ] && pass "$pkg $actual" || fail "$pkg expected $ver, found $actual"
           else warn "$pkg executable not found at $path"; fi
           ;;
-        direct-version) test_direct_spawn "$(strip_exe "$command")" "$ver" "$pkg" 1 ;;
+        direct-version)
+          local direct_required=1; [ "$installer" = "uv tool" ] && direct_required=0
+          test_direct_spawn "$(strip_exe "$command")" "$ver" "$pkg" "$direct_required"
+          ;;
         *) fail "unsupported external probe '$probe' for $pkg" ;;
       esac
-    done < <("$PYTHON" - "$EXTERNAL_MANIFEST" <<'PY'
+    done < <(manifest_lines_lf "$PYTHON" - "$EXTERNAL_MANIFEST" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
 for t in m.get("codeProfile", []):
     print("\x1f".join([t.get("package",""), t.get("version",""), t.get("probe",""),
-                     t.get("command",""), t.get("npmExecutableRelativePath","")]))
+                     t.get("command",""), t.get("npmExecutableRelativePath",""), t.get("installer","")]))
 PY
 )
   fi
@@ -295,7 +298,7 @@ PY
         ;;
       *) fail "unsupported MCP probe '$probe' for $pkg" ;;
     esac
-  done < <("$PYTHON" - "$EXTERNAL_MANIFEST" <<'PY'
+  done < <(manifest_lines_lf "$PYTHON" - "$EXTERNAL_MANIFEST" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
@@ -317,14 +320,28 @@ test_installed_profile() {
   if [ -f "$settings" ]; then
     if json_get "$settings" 'd' >/dev/null 2>&1; then
       pass "$name settings JSON"
-      local memory_route
+      local memory_route memory_code
       if [ -n "$LAB_ROOT" ]; then
         warn "$name credential-backed memory route NOT TESTED (private lab)"
-      elif memory_route="$(node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" 2>&1)"; then
-        pass "$name memory consolidation route (static provider, credential configured)"
       else
-        fail "$name $memory_route"
+        memory_route="$(node "$REPO_ROOT/scripts/check-memory-model.mjs" "$profile_root" 2>&1)"
+        memory_code=$?
+        case "$memory_code" in
+          0) pass "$name memory consolidation route (static provider, credential configured)" ;;
+          3) warn "$name memory consolidation route: credential NOT TESTED (not configured yet)" ;;
+          *) fail "$name $memory_route" ;;
+        esac
       fi
+      local search_config="$PI_ROOT/session-search/config.json"
+      [ -f "$search_config" ] || search_config="$HOME/.pi/session-search/config.json"
+      local search_route search_code
+      search_route="$(node "$REPO_ROOT/scripts/check-session-search-config.mjs" "$search_config" 2>&1)"
+      search_code=$?
+      case "$search_code" in
+        0) pass "$name $search_route" ;;
+        3) warn "$name $search_route" ;;
+        *) fail "$name $search_route" ;;
+      esac
       if "$PYTHON" - "$settings" "$PACKAGES_MANIFEST" <<'PY' >/dev/null 2>&1
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
@@ -445,6 +462,21 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
     if [ -f "$pi_meta" ] && [ "$(json_get "$pi_meta" 'd.get("version")')" = "$PI_VERSION" ]; then
       pass "Pi package $PI_VERSION"
     else fail "global Pi package missing or wrong version: $pi_meta"; fi
+  fi
+
+  if [ -z "$LAB_ROOT" ]; then
+    launcher_target="$HOME/.local/bin"
+    [ "$OS" = "Windows_NT" ] && launcher_target="$HOME/bin"
+    for launcher_name in pi-code pi-task pi-code.cmd pi-task.cmd; do
+      launcher_path="$launcher_target/$launcher_name"
+      if [ ! -f "$launcher_path" ]; then
+        warn "launcher $launcher_name not installed in $launcher_target (ожидается до install-launchers)"
+      elif grep -q '__[A-Za-z0-9_]\+__' "$launcher_path"; then
+        fail "launcher $launcher_name содержит незаменённые токены"
+      else
+        pass "launcher $launcher_name installed"
+      fi
+    done
   fi
 
   while IFS=$'\t' read -r name dir; do
