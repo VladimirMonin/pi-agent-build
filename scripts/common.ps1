@@ -165,6 +165,29 @@ function Get-SanitizedChildEnvironment {
     return $result
 }
 
+# Resolve credential environment variables referenced by models.json ($NAME or
+# ${NAME} in provider.apiKey) from Process/User/Machine scope and pass them to the
+# checking child explicitly, so the same check gives the same result no matter
+# which shell launched the verifier (P44). Values never get printed.
+function Get-CredentialEnvOverrides {
+    param([Parameter(Mandatory = $true)][string]$ModelsPath)
+    $result = @{}
+    if (-not (Test-Path -LiteralPath $ModelsPath -PathType Leaf)) { return $result }
+    try { $models = Read-JsonFile $ModelsPath } catch { return $result }
+    if ($null -eq $models.providers) { return $result }
+    foreach ($provider in @($models.providers.PSObject.Properties | ForEach-Object { $_.Value })) {
+        $key = [string]$provider.apiKey
+        if ($key -notmatch '^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))$') { continue }
+        $name = if ($Matches[1]) { $Matches[1] } else { $Matches[2] }
+        if ($result.ContainsKey($name)) { continue }
+        $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+        if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'User') }
+        if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'Machine') }
+        if ($value) { $result[$name] = $value }
+    }
+    return $result
+}
+
 function Assert-PrivateLabRoot {
     param([string]$LabRoot, [string]$RepoRoot)
     if ($LabRoot -notmatch '^[A-Za-z]:[\\/]' -or $LabRoot -match '[\\/]\.\.[\\/]') { throw 'LabRoot must be an absolute local path without parent traversal.' }
