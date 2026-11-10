@@ -1,6 +1,10 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Текущая сборка Pi 1.4.0 build.4
+## Текущая сборка Pi 1.5.2 build.7
+
+[Release notes](../releases/pi-1.5.2-build.7.md). Ядро **Pi 1.5.2** закреплено (runtime lock и оба профильных templates) после обновления рабочей установки владельцем; Node/npm и все пакеты профилей сохранены. Исправлены bash-скрипты проверки/установки: CRLF от Windows-python больше не портит последнее поле строк manifest (были ложные FAIL «patcher missing» / «pi-polza release tag object differs» и WARN по пути `codebase-memory-mcp`). `verify.sh --profile Both` — **0 failures / 0 warnings**, Patch Check Both — все 5 патчей PASS. Живой smoke Code: memory/subagents/intercom/MCP/Serena/граф — PASS; живой старт Task — канарейка `check-main-model.mjs` уровня SDK PASS (1 запрос), полный TUI-прогон NOT TESTED. Публикация (commit/push/tag/GitHub release) — по решению владельца.
+
+## Исторический принятый выпуск Pi 1.4.0 build.4
 
 [Release notes](../releases/pi-1.4.0-build.4.md). Exact pins/Memory сохранены; только Search strict exact-ID mapping, formatter у индексатора, отдельный semantic-only/cosine/no FTS, preserving setup и optional API input_type/endpoint. Четыре Nemotron подтверждены первичными источниками, но новые routes/модели не запускались; OpenRouter forwarding/LM Studio остаются NOT TESTED.
 

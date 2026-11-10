@@ -2,19 +2,32 @@
 
 **Основной короткий маршрут — [INSTALL_FOR_AGENTS.md](../INSTALL_FOR_AGENTS.md).** Здесь только подробности prerequisites, сохранения конфигурации и диагностики. Версии задают [runtime lock](../manifests/runtime.lock.json), [packages lock](../manifests/pi-packages.lock.json) и [external tools](../manifests/external-tools.lock.json).
 
-Установка выбранной опубликованной ревизии, ремонт конкретного дефекта и разработка нового состава — разные задачи. Последняя использует [upgrade workflow](pi-upgrade-workflow.md); обычная установка не наследует весь lab/release процесс. [Pi 1.4.0 build.4](releases/pi-1.4.0-build.4.md) добавляет strict Session Search model mapping, отдельный semantic-only/cosine и preserving setup при прежних pins. Исторические [build.3](releases/pi-1.4.0-build.3.md), [build.2](releases/pi-1.4.0-build.2.md), [build.1](releases/pi-1.4.0-build.1.md) и [Pi 1.3.0](releases/pi-1.3.0-build.1.md) сохраняют собственные проверки и ограничения. [Ручной Pi 0.87 baseline](history/pi-0.87-install.md) отделён в историю.
+Установка выбранной опубликованной ревизии, ремонт конкретного дефекта и разработка нового состава — разные задачи. Последняя использует [upgrade workflow](pi-upgrade-workflow.md); обычная установка не наследует весь lab/release процесс. Текущая ревизия — [Pi 1.5.2 build.7](releases/pi-1.5.2-build.7.md): ядро 1.5.2 и честные bash-проверки на Windows. Исторические [pi-1.4.0-build.6](releases/pi-1.4.0-build.6.md), [pi-1.4.0-build.5](releases/pi-1.4.0-build.5.md), [pi-1.4.0-build.4](releases/pi-1.4.0-build.4.md) (strict Session Search model mapping, отдельный semantic-only/cosine, preserving setup при прежних pins), [build.3](releases/pi-1.4.0-build.3.md), [build.2](releases/pi-1.4.0-build.2.md), [build.1](releases/pi-1.4.0-build.1.md) и [Pi 1.3.0](releases/pi-1.3.0-build.1.md) сохраняют собственные проверки и ограничения. [Ручной Pi 0.87 baseline](history/pi-0.87-install.md) отделён в историю.
 
 ## Prerequisites по платформам
+
+**Рабочий диапазон для установки** — реальные технические границы Pi и пакетов: Node **≥ 22.19** (engines ядра и `pi-session-search`; проверено на 24+)
+(строгое требование `pi-session-search` 1.6.0, оно же `compatibility.minimumNode` в runtime lock),
+npm из комплекта Node, реальный `python` **≥ 3.8** с `jsonschema`, Git **2.x**; для Code — `uv`
+**без жёсткого пина** (честная нижняя граница неизвестна, проверено на `0.9.27`).
+
+**Lab-пины воспроизводимости** — Node `25.8.1`, npm `11.11.0`, Git `2.54.0.windows.1`, uv `0.9.27`
+из manifests текущего выпуска: они нужны для приёмки самой сборки и её верификатора, расхождение
+с ними **не означает** нерабочую установку. Гейт сборки строгий: Windows-вариант (`install.ps1`/
+`verify.ps1`) сверяет exact и останавливается на расхождении Node/Git/npm, POSIX-вариант
+(`install.sh`/`verify.sh`) сообщает drift как WARN (`--strict-runtime` у `verify.sh` делает его ошибкой; `install.sh` предупреждает и не проверяет Git); оба
+installer'а при расхождении npm глобально переустанавливают pinned npm. Пины Pi, пакетов профилей
+и patches обязательны на любой ОС. Проверяйте values **выбранного commit**, не старый install log.
 
 | Область | Windows x64 | POSIX (macOS/Linux) |
 |---|---|---|
 | Shell | PowerShell 5.1+; Git Bash нужен для shell-варианта launchers | Bash 3.2+ |
-| Node | Exact `runtime.node` из manifest; минимум выбранных пакетов — Node 24 | Node ≥ 24; отклонение от Windows pin — WARN verifier-а |
-| npm/Git | Pinned npm, exact Git for Windows из manifests | Работоспособные npm/Git; installer при необходимости ставит pinned npm |
+| Node | ≥ 22.19 (engines ядра/пакетов); `25.8.1` — lab-pin гейта сборки | Node ≥ 22.19; отклонение от Windows lab-pins — WARN verifier-а |
+| npm/Git | npm из комплекта Node, Git 2.x; lab-pins `11.11.0` / `2.54.0.windows.1` | Работоспособные npm/Git; отклонения от Windows lab-pins — WARN verifier-а |
 | Patch/schema Python | Реальный `python` ≥ 3.8 и `jsonschema` в нём | `python3`/`python` ≥ 3.8 и `jsonschema`; допустим `PI_BUILD_PYTHON` |
-| Code tools | `uv` из manifest, затем installer ставит ast-grep, CBM и Serena | Тот же состав с платформенными executable paths |
+| Code tools | `uv` без жёсткого пина (проверено на `0.9.27`), затем installer ставит ast-grep, CBM и Serena | Тот же состав с платформенными executable paths |
 
-В исходных manifests Node `25.8.1`, npm `11.11.0`, Git `2.54.0.windows.1`, uv `0.9.27`. Проверяйте values **выбранного commit**, не старый install log. Serena `1.7.0` использует отдельный managed Python `3.12.10` (её контракт `>=3.11,<3.15`); это не требование сменить interpreter patchers. Optional Fetch требует Python ≥ 3.10, но не нужен для удалённого Context7.
+Serena `1.7.0` использует отдельный managed Python `3.12.10` (её контракт `>=3.11,<3.15`); это не требование сменить interpreter patchers. Optional Fetch требует Python ≥ 3.10, но не нужен для удалённого Context7.
 
 ```sh
 node --version

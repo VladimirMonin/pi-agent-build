@@ -32,9 +32,21 @@ git clone https://github.com/VladimirMonin/pi-agent-build.git "<REPO_ROOT>"
 
 ## 2. Prerequisites
 
-- **Windows x64:** PowerShell 5.1+, Git for Windows, Node и npm по manifests. В исходном runtime lock закреплены Node `25.8.1`, npm `11.11.0`, Git `2.54.0.windows.1`; перед установкой сверяйте выбранную ревизию. Windows installer проверяет exact Node/Git, при необходимости устанавливает pinned npm. Нужен реальный `python` ≥ 3.8, не Store alias, с `jsonschema` в **этом же** интерпретаторе.
-- **macOS/Linux:** Bash 3.2+, Git, Node ≥ 24, npm, Python ≥ 3.8 с `jsonschema`. Helper выбирает работоспособный `python3`/`python` либо `PI_BUILD_PYTHON`. Windows runtime pins на POSIX verifier обычно сообщает как WARN (`--strict-runtime` делает их ошибкой); pinned Pi/пакеты/patches остаются обязательными.
-- **Code:** нужен `uv` из external-tools manifest (исходный pin `0.9.27`); installer ставит Serena с отдельным managed Python `3.12.10`. Это не версия Python для patchers. Task не требует code-intelligence CLI.
+**Рабочий диапазон для установки** — реальные технические границы Pi и пакетов, а не точные пины:
+
+| Инструмент | Рабочий диапазон | Основание |
+|---|---|---|
+| Node | **≥ 22.19** | engines ядра Pi 1.5.2 и `pi-session-search` 1.6.0 (`node >=22.19.0`); проверено на Node 24+, lab-pin `25.8.1` |
+| npm | из комплекта Node | отдельного пина не требует |
+| Python | реальный (не Store alias) **≥ 3.8**, с `jsonschema` в **этом же** интерпретаторе | trace renderer и patch scripts (external tools lock) |
+| uv | **без жёсткого пина**, проверено на `0.9.27` | честная нижняя граница неизвестна; нужен для Serena (Code) |
+| Git | **2.x** | проверено на `2.54.0.windows.1` |
+
+**Lab-пины воспроизводимости** — Node `25.8.1`, npm `11.11.0`, Git `2.54.0.windows.1`, uv `0.9.27` из manifests — нужны для **приёмки самой сборки и её верификатора**. Расхождение с пином **не означает** нерабочую установку. Гейт сборки при этом строгий: Windows-вариант скриптов (`install.ps1`/`verify.ps1`) сверяет exact и останавливается на расхождении Node/Git/npm; POSIX-вариант (`install.sh`/`verify.sh`) сообщает drift как WARN (флаг `--strict-runtime` есть у `verify.sh` и делает его ошибкой; `install.sh` только предупреждает и Git не проверяет). Оба installer'а при расхождении npm **глобально** переустанавливают pinned npm — это изменяет ваш npm. Пины самого Pi, пакетов профилей и patches обязательны на любой ОС. Проверяйте manifests **выбранной ревизии**, не старый install log.
+
+- **Windows x64:** PowerShell 5.1+, Git for Windows, реальный `python` с `jsonschema` (см. таблицу выше).
+- **macOS/Linux:** Bash 3.2+; Helper выбирает работоспособный `python3`/`python` либо `PI_BUILD_PYTHON`.
+- **Code:** нужен `uv` (проверено на `0.9.27`); installer ставит Serena с отдельным managed Python `3.12.10`. Это не версия Python для patchers. Task не требует code-intelligence CLI.
 - Доступ к npm/GitHub для установки; затем к выбранному провайдеру и удалённому MCP. Права записи в выбранный пользовательский npm prefix и каталоги профилей. Не запускайте всё от администратора и не меняйте системную execution policy ради установки.
 
 ```sh
@@ -133,7 +145,7 @@ node scripts/check-main-model.mjs --sdk-root "<SDK_ROOT>" --profile-dir "<PI_ROO
 node scripts/check-main-model.mjs --sdk-root "<SDK_ROOT>" --profile-dir "<PROFILE_DIR>" --provider polza --model "<MODEL_ID>" --timeout-ms 60000
 ```
 
-Если cwd вне checkout, используйте абсолютный путь к `scripts/check-main-model.mjs`. Default timeout — 60000 ms. JSON содержит `expected`, `actual`, `answer`, `status`, при отказе `reason`; любой отказ даёт **exit 2**, успех — 0. Точное присутствие модели в registry обязательно: custom-model fallback Pi не засчитывается. Служебный `polza-memory` не подтверждает main.
+Если cwd вне checkout, используйте абсолютный путь к `scripts/check-main-model.mjs`. Default timeout — 60000 ms. JSON содержит `expected`, `actual`, `answer` (включая текст ответа), `status`, при отказе `reason` и `detail`; любой отказ даёт **exit 2**, успех — 0 (молчаливый пропуск невозможен — self-run guard нормализует пути). Сверка канарейки терпима к регистру, лишним пробелам и хвостовым знакам препинания, но лишние слова по-прежнему не принимаются. Точное присутствие модели в registry обязательно: custom-model fallback Pi не засчитывается. Служебный `polza-memory` не подтверждает main.
 
 Конфигурационные backups находятся в `<PROFILE_DIR>/.pi-agent-build-backups/install/<stamp>/`, patch backups — в профильном `.pi-agent-build-backups/<patch>/`, launcher backups — в `<BIN_DIR>/.pi-agent-build-backups/launchers/<stamp>/`. Это **не полный backup runtime и данных**. При unknown patch остановитесь и сохраните его; не удаляйте marker/backup и не обходите guard. При частичном отказе продолжайте только установленный незавершённый остаток после диагностики; операция не объявляется атомарной. [Restore и данные](docs/state-migration.md#откат), [правила patches](instructions/PATCH.maintenance.instructions.md).
 

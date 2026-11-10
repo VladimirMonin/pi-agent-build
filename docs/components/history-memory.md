@@ -85,7 +85,7 @@ Memory DB содержит персональные preferences/identity и proj
 
 ### Проверка
 
-Patch `--check` должен вернуть0 и `runtime-safe`. [Build.3](../releases/pi-1.4.0-build.3.md): обычные installed SDK Both, явный поиск/automatic context-hook/tool continuation собственного временного факта в Code и его product removal подтверждены; три successful embedding requests, без main/consolidation LLM. Исторический build.6: synthetic SQLite/local-mock проверил Windows child, ordered consolidation, profile/session ID и scope/aliases; отдельный real Polza paraphrase canary дал два successful embedding requests. Эти области не складываются в новую full-model матрицу; личные факты не используются как fixtures. [Memory fix](../fixes/memory.md).
+Patch `--check` должен вернуть0 и `runtime-safe`. [pi-1.4.0-build.3](../releases/pi-1.4.0-build.3.md): обычные installed SDK Both, явный поиск/automatic context-hook/tool continuation собственного временного факта в Code и его product removal подтверждены; три successful embedding requests, без main/consolidation LLM. Исторический [pi-1.0.4-build.6](../releases/pi-1.0.4-build.6.md): synthetic SQLite/local-mock проверил Windows child, ordered consolidation, profile/session ID и scope/aliases; отдельный real Polza paraphrase canary дал два successful embedding requests. Эти области не складываются в новую full-model матрицу; личные факты не используются как fixtures. [Memory fix](../fixes/memory.md).
 
 ### Удаление/откат
 
