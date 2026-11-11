@@ -45,7 +45,7 @@
         "source": "npm:pi-goal-x@0.34.1",
         "package": "pi-goal-x",
         "version": "0.34.1",
-        "compatibilityNote": "Author requirements for 0.34.x: Pi 1.4+ and Node 22.19+; peer range re-verified against the installed package after the 2026-11-11 update (see docs/recon/2026-11-11-plugins.md journal). Must load before pi-intercom: intercom-first ordering makes Pi's turn_end boundary fail to resolve the persisted assistant entry ID in headless runs."
+        "compatibilityNote": "Peer dependencies verified against the installed 0.34.1 package (2026-11-11): @earendil-works/pi-ai, pi-coding-agent, pi-tui all >=1.4.0 <2.0.0; typebox ^1.3.11; engines node >=22.19.0. Must load before pi-intercom: intercom-first ordering makes Pi's turn_end boundary fail to resolve the persisted assistant entry ID in headless runs."
       },
       {
         "source": "npm:pi-intercom@0.18.1",
