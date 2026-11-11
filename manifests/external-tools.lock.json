@@ -47,7 +47,7 @@
     },
     {
       "package": "codebase-memory-mcp",
-      "version": "0.11.0",
+      "version": "0.12.1",
       "command": "codebase-memory-mcp.exe",
       "probe": "npm-root-executable-version",
       "probeArguments": ["--version"],

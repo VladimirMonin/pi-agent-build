@@ -94,11 +94,10 @@
         "patch": "serena-tools"
       },
       {
-        "source": "npm:pi-cbm@1.2.1",
+        "source": "npm:pi-cbm@2.0.0",
         "package": "pi-cbm",
-        "version": "1.2.1",
-        "external": "codebase-memory-mcp@0.11.0",
-        "patch": "pi-cbm-011"
+        "version": "2.0.0",
+        "external": "codebase-memory-mcp@0.12.1"
       }
     ]
   }

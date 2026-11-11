@@ -24,6 +24,6 @@ Regenerate: node scripts/gen-composition.mjs · freshness gate: node scripts/gen
 | `pi-mcp-adapter` | 5.3.2 | npm | ✅ | ✅ | Мост к MCP-серверам |
 | `@nicknisi/pi-ast-grep` | 0.2.1 | npm | ✅ | — | Поиск и правка кода по синтаксису (ast-grep) (внешняя зависимость: @ast-grep/cli@0.45.3) |
 | `@bacnh85/pi-serena` | 0.9.20 | npm | ✅ | — | Семантика кода через LSP (Serena) (внешняя зависимость: serena-agent@1.7.0) |
-| `pi-cbm` | 1.2.1 | npm | ✅ | — | Граф кода: символы, связи, трассировки (codebase memory) (внешняя зависимость: codebase-memory-mcp@0.11.0) |
+| `pi-cbm` | 2.0.0 | npm | ✅ | — | Граф кода: символы, связи, трассировки (codebase memory) (внешняя зависимость: codebase-memory-mcp@0.12.1) |
 
 Профили: **Code** = общие пакеты + code-intelligence тройка; **Task** = только общие. Полные спецификации (коммиты, теги) — в `manifests/pi-packages.lock.json`.

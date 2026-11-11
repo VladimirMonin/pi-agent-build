@@ -86,18 +86,17 @@ uv tool uninstall serena-agent
 
 Project `.serena/` удаляйте отдельно. Полный fix: [Serena](../fixes/serena.md).
 
-## `pi-cbm` 1.2.1 + `codebase-memory-mcp` 0.11.0
+## `pi-cbm` 2.0.0 + `codebase-memory-mcp` 0.12.1
 
 ### Назначение
 
-Регистрирует локальный code graph как native Pi tools, auto-indexes current git root и даёт architecture/search/symbol/read/trace/impact queries.
+Регистрирует локальный code graph как native Pi tools, auto-indexes current git root и даёт architecture/search/symbol/read/trace/impact queries. Wrapper 2.0.0 нативно поддерживает CBM 0.11+: новый вызов `cli --json` со stdin, normalize compact-таблиц (`cols + rows`/`groups`) и версионный gate. Локальная правка `pi-cbm-011` снята 2026-11-11 (вшита апстримом) и больше не применяется.
 
 ### Установка
 
 ```bash
-npm install -g codebase-memory-mcp@0.11.0
-PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" pi install npm:pi-cbm@1.2.1
-python patches/pi-cbm-011/apply.py --agent-dir "<CODE_PROFILE_DIR>" --apply
+npm install -g codebase-memory-mcp@0.12.1
+PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" pi install npm:pi-cbm@2.0.0
 ```
 
 Launcher задаёт `CODEBASE_MEMORY_MCP_BIN` на реальный `.exe`, `PI_CBM_MAX_CONCURRENT_INDEXES=1` и refresh interval.
@@ -112,18 +111,17 @@ Launcher задаёт `CODEBASE_MEMORY_MCP_BIN` на реальный `.exe`, `P
 
 ### Риски
 
-Index содержит source-derived graph. Binary около сотен MB и каждый CLI call имеет startup overhead. 13 schemas заметно увеличивают context, поэтому пакет только в Code. Несовместимость 0.11 schema без patch даёт опасные silent empty results. Автоиндексация нагружает disk/CPU; root/home/system paths guard не заменяет проверку cwd.
+Index содержит source-derived graph. Binary около сотен MB и каждый CLI call имеет startup overhead. 13 schemas заметно увеличивают context, поэтому пакет только в Code. Schema drift CBM способен снова дать опасные silent empty results, поэтому при любом обновлении пары обязателен [schema smoke](../fixes/cbm.md) на непустых graph facts. Автоиндексация нагружает disk/CPU; root/home/system paths guard не заменяет проверку cwd.
 
 ### Проверка
 
-`codebase-memory-mcp.exe --version`, patch `--check`, `/cbm status`, затем `search_graph` по существующему symbol и `read_symbol`; тест должен подтверждать ненулевой результат, не только valid JSON. `detect_changes` проверяйте на известном Git diff.
+`codebase-memory-mcp.exe --version`, `/cbm status`, затем schema smoke: `search_graph` по существующему symbol и `read_symbol` с ненулевым результатом (не только valid JSON); `detect_changes` на известном Git diff. Патч `pi-cbm-011` снят — `apply.py --check` не требуется.
 
 ### Удаление/откат
 
 ```bash
-python patches/pi-cbm-011/apply.py --agent-dir "<CODE_PROFILE_DIR>" --restore
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" pi remove npm:pi-cbm
 npm uninstall -g codebase-memory-mcp
 ```
 
-Index DB удаляется отдельно после backup/остановки процессов. Полный fix: [CBM](../fixes/cbm.md).
+Index DB удаляется отдельно после backup/остановки процессов. Откат на связку 1.2.1 + 0.11.x с ретро-патчем: [CBM](../fixes/cbm.md).

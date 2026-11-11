@@ -60,3 +60,7 @@ python -B .\patches\pi-cbm-011\tests\test_admission.py -v
 Она проверяет mixed-EOL check/apply no-op (байты, mtime и backups неизменны), known transitions и byte-exact restore/backup, отказ на semantic/whitespace drift, bare CR, неизвестную версию и отсутствие `--format`. Только внешние CBM version/help responses подменены; реальные команды patcher выполняются в отдельных процессах на временном synthetic profile.
 
 В [build.2](../../docs/releases/pi-1.4.0-build.2.md) эта bounded delta независимо принята: 9/9 synthetic tests и exact public reconstruction известного mixed-EOL body. Это исправление распознавания уже известного patch, не новая CBM schema/feature qualification; versions, normalizer и installed current bytes не меняются ради endings.
+
+## Патч снят 2026-11-11
+
+Вшит апстримом в `pi-cbm 2.0.0`. Для отката на связку 1.2.1 + 0.11.x — вернуть пины пары и применить этот патч заново.
