@@ -4,12 +4,12 @@
 
 `@nicknisi/pi-ast-grep 0.2.0` запускает `ast-grep` через Pi `exec`/Node `spawn` с `shell:false`. Глобальный npm install на Windows создаёт shell wrappers `ast-grep`, `ast-grep.cmd`, `ast-grep.ps1`; PATH достаточно для Git Bash, но не для такого spawn. Типичные результаты — `ENOENT` для shim без расширения или `EINVAL` для `.cmd`.
 
-Реальный binary находится внутри `@ast-grep/cli 0.45.3`. Fix копирует его в npm prefix как `ast-grep.exe`, который уже находится на PATH.
+Реальный binary находится внутри `@ast-grep/cli 0.51.2`. Fix копирует его в npm prefix как `ast-grep.exe`, который уже находится на PATH.
 
 ## Установка
 
 ```bash
-npm install -g @ast-grep/cli@0.45.3
+npm install -g @ast-grep/cli@0.51.2
 npm_prefix="$(npm prefix -g | tr '\\' '/')"
 cp "$npm_prefix/node_modules/@ast-grep/cli/ast-grep.exe" \
    "$npm_prefix/ast-grep.exe"

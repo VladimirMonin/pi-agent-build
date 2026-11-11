@@ -1,6 +1,6 @@
 # Session Search: префиксы моделей, смысловой поиск и Windows roots
 
-Exact `pi-session-search 1.6.0` по-прежнему имеет stock config/index в `~/.pi/session-search` и sources `~/.pi/agent/sessions{,-archive}`. Task должен сохранять собственные paths; Code — прежние stock paths.
+Exact `pi-session-search 1.6.1` по-прежнему имеет stock config/index в `~/.pi/session-search` и sources `~/.pi/agent/sessions{,-archive}`. Task должен сохранять собственные paths; Code — прежние stock paths.
 
 Patcher проверяет immutable source copies и оба исполняемых bundles **`dist/index.js`/`dist/index-worker.js`** в одном guarded check/apply/backup/restore contract. Source roots передаются в штатные `IndexOptions → workerData`; reader использует те же config/default/extra roots, Windows-safe relative containment и canonical paths. Initial-sync timeout удаляется в `finally` при settlement.
 
@@ -130,7 +130,7 @@ python patches/session-search-profile/apply.py --agent-dir "<CODE_PROFILE_DIR>" 
 python patches/session-search-profile/apply.py --agent-dir "<TASK_PROFILE_DIR>" --apply
 ```
 
-С тем же режимом доступны `--check` и byte-exact `--restore`. Check: `patched` (exit 0), `stock`/`previous-patched`/`published-patched`/`released-patched`/`build3-patched` (exit 1), unknown/unsupported (exit 2). Исторические состояния — root/timer без display, последующий display patch и build.2 без новых prefix/ranking изменений — различаются по полным точным bytes всех файлов, не marker. Unknown/mixed main/worker, чужой режим и другая версия отвергаются до writes. Verified backups всех `REL_FILES` с hash receipt пишутся под выбранным профилем; immutable store не меняется. Interrupted mixed writes требуют verified backup recovery.
+С тем же режимом доступны `--check` и byte-exact `--restore`. Check: `patched` (exit 0), `stock` (exit 1), unknown/unsupported (exit 2). Состояния различаются по полным точным bytes всех файлов, не marker. Unknown/mixed main/worker, чужой режим и другая версия отвергаются до writes. Verified backups всех `REL_FILES` с hash receipt пишутся под выбранным профилем; immutable store не меняется. Interrupted mixed writes требуют verified backup recovery.
 
 ## Мастер настройки и обновление прежнего конфига
 

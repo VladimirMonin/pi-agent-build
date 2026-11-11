@@ -9,7 +9,7 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-session-search@1.6.0
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-session-search@1.6.1
 ```
 
 Требуется Node `24+`. Indexing работает на Worker Thread. Примените [profile/runtime patch](../fixes/session-search.md): Code с `--runtime-only`, Task без этого флага.

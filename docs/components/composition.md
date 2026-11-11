@@ -19,11 +19,11 @@ Regenerate: node scripts/gen-composition.mjs · freshness gate: node scripts/gen
 | `pi-goal-x` | 0.34.1 | npm | ✅ | ✅ | Goal X — автономная работа с целями |
 | `pi-intercom` | 0.18.1 | npm | ✅ | ✅ | Связь между сессиями |
 | `pi-background-tasks` | 2.6.2 | npm | ⛔ | ⛔ | Фоновые shell-задачи, делегирование, Fusion через дочерние Pi |
-| `pi-session-search` | 1.6.0 | npm | ✅ | ✅ | Поиск по сессиям (история работы) |
+| `pi-session-search` | 1.6.1 | npm | ✅ | ✅ | Поиск по сессиям (история работы) |
 | `@samfp/pi-memory` | 1.6.1 | npm | ✅ | ✅ | Долговременная память |
 | `pi-mcp-adapter` | 7.0.1 | npm | ✅ | ✅ | Мост к MCP-серверам |
-| `@nicknisi/pi-ast-grep` | 0.2.1 | npm | ✅ | — | Поиск и правка кода по синтаксису (ast-grep) (внешняя зависимость: @ast-grep/cli@0.45.3) |
-| `@bacnh85/pi-serena` | 0.9.20 | npm | ✅ | — | Семантика кода через LSP (Serena) (внешняя зависимость: serena-agent@1.7.0) |
+| `@nicknisi/pi-ast-grep` | 0.3.4 | npm | ✅ | — | Поиск и правка кода по синтаксису (ast-grep) (внешняя зависимость: @ast-grep/cli@0.51.2) |
+| `@bacnh85/pi-serena` | 0.10.1 | npm | ✅ | — | Семантика кода через LSP (Serena) (внешняя зависимость: serena-agent@1.7.0) |
 | `pi-cbm` | 2.0.0 | npm | ✅ | — | Граф кода: символы, связи, трассировки (codebase memory) (внешняя зависимость: codebase-memory-mcp@0.12.1) |
 
 Профили: **Code** = общие пакеты + code-intelligence тройка; **Task** = только общие. Полные спецификации (коммиты, теги) — в `manifests/pi-packages.lock.json`.

@@ -796,19 +796,19 @@ try {
 
     Test-Case 'Serena CBM and session patchers keep tracked stores immutable and refuse drift' {
         $storeFiles = @(
-            (Join-Path $RepoRoot 'patches\serena-tools\store\index.ts.orig-0.9.20'),
+            (Join-Path $RepoRoot 'patches\serena-tools\store\index.ts.orig-0.10.1'),
             (Join-Path $RepoRoot 'patches\pi-cbm-011\store\client.ts.orig-1.2.1'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\config.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\parser.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index.js'),
-            (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.9.20'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\utils.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\session-index.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\fts-index.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index-service.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\embedder.ts'),
-            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index-worker.js')
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\config.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\parser.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\dist\index.js'),
+            (Join-Path $RepoRoot 'patches\serena-tools\store\guidance.ts.orig-0.10.1'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\utils.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\session-index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\fts-index.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\index-service.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\src\embedder.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1\dist\index-worker.js')
         )
         $before = Get-FileHashes $storeFiles
         $python = (Get-Command python).Source
@@ -817,7 +817,7 @@ try {
         $serenaAgent = Join-Path $root 'serena-profile'
         $serenaPkg = Join-Path $serenaAgent 'npm\node_modules\@bacnh85\pi-serena'
         New-Item -ItemType Directory -Path (Join-Path $serenaPkg 'extensions\lib') -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $serenaPkg 'package.json'), '{"version":"0.9.20"}')
+        [IO.File]::WriteAllText((Join-Path $serenaPkg 'package.json'), '{"version":"0.10.1"}')
         Copy-Item -LiteralPath $storeFiles[0] -Destination (Join-Path $serenaPkg 'extensions\index.ts')
         Copy-Item -LiteralPath $storeFiles[5] -Destination (Join-Path $serenaPkg 'extensions\lib\guidance.ts')
         $serenaPatcher = Join-Path $RepoRoot 'patches\serena-tools\apply.py'
@@ -879,9 +879,9 @@ try {
 
         $sessionAgent = Join-Path $root 'session-profile'
         $sessionPkg = Join-Path $sessionAgent 'npm\node_modules\pi-session-search'
-        [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.6.0"}')
+        [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.6.1"}')
         foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts', 'src\utils.ts', 'src\session-index.ts', 'src\fts-index.ts', 'src\index-service.ts', 'src\embedder.ts', 'dist\index-worker.js')) {
-            $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0') $rel
+            $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.1') $rel
             $dst = Join-Path $sessionPkg $rel
             New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
             Copy-Item -LiteralPath $src -Destination $dst
@@ -901,7 +901,7 @@ try {
     Test-Case 'verifier applies external probe semantics without executing fetch' {
         $root = New-TestRoot
         $tools = New-FakeInstallToolchain $root
-        New-VersionExecutable -Path (Join-Path $tools.Bin 'ast-grep.exe') -Version '0.45.3'
+        New-VersionExecutable -Path (Join-Path $tools.Bin 'ast-grep.exe') -Version '0.51.2'
         New-VersionExecutable -Path (Join-Path $tools.Bin 'serena.exe') -Version '1.7.0'
         $cbmExe = Join-Path $tools.Prefix 'node_modules\codebase-memory-mcp\bin\codebase-memory-mcp.exe'
         New-VersionExecutable -Path $cbmExe -Version '0.12.1'

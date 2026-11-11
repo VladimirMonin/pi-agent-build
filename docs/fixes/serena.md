@@ -2,7 +2,7 @@
 
 ## Назначение
 
-Связка `@bacnh85/pi-serena 0.9.20` + `serena-agent 1.7.0` рекламирует два неработающих tools:
+Связка `@bacnh85/pi-serena 0.10.1` + `serena-agent 1.7.0` рекламирует два неработающих tools:
 
 - `serena_check_onboarding_performed`: удалён из Serena; onboarding теперь agent mode;
 - `serena_find_implementations`: текущий Python/Pyright backend не объявляет LSP `implementationProvider` и отвечает `-32601 Unhandled method`.
@@ -18,7 +18,7 @@ python patches/serena-tools/apply.py \
   --agent-dir "<CODE_PROFILE_DIR>" --apply
 ```
 
-Patcher использует immutable pristine `index.ts` и `guidance.ts` exact0.9.20 из Git, детерминированно комментирует два registration blocks и исправляет guidance. Backups обоих установленных файлов пишутся только под выбранным профилем. Stock/canonical принимаются byte-exact; unknown/mixed state отвергается.
+Patcher использует immutable pristine `index.ts` и `guidance.ts` exact 0.10.1 из Git, детерминированно комментирует два registration blocks и исправляет guidance. Backups обоих установленных файлов пишутся только под выбранным профилем. Stock/canonical принимаются byte-exact; unknown/mixed state отвергается.
 
 ## Конфигурация и данные
 

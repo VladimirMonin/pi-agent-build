@@ -1,6 +1,6 @@
 # Code intelligence (только профиль Code)
 
-## `@nicknisi/pi-ast-grep` 0.2.1
+## `@nicknisi/pi-ast-grep` 0.3.4
 
 ### Назначение
 
@@ -9,9 +9,9 @@
 ### Установка
 
 ```bash
-npm install -g @ast-grep/cli@0.45.3
+npm install -g @ast-grep/cli@0.51.2
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" \
-  pi install npm:@nicknisi/pi-ast-grep@0.2.1
+  pi install npm:@nicknisi/pi-ast-grep@0.3.4
 ```
 
 На Windows нужен [real executable fix](../fixes/ast-grep-windows.md).
@@ -44,7 +44,7 @@ npm uninstall -g @ast-grep/cli
 
 Удалите staged `ast-grep.exe` только если его не использует другой software.
 
-## `@bacnh85/pi-serena` 0.9.20 + `serena-agent` 1.7.0
+## `@bacnh85/pi-serena` 0.10.1 + `serena-agent` 1.7.0
 
 ### Назначение
 
@@ -55,7 +55,7 @@ Pi wrapper регистрирует semantic symbol/refactoring tools, а persis
 ```bash
 uv tool install --prerelease=allow "serena-agent==1.7.0"
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" \
-  pi install npm:@bacnh85/pi-serena@0.9.20
+  pi install npm:@bacnh85/pi-serena@0.10.1
 python patches/serena-tools/apply.py --agent-dir "<CODE_PROFILE_DIR>" --apply
 ```
 
