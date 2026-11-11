@@ -63,7 +63,7 @@ three-way review (skill audit, build reality check, parallel-mode design):
 
 ## 2026-10-27 — parallel lane run on a 2355-record store (1342 facts / 1076 lessons) + bulk apply
 
-(`~/.pi/memory/ops/audit-20261025/`). Corrections that changed how lanes are
+(один крупный прогон на 2355 записей). Corrections that changed how lanes are
 run (now folded into `09-bulk-apply.md` and `references/lane-contract.md`):
 
 1. parallel read-only lane subagents work well, but the 30-minute default
@@ -105,19 +105,19 @@ lower bound.
 
 ## 2026-09-29 (follow-up) — embedding hits and sibling expansion bypass the project filter on STOCK builds
 
-Prior claim that `project.wvm.*` was categorically dead was too strong: FTS
+Prior claim that `project.<имя>.*` was categorically dead was too strong: FTS
 hits are excluded on Windows, but embedding hits can leak across projects on
 stock `1.5.0`/`1.6.1`. The scoped-injection patch filters siblings by scope;
 treat this note as a stock-build fact only. Measured with the patch: local
 lessons rose from 0 to 2–3 on a generic worktree prompt (8 on a topic-specific
 one); probes fit 8000 without cutting a record.
 
-## 2026-09-29 — mode 🏷️ Tags & budget added (WVM run, 240→131 facts, 229→108 lessons)
+## 2026-09-29 — mode 🏷️ Tags & budget added (large-project run, 240→131 facts, 229→108 lessons)
 
 Two measured corrections that invalidate earlier reasoning:
 
 1. the injector's `formatSemantic` **drops the first key segment**, so
-   `project.wvm.x` displays as `wvm.x` — counting `project.*` lines in the
+   `project.<имя>.x` displays as `<имя>.x` — counting `project.*` lines in the
    block reports 0 even when the facts are present; reachability must be
    checked against raw keys (match by full record value);
 2. `lessonInjection: "selective"` in the profile settings is a real budget
@@ -130,7 +130,7 @@ trade-off, and the leaf-depth lever.
 ## 2026-09-24 — co-expansion rule corrected; mode 🧱 Bulk apply added (270 facts / 262 lessons)
 
 Corrected the co-expansion rule (the 2-segment threshold was missing and the
-`teaching_hub.task_map` example was wrong); added **Reachability** (tiers, the
+`notes.task_map` example was wrong); added **Reachability** (tiers, the
 `project = slug` lesson filter, the backslash-path trap), **key shape as a
 lever**, the rewrite rule for `source=user` records, language notes; added
 mode 🧱 with the lane contract, machine-actionable plan format, apply

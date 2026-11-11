@@ -50,10 +50,10 @@
   `keyDomainPrefix` returns the first **two** segments **only for keys with 3+
   segments**: `<a>.<b>.<c>` → `<a>.<b>`, and a hit anywhere in that domain pulls
   **all its siblings** (limit 20 for a semantic/embedding hit, 5 for an FTS hit).
-  Keys with exactly two segments (`pref.editor`, `teaching_hub.task_map`) are
+  Keys with exactly two segments (`pref.editor`, `notes.task_map`) are
   **leaf** — they pull nothing at all. So a 3-segment domain is as expensive as an
   always-injected lesson, while a 2-segment record costs only its own length.
-  (An earlier revision of this file used `teaching_hub.task_map` as the example of
+  (An earlier revision of this file used `notes.task_map` as the example of
   a drag; that example was wrong — that family is leaf.)
 - **Key shape is a lever, not cosmetics.** To take knowledge out of the injected
   block without deleting it, move the key to a leaf depth (2 segments). To shrink a

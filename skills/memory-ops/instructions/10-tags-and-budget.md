@@ -11,8 +11,8 @@ measured the hard way (2026-09-29 run on a 240-fact / 229-lesson store):**
 
 1. **What reaches the model ≠ what a DB dump shows.** The injector formats each
    fact by **dropping the FIRST key segment** (`formatSemantic` does
-   `key.split(".").slice(1).join(".")`), so `project.wvm.foo` is displayed as
-   `wvm.foo`. Counting `project.*` lines in the injected block will therefore
+   `key.split(".").slice(1).join(".")`), so `project.<имя>.foo` is displayed as
+   `<имя>.foo`. Counting `project.*` lines in the injected block will therefore
    read **0** even when project facts are present — that is a display artifact,
    not unreachability. Always match displayed lines back to raw keys **by the
    record's FULL VALUE**, not the displayed prefix. Duplicate values can make
@@ -67,10 +67,10 @@ domains, (c) the generic fact corpus that matches almost every prompt.
 **A tag must equal `projectSlug(cwd)` exactly** — the last path segment after
 `cwd.split("/")`, lower-cased, skipping a few words. Consequences:
 
-- A tag written as a **full path** (`D:/work/<project>/worktrees/<name>`)
+- A tag written as a **full path** (`…/worktrees/<имя-ветки>`)
   matches **only** when the cwd arrives with **backslashes** (then
   `split("/")` yields the whole path as one segment). With forward slashes the
-  slug is just `mic-start-snapshot` and the tag never matches.
+  slug is just `<имя-ветки>` and the tag never matches.
 - The same OS, the same folder can therefore inject *different* lessons
   depending on how the path was spelled. **This is the #1 silent bug.**
 - In stock builds (1.5.0–1.6.1), `project.<x>.*` FTS hits are filtered by
@@ -131,7 +131,7 @@ Order of operations, cheapest first:
 "memory": { "consolidationModel": "…", "lessonInjection": "selective" }
 ```
 Measured on 2026-09-29: default `"all"` injects every lesson whose
-`project = slug OR project IS NULL` (≈9436 chars for WVM); unpatched
+`project = slug OR project IS NULL` (≈9400 chars for one large project); unpatched
 `"selective"` uses FTS/search to inject ≈217–4608, **without reliably enforcing
 project scope**. On a generic worktree prompt it selected **zero** local lessons
 in two sampled worktrees. The local patch now reserves up to three local lessons
@@ -147,8 +147,9 @@ second scripting language on top of that). Kept as history in the skill
 archive. What it did is retained here as evidence — a scoped-injection patch
 (the v2 line, maintained in a separate patch repository):
 
-- scopes `project.*` facts at FTS, embedding and sibling stages; WVM root and
-  WVM_DEV worktrees map to `project.wvm.*` without changing their lesson tags;
+- scopes `project.*` facts at FTS, embedding and sibling stages; the declared
+  root and worktree paths of one project map to a shared `project.<имя>.*` alias
+  without changing their lesson tags;
 - reserves up to three local lessons ahead of topic search and ranks those
   first at selection; additional topic-relevant local lessons may fit. It rejects
   lessons tagged for another project;

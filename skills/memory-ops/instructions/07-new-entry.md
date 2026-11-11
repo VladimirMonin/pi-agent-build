@@ -87,7 +87,7 @@ not by habit:
 - **3+ segments** (`a.b.c`) → the record drags its whole `a.b` domain into the
   block whenever any sibling matches (limit 20). Use it when the record belongs
   to a domain you *want* to arrive together.
-- **2 segments** (`pref.editor`, `teaching_hub.task_map`) → **leaf**: the record
+- **2 segments** (`pref.editor`, `notes.task_map`) → **leaf**: the record
   arrives only if it matches by itself, and costs only its own length. Use it for
   rules that must be cheap, and as the way to *archive* knowledge out of the
   budget without deleting it.
