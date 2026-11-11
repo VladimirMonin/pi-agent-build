@@ -356,7 +356,7 @@ try {
             if ($route.Found -and $route.ExitCode -eq 0) {
                 # static memory route validated
             } elseif ($route.Found -and $route.ExitCode -eq 3) {
-                Write-Host "$($selected.Name) memory route: credential NOT TESTED (ключ ещё не настроен — приёмка проверит после ввода)"
+                Write-Host "$($selected.Name) memory route: credential NOT TESTED (key not configured yet - acceptance will re-check after input)"
             } else {
                 throw "$($selected.Name) settings sync refused unavailable memory model: $($route.Output)"
             }
