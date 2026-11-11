@@ -42,7 +42,7 @@ uv --version
 
 ## Что делает installer
 
-PLAN не устанавливает пакеты. Apply ставит pinned Pi в текущий npm global prefix, profile packages через штатный `pi install`, внешние Code tools и patches; создаёт отсутствующие configs/навык. Provider credentials не должны наследоваться package lifecycle children. Эти процессы всё равно имеют права пользователя: sanitized environment не sandbox. Installer не вводит credentials и не выполняет модельную приёмку.
+PLAN не устанавливает пакеты. Apply ставит pinned Pi в текущий npm global prefix, profile packages через штатный `pi install`, внешние Code tools и patches (пакетные патчи — сразу после `pi install`, инструментальные — после внешних tools); создаёт отсутствующие configs/навык, **кроме конфига session-search — его вы собираете вручную** ([справка](fixes/session-search.md)). Provider credentials не должны наследоваться package lifecycle children. Эти процессы всё равно имеют права пользователя: sanitized environment не sandbox. Installer не вводит credentials и не выполняет модельную приёмку.
 
 Default `PiRoot` — `~/.pi`: Code=`agent`, Task=`task`. Launchers рендерятся **отдельным** installer-ом; шаблоны из `launchers/` нельзя копировать буквально. Windows default bin — `~/bin`, POSIX — `~/.local/bin`. Передайте фактические `PiRoot`, bin и npm prefix одинаково в plan/apply/verify; [готовые команды](../INSTALL_FOR_AGENTS.md#3-установить-два-профиля-и-launchers).
 
@@ -118,3 +118,11 @@ bash "$REPO_ROOT/scripts/install.sh" --profile Both --pi-root "$PI_ROOT" --apply
 После частичного сбоя операция не объявляется атомарной; сохраняется достигнутый checkpoint, продолжается только незавершённый остаток. Git revert не откатывает executable, settings, БД или credentials. Остановите writers перед restore, проверьте совместимость данных и точный backup. [Перенос и откат](state-migration.md#откат).
 
 У uninstall используйте тот же package source; не удаляйте профиль, auth, память и sessions автоматически. Уборка owned временных артефактов — после освобождения их потребителей; recovery snapshot и нужные evidence сохраняются вне публичного Git. [Диагностика/хранение](../instructions/SEC.public_repository.instructions.md#диагностика-и-хранение).
+
+### Каталоги бэкапов и ловушки отката (Windows)
+
+- Installer/configs: `<PROFILE_DIR>/.pi-agent-build-backups/install/<stamp>/`;
+- патчи: `<PROFILE_DIR>/.pi-agent-build-backups/<patch>/`;
+- лаунчеры: `<BIN_DIR>/.pi-agent-build-backups/launchers/<stamp>/`.
+
+Это **не полный backup runtime и данных**: сессии, Memory DB, session-search config/индекс и `auth.json` сюда не входят. **Reinstall пакета стирает его patch** — после переустановки пакета примените `apply-patches` снова; штатный `apply-patches` и переустанавливающий npm не равнозначны.

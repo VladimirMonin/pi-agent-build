@@ -8,7 +8,7 @@
 #
 # Usage:
 #   scripts/apply-patches.sh [--profile Code|Task|Both] [--mode Check|Apply|Restore]
-#                            [--pi-root <dir>] [--repo-root <dir>]
+#                            [--group packages|tools|all] [--pi-root <dir>] [--repo-root <dir>]
 #
 # Exit codes: 0 ok / already applied; 1 (Check) one or more patches need apply;
 #             2 fatal (missing patcher, unknown state).
@@ -23,6 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PROFILE="Both"
 MODE="Check"
+GROUP="all"
 PI_ROOT="${HOME}/.pi"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -30,6 +31,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --mode) MODE="$2"; shift 2 ;;
+    --group) GROUP="$2"; shift 2 ;;
     --pi-root) PI_ROOT="$2"; shift 2 ;;
     --repo-root) REPO_ROOT="$2"; shift 2 ;;
     -h|--help) sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -39,6 +41,7 @@ done
 
 case "$PROFILE" in Code|Task|Both) ;; *) err "invalid --profile: $PROFILE"; exit 2 ;; esac
 case "$MODE" in Check|Apply|Restore) ;; *) err "invalid --mode: $MODE"; exit 2 ;; esac
+case "$GROUP" in packages|tools|all) ;; *) err "invalid --group: $GROUP"; exit 2 ;; esac
 
 REPO_ROOT="$(resolve_full_path "$REPO_ROOT")"
 PI_ROOT="$(resolve_full_path "$PI_ROOT")"
@@ -47,20 +50,23 @@ MANIFEST="$REPO_ROOT/manifests/pi-packages.lock.json"
 
 PYTHON="$(resolve_python)" || { err "python3 is required to check or apply local patches"; exit 2; }
 
-# patches_for_profile <Code|Task> -> unique patch names, one per line
+# patches_for_profile <Code|Task> -> unique patch names, one per line.
+# Group: packages = patches of profile packages (common entries); tools = patches
+# of external Code tools (codeOnly entries); all = both (default).
 patches_for_profile() {
-  "$PYTHON" - "$MANIFEST" "$1" <<'PY' | tr -d '\r'
+  "$PYTHON" - "$MANIFEST" "$1" "$GROUP" <<'PY' | tr -d '\r'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     m = json.load(fh)
 profile = sys.argv[2]
+group = sys.argv[3]
 names = []
-for e in m["profiles"]["common"]:
+for e in m["profiles"]["common"] if group in ("packages", "all") else []:
     if e.get("patch"):
         names.append(e["patch"])
     if e.get("taskProfilePatch") and (profile == "Task" or e["taskProfilePatch"] == "session-search-profile"):
         names.append(e["taskProfilePatch"])
-if profile == "Code":
+if profile == "Code" and group in ("tools", "all"):
     for e in m["profiles"].get("codeOnly", []):
         if e.get("patch"):
             names.append(e["patch"])

@@ -6,6 +6,9 @@ param(
     [ValidateSet('Check', 'Apply', 'Restore')]
     [string]$Mode = 'Check',
 
+    [ValidateSet('packages', 'tools', 'all')]
+    [string]$Group = 'all',
+
     [string]$PiRoot = (Join-Path $HOME '.pi'),
 
     [string]$RepoRoot = ''
@@ -27,14 +30,15 @@ function Get-PythonInvocation {
 function Get-PatchesForProfile {
     param([string]$ProfileName, [psobject]$Manifest)
     $result = New-Object System.Collections.Generic.List[string]
-    foreach ($entry in $Manifest.profiles.common) {
+    $commonEntries = if ($Group -in @('packages', 'all')) { $Manifest.profiles.common } else { @() }
+    foreach ($entry in $commonEntries) {
         if ($entry.PSObject.Properties.Name -contains 'patch') { $result.Add([string]$entry.patch) }
         if ($entry.PSObject.Properties.Name -contains 'taskProfilePatch' -and
             ($ProfileName -eq 'Task' -or [string]$entry.taskProfilePatch -eq 'session-search-profile')) {
             $result.Add([string]$entry.taskProfilePatch)
         }
     }
-    if ($ProfileName -eq 'Code') {
+    if ($ProfileName -eq 'Code' -and $Group -in @('tools', 'all')) {
         foreach ($entry in $Manifest.profiles.codeOnly) {
             if ($entry.PSObject.Properties.Name -contains 'patch') { $result.Add([string]$entry.patch) }
         }

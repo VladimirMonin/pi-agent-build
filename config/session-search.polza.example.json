@@ -16,10 +16,6 @@
         "queryPrefix": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
         "documentPrefix": ""
       },
-      "Qwen/Qwen3-Embedding-8B": {
-        "queryPrefix": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
-        "documentPrefix": ""
-      },
       "Qwen/Qwen3-Embedding-0.6B": {
         "queryPrefix": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
         "documentPrefix": ""

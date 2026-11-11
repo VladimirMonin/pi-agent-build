@@ -12,7 +12,7 @@ param(
 
     [string]$PiRoot = (Join-Path $HOME '.pi'),
 
-    [string]$NpmPrefix = $(if ($env:APPDATA) { Join-Path $env:APPDATA 'npm' } else { Join-Path $HOME '.npm-global' }),
+    [string]$NpmPrefix = $(if (Get-Command npm -ErrorAction SilentlyContinue) { (npm prefix -g).Trim() } elseif ($env:APPDATA) { Join-Path $env:APPDATA 'npm' } else { Join-Path $HOME '.npm-global' }),
 
     [string]$RepoRoot = ''
 )

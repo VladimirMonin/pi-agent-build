@@ -22,6 +22,8 @@ git clone https://github.com/VladimirMonin/pi-agent-build.git "<REPO_ROOT>"
 
 Если выбран опубликованный commit на `main`, чистый checkout обновляется через `git pull --ff-only`, затем SHA проверяется повторно. Для выбранного release tag используйте отдельный каталог: `git clone --branch "<PUBLISHED_TAG>" https://github.com/VladimirMonin/pi-agent-build.git "<REPO_ROOT>"`. Не переключайте dirty/shared checkout ради установки; сначала сохраните свою работу или выберите новый путь.
 
+**Вход из ZIP релиза** (без `.git`): распакуйте ассет `pi-<версия>-build.<N>-source.zip` и сверьте его SHA256 с приложенным `.sha256` — при отсутствии `.git` это единственный способ проверить источник. Установка из распакованного каталога работает теми же командами (`<REPO_ROOT>` — распакованный каталог). Проверки коммитов/тегов в этом маршруте недоступны — доверяйте только сверенному архиву.
+
 | Сценарий | Действие |
 |---|---|
 | Новая установка | Проверить prerequisites → PLAN → Apply → локальные credentials → короткая приёмка |
@@ -60,9 +62,22 @@ uv --version
 
 На POSIX подставьте выбранный `python3`, если команды `python` нет. Недостающие prerequisites устанавливаются отдельно по правилам машины, не обходом verifier.
 
+**Получение lab-пинов (точные источники):**
+
+| Инструмент | Команда/источник |
+|---|---|
+| Node `25.8.1` (portable) | <https://nodejs.org/dist/v25.8.1/node-v25.8.1-win-x64.zip> |
+| Git `2.54.0.windows.1` (portable) | ассет **`PortableGit-2.54.0-64-bit.7z.exe`** в <https://github.com/git-for-windows/releases/tag/v2.54.0.windows.1> (имя ассета не содержит `.windows.1`) |
+| uv `0.9.27` | `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"` (<https://docs.astral.sh/uv/>) |
+| `jsonschema` для Python | `python -m pip install jsonschema` (в тот же интерпретатор) |
+
+**Портативный Node без прав администратора:** `npm prefix -g` указывает внутрь каталога Node; `NPM_CONFIG_PREFIX` установщиком отбрасывается (sanitized environment) — задайте prefix через `.npmrc` внутри каталога Node. uv-шимы ставятся в `%USERPROFILE%\.local\bin` — добавьте каталог в PATH, иначе `serena-agent` не найдётся. Порядок PATH важен: если `Program Files\nodejs` идёт раньше портативного Node, `npm --version` показывает старую версию и следующая сверка падает — проверяйте `where.exe node` и `where.exe npm`.
+
+**Кодировка консоли:** при не-ASCII пути профиля включите UTF-8 до запуска — `chcp 65001` (cmd) или `[Console]::OutputEncoding = [Text.UTF8]::UTF8` (PowerShell) — иначе возможны ложный «Required JSON file not found» и кракозябры в логах. `.ps1` с кириллицей сохраняйте **с BOM**: PS 5.1 читает без BOM как CP866 и ломает парсинг.
+
 ## 3. Установить два профиля и launchers
 
-Installer по умолчанию показывает PLAN; только Apply выполняет package/config writes. Он использует штатный `pi install` для exact sources, не запускает модельную сессию и не вводит ключи. **Оба** этапа должны закончиться успешно.
+Installer по умолчанию показывает PLAN; только Apply выполняет package/config writes. Он использует штатный `pi install` для exact sources, не запускает модельную сессию и не вводит ключи. **Оба** этапа должны закончиться успешно. Перед запуском убедитесь, что **ни один процесс `pi` не запущен** (ни Code, ни Task): параллельный запуск даёт npm EPERM и частично распакованные пакеты, которые verify не заметит. Ожидаемая длительность полного Apply — **5–10+ минут**; не запускайте цепочку из команды с таймаутом ~120 с (типичные агентские инструменты) — так установка умирает на середине с частичным состоянием.
 
 ### Windows — PowerShell
 
@@ -78,7 +93,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\insta
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$RepoRoot\scripts\verify.ps1" -Profile Both -PiRoot $PiRoot
 ```
 
-`Bypass` действует только на этот дочерний процесс. Если шаг завершился неуспешно, не продолжайте цепочку. При необходимости добавьте `$BinDir` в пользовательский PATH или вызывайте launchers полным путём.
+`Bypass` действует только на этот дочерний процесс. Если шаг завершился неуспешно, не продолжайте цепочку. При необходимости добавьте `$BinDir` в пользовательский PATH или вызывайте launchers полным путём. `-Shell Both` на Windows требует установленного **Git Bash** (`bash.exe` в PATH): без него POSIX-вариант лаунчеров не работает.
 
 ### macOS/Linux — Bash
 
@@ -101,7 +116,31 @@ bash "$REPO_ROOT/scripts/verify.sh" --profile Both --pi-root "$PI_ROOT"
 | Code | `~/.pi/agent` | `pi-code` (Windows: `pi-code.cmd`) |
 | Task | `~/.pi/task` | `pi-task` (Windows: `pi-task.cmd`) |
 
-Launchers задают `PI_CODING_AGENT_DIR` процессу и выбирают Pi из указанного npm prefix. Не используйте глобальный `setx PI_CODING_AGENT_DIR`. Обычный `pi` остаётся стандартным профилем. Trace установлен, **выключен по умолчанию**; [разовый opt-in](docs/trace.md) не нужен для обычной приёмки.
+Launchers задают `PI_CODING_AGENT_DIR` процессу и выбирают Pi из указанного npm prefix. Лаунчеры **вшивают** этот prefix: после переезда Node/npm-prefix перегенерируйте их тем же `install-launchers` с новыми `-NpmPrefix`/`-TargetDir` (дефолт `-NpmPrefix` берёт текущий `npm prefix -g`). Обычный `pi` без лаунчера открывает профиль по умолчанию, не Code/Task. Не используйте глобальный `setx PI_CODING_AGENT_DIR`. Trace установлен, **выключен по умолчанию**; [разовый opt-in](docs/trace.md) не нужен для обычной приёмки.
+
+### Возобновление после сбоя и сетевые шаги
+
+Сбой не атомарен: продолжайте только незавершённый остаток, не начиная сначала. Флаги обоих установщиков — `-SkipPackageInstall`/`--skip-package-install`, `-SkipPatches`/`--skip-patches`, `-SyncSettingsOnly`/`--sync-settings-only`:
+
+| Флаг | Пропускает | Когда |
+|---|---|---|
+| `-SkipPackageInstall` | Pi, пакеты и внешние Code tools | ядро/пакеты уже установлены (verify это показывает) |
+| `-SkipPatches` | все локальные патчи | патчи применены или применяются отдельно (`apply-patches`) |
+| `-SyncSettingsOnly` | всё, кроме settings | нужны только settings из шаблонов (с backup и проверкой memory-маршрута) |
+
+Порядок доведения: verify показал недостающее → повторный Apply с нужным флагом → verify снова. Ошибка установки пакета печатает полную команду с именем пакета и последние строки вывода дочернего процесса. Вывод патчера `ALREADY PATCHED` (или `patched` для выключенного Trace) означает уже применённое состояние — это норма, не ошибка. При расхождении точных пинов на Windows обход — флаг `-AllowVersionMismatch` у `install.ps1`/`verify.ps1` (mismatch становится WARN; на POSIX дрейф и так WARN, `verify.sh --strict-runtime` делает его ошибкой).
+
+**Сетевые шаги (зависят от канала):** postinstall `pi-cbm` качает ~40 МБ бинарник с GitHub с таймаутом 120 с; на медленном канале npm откатывает пакет. Ручной fallback: `pi install` пакета с `--ignore-scripts`, бинарник из релиза пакета и сверка его SHA-256. Пакетные патчи применяются сразу после `pi install` и не ждут внешние tools.
+
+### Сквозной чек-лист «поставь и проверь»
+
+1. `install.ps1 -Profile Both` (PLAN);
+2. тот же вызов с `-Apply`;
+3. `install-launchers.ps1 ...` (PLAN);
+4. тот же вызов с `-Apply`;
+5. `verify.ps1 -Profile Both`.
+
+Затем §6: model check, memory check, Context7. Шаги 3–4 легко забыть: без них `pi-code`/`pi-task` не существуют, а verify остаётся зелёным.
 
 ## 4. Настроить независимые маршруты Polza и памяти
 
@@ -114,7 +153,7 @@ Launchers задают `PI_CODING_AGENT_DIR` процессу и выбираю�
 | Embeddings Memory | `memory.embedding` в приватных settings | Модель и размерность векторов; это не модель консолидации |
 | Поиск истории | Собственный session-search config/index | Default `semantic-only` требует embedder + точный `modelPrefixes`; FTS без embeddings — только явный `rrf`. Внешний endpoint получает текст |
 
-Installer добавляет отсутствующий статический `polza-memory`, но **не обеспечивает ему секрет**. Login для `polza` сам по себе не настраивает этот route. Пример служебного provider использует `POLZA_API_KEY`; допустим существующий проверенный secret helper. Memory embeddings и session-search настраиваются отдельно по [справке](docs/polza-memory.md). Не меняйте модель/размерность и не запускайте массовые backfill/reindex ради проверки установки. Общая Memory DB по умолчанию не означает общие настройки профилей.
+Installer добавляет отсутствующий статический `polza-memory`, но **не обеспечивает ему секрет**. Повторный Apply **сохраняет** существующий `models.json`/`polza-memory` (`preserved`) и не применяет к нему изменения манифеста — правьте вручную. Login для `polza` сам по себе не настраивает этот route. Пример служебного provider использует `POLZA_API_KEY`; допустим существующий проверенный secret helper. Memory embeddings и session-search настраиваются отдельно по [справке](docs/polza-memory.md). Не меняйте модель/размерность и не запускайте массовые backfill/reindex ради проверки установки. Общая Memory DB по умолчанию не означает общие настройки профилей.
 
 **Переход с build.3:** patcher обновляет package, а installer сохраняет существующий session-search config. Перед приёмкой дополните его обязательным `embedder.modelPrefixes[точный model]` с обеими string-prefixes и выберите `fusion: "semantic-only"`, если нужен только cosine. Не заменяйте свой файл публичным примером и не меняйте ключ/модель/размерность/roots попутно. Для прежнего Qwen documentPrefix остаётся `""`, forced reindex не нужен. Code/Task имеют отдельные config/index; отсутствующий конфиг надо настроить, а не считать готовым по наличию пакета. [Точный preserving recipe и настройки](docs/fixes/session-search.md#мастер-настройки-и-обновление-прежнего-конфига).
 
@@ -128,10 +167,12 @@ Installer добавляет отсутствующий статический `
 
 ## 6. Короткая приёмка и восстановление
 
+**Слои приёмки:** `install-integrity` (failures в verify: версии, manifests, пакеты, патчи) → `config-readiness` (WARN/exit-3: credential и прочая «ещё не настроенная» готовность) → `live` (пункты 2–5 ниже: сеть и платные вызовы). **Ожидаемое состояние до ввода Polza-ключа:** memory-credential проверки дают WARN «credential NOT TESTED» (exit 3) — это норма свежей установки (PENDING-CREDENTIALS), не дефект; дефект — нарушенный контракт конфига/версий.
+
 1. Verifier обоих профилей: версии, filters, patches, доступные CLI. Это **не** модельный запрос или live MCP proof.
-2. `pi-code --version` и `pi-task --version`, затем `list` и `--list-models` у каждого launcher. Сверьте профиль, ядро и основной `polza` отдельно от `polza-memory`.
+2. `pi-code --version` и `pi-task --version`, затем `list` и `--list-models` у каждого launcher. Сверьте профиль, ядро и основной `polza` отдельно от `polza-memory`. Учтите: `--list-models` тянет каталог Polza **по сети** и может уйти в таймаут (офлайн-альтернативы нет), а непустой список **не доказывает** валидный ключ — каталог доступен и без него.
 3. Для функциональной приёмки создайте **новую** сессию. Сопоставьте ожидаемые provider/model с фактическим SDK/RPC state и структурированным результатом короткого разрешённого запроса. Не спрашивайте модель о её имени. Mismatch, timeout, ошибка/обрыв — не PASS. Явная пользовательская альтернатива меняет ожидание.
-4. Context7: discovery → `resolve-library-id` → `query-docs` через MCP сборки. URL, произвольный GET или список серверов не доказывают вызов. Сеть/auth/rate limit фиксируйте отдельно; не удаляйте default из-за внешнего отказа.
+4. Context7 — живой вызов MCP (сеть). Конфигурационная часть (офлайн: файл adapter, discovery-настройки) — в [mcp](docs/components/mcp.md); «config PASS» **не равен** «сеть доступна»: discovery → `resolve-library-id` → `query-docs` через MCP сборки. URL, произвольный GET или список серверов не доказывают вызов. Сетевой отказ/rate limit фиксируйте отдельно от конфигурации; не удаляйте default из-за внешнего отказа.
 5. Память: `memory_stats` и адресный synthetic сценарий для затронутой операции. Работа консолидации не доказывает основной `polza`; факт от `memory_remember` не доказывает автоматическую консолидацию. Не повторяйте всю release-матрицу при обычной установке.
 
 Model/embedding/consolidation вызовы могут быть платными и передавать данные. Делайте только короткую проверку в разрешённом scope. CLI listing тоже может обращаться за каталогом.

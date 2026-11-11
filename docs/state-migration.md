@@ -68,7 +68,7 @@ Project-local memory (`<project>/.pi/.../memory.db`) переносится вм
 
 ### Session search
 
-Это поиск по history/index, **не shared Memory fact store**. Восстановимый индекс не требует автоматического массового `/session-reindex` после каждого package update. Сохраняйте действующий index/config route; reindex нужен при реальной необходимости и в разрешённом scope. Default index/config roots сборки:
+Это поиск по history/index, **не shared Memory fact store**. ⚠ Конфиг Code живёт **вне** профиля (`~/.pi/session-search/`), Task — внутри (`~/.pi/task/session-search/`): бэкап/перенос «профиля» Code теряет его конфиг, включайте путь отдельно. Восстановимый индекс не требует автоматического массового `/session-reindex` после каждого package update. Сохраняйте действующий index/config route; reindex нужен при реальной необходимости и в разрешённом scope. Default index/config roots сборки:
 
 - Code: `~/.pi/session-search/`;
 - Task после patch: `~/.pi/task/session-search/`.

@@ -5,6 +5,7 @@
     {
       "name": "git",
       "version": "2.54.0.windows.1",
+      "minimumVersion": "2.0",
       "required": true
     },
     {
@@ -15,6 +16,7 @@
     {
       "name": "uv",
       "version": "0.9.27",
+      "minimumVersion": "0.9.27",
       "requiredFor": ["serena-agent"]
     }
   ],

@@ -11,9 +11,48 @@
 
 Штатный сохранённый login для **main `polza`** не требует `.env`. Он не настраивает автоматически credential служебного provider, Memory embeddings или session-search. Успех любого из трёх вспомогательных путей не подтверждает основную модель.
 
+Порядок получения ключа основного `polza` (по исходникам `pi-polza`): (1) сохранённый credential `/login polza`; (2) `POLZA_API_KEY` из окружения процесса — в том числе заполненный из `.env`; (3) не настроен → Pi сообщает provider unconfigured вместо 401. `.env` читается из **каталога запуска Pi** (`<cwd>/.env`; иной путь — `PI_POLZA_ENV_FILE`), не из каталога пакета. Переменные, заданные после старта Проводника/старого терминала, не видны уже запущенным процессам — перезапустите их.
+
 Это не третий plugin. `polza-memory` — запись в штатном `models.json` Pi.
 
 > В Memory1.6 Polza используется в двух независимых ролях: DeepSeek для консолидации (без изменения модели) и `qwen/qwen3-embedding-8b`,1024d для automatic vector recall через `memory.embedding`. Старый локальный Xenova384d удалён из patch; incompatible dimensions не сравниваются, upstream backfill обновляет vectors после restart. SQLite backup сделана до переключения. Подробнее: [memory fix](fixes/memory.md).
+
+## Ключи Polza: все роли и ротация
+
+Секрет упоминается в четырёх независимых местах — это разные роли, не дубликаты:
+
+| Роль | Где хранится | Форма |
+|---|---|---|
+| Основной агент `polza` | `<PROFILE_DIR>/auth.json`, штатный `/login` | credential Pi (приоритет 1) |
+| Основной агент, запасной путь | `POLZA_API_KEY` в окружении или `<cwd>/.env` | env-переменная |
+| Статический `polza-memory` (консолидация) | `apiKey` в `<PROFILE_DIR>/models.json` | литерал или `!<credential-helper>` |
+| Embeddings Memory | `memory.embedding.apiKey` в приватных settings | литерал (env-fallback у этого типа нет) |
+| Поиск истории | `embedder.apiKey` в session-search `config.json` | литерал |
+
+Headless-формат `auth.json` (когда `/login` недоступен): запись провайдера `"polza": { "type": "api_key", "key": "<LOCAL_SECRET>" }` в `<PROFILE_DIR>/auth.json`; файл — только для пользователя, не в Git и не в архивы. Проверка фактического маршрута — короткий запрос в новой сессии (§6 INSTALL_FOR_AGENTS), не наличие файла.
+
+**Ротация ключа:** выпустите новый ключ в кабинете Polza, затем замените его во **всех** местах таблицы (`/login polza` заново, `models.json`, `memory.embedding`, session-search config, `.env` при использовании) и отзовите старый. Частичная замена оставляет тихо сломанный служебный маршрут.
+
+## `memory.embedding` для памяти
+
+Embedding-маршрут памяти живёт в приватных settings профиля (`memory.embedding`), отдельно от session-search. Поля (по исходникам `@samfp/pi-memory`): `type` (для Polza — `"openai-compatible"`), `model`, `baseUrl`, `dimensions`, `sendDimensions`, `apiKey`, плюс patch-поле `queryPrefix`:
+
+```json
+{
+  "memory": {
+    "embedding": {
+      "type": "openai-compatible",
+      "model": "qwen/qwen3-embedding-8b",
+      "baseUrl": "https://polza.ai/api",
+      "dimensions": 1024,
+      "sendDimensions": true,
+      "apiKey": "<LOCAL_SECRET>"
+    }
+  }
+}
+```
+
+**Ловушки:** `baseUrl` — **без `/v1`** (пакет сам дописывает `/v1/embeddings`; лишний `/v1` даёт 404); для типа `openai-compatible` env-fallback у `apiKey` **нет** — только литерал (env есть лишь у `openai`/`mistral` через `OPENAI_API_KEY`/`MISTRAL_API_KEY`); `dimensions` должна совпадать с существующими векторами БД — одинаковая длина не делает разные embedding spaces совместимыми. Правило `queryPrefix` для Qwen — в [memory fix](fixes/memory.md#query-only-формат-qwen).
 
 ## Почему нужен статический provider
 
@@ -104,7 +143,9 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 - Code: `~/.pi/session-search/config.json`;
 - Task: `~/.pi/task/session-search/config.json` после [profile patch](fixes/session-search.md).
 
-Config хранит API key как literal. Ограничьте доступ к файлу и не добавляйте его в Git. Для уже настроенного индекса начните с короткой проверки, без forced reindex:
+⚠ **Асимметрия путей:** конфиг Code живёт **вне** профиля, Task — внутри. Бэкап или перенос «профиля» Code не захватывает его session-search config — включайте этот путь отдельно (см. также [state-migration](state-migration.md#session-search)).
+
+Config хранит API key как literal. Ограничьте доступ к файлу и не добавляйте его в Git. JSON записывайте в **UTF-8 без BOM**: `ConvertTo-Json | Set-Content` пишет UTF-16/BOM, который Pi читает не тем способом; используйте `[IO.File]::WriteAllText($path, $json, [Text.UTF8Encoding]::new($false))`. Не допускайте ключей, различающихся только регистром: JSON их различает, а PowerShell `ConvertFrom-Json` падает с «duplicated keys». Валидатор конфига: `node scripts/check-session-search-config.mjs <путь к config.json>` (0 — валиден, 3 — не настроен, 2 — ошибка записи). Для уже настроенного индекса начните с короткой проверки, без forced reindex:
 
 ```text
 /session-sync

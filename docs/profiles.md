@@ -12,6 +12,8 @@
 | `pi-cbm` | да | нет |
 | Провайдер по умолчанию | `polza` | `ollama-cloud` |
 | Модель по умолчанию | `z-ai/glm-5.3-flash` | `deepseek-v4.1-flash` |
+
+**Дефолты моделей — заглушки**, не заявленный Polza-путь (см. строку выше и `pi-goal-x-settings.json` → `openai-codex/gpt-6.1-sol` в [goal-autonomy](goal-autonomy.md)). После установки: `/login polza` → `/model` → проверка §6 INSTALL_FOR_AGENTS; для Goal X отредактируйте `pi-goal-x-settings.json` профиля. Повторный Apply переживает ваши default-модели (installer сохраняет существующие settings и `models.json` — `preserved`), но §6.3 сверяет ожидание с фактом — указывайте ожидаемую модель явно, не полагайтесь на шаблон.
 | CBM env | launcher задаёт | нет |
 | Назначение | кодовая навигация и impact analysis | задачи без дорогого code-intelligence surface |
 

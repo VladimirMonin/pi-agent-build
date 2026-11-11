@@ -55,7 +55,7 @@
       },
       "oneOf": [
         { "required": ["version"] },
-        { "required": ["minimumVersion"] }
+        { "required": ["minimumVersion"], "not": { "required": ["version"] } }
       ]
     },
     "mcpTool": {

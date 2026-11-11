@@ -15,7 +15,9 @@ param(
 
     [switch]$SkipPatchChecks,
 
-    [switch]$SkipExternalChecks
+    [switch]$SkipExternalChecks,
+
+    [switch]$AllowVersionMismatch
 )
 
 Set-StrictMode -Version 2.0
@@ -111,7 +113,8 @@ function Test-ExactToolVersion {
     }
     $actual = Get-VersionFromText $result.Output
     if ($result.ExitCode -ne 0 -or $actual -ne $Expected) {
-        Fail "$Label expected $Expected, found $actual (exit $($result.ExitCode))"
+        if ($AllowVersionMismatch) { Warn "$Label expected $Expected, found $actual (allowed by -AllowVersionMismatch)" }
+        else { Fail "$Label expected $Expected, found $actual (exit $($result.ExitCode))" }
     } else { Pass "$Label $actual" }
 }
 
@@ -422,7 +425,7 @@ try {
             } catch { Fail "lab verification failed: $($_.Exception.Message)" }
         }
         Warn 'NOT TESTED: WVM, optional MCP/tools-call, real provider transport and native Linux/macOS; private stdio probes are not an OS sandbox'
-        Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings"
+        Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings (layers: failures=install-integrity, warnings=config-readiness; live вЂ” see INSTALL_FOR_AGENTS section 6)"
         if ($script:Failures -gt 0) { exit 1 }
         exit 0
     }
@@ -434,6 +437,9 @@ try {
         Test-ExactToolVersion -Command 'npm' -Arguments @('--version') -Expected ([string]$runtime.runtime.npm) -Label 'npm'
         $gitLock = @($external.common | Where-Object { $_.name -eq 'git' })[0]
         Test-ExactToolVersion -Command 'git' -Arguments @('--version') -Expected ([string]$gitLock.version) -Label 'Git'
+        $uvLock = @((Read-JsonFile (Join-Path $RepoRoot 'manifests\external-tools.lock.json')).common | Where-Object { $_.name -eq 'uv' })[0]
+        $uvMinimum = if ($uvLock.PSObject.Properties.Name -contains 'minimumVersion') { [string]$uvLock.minimumVersion } else { [string]$uvLock.version }
+        Test-MinimumToolVersion -Command 'uv' -Arguments @('--version') -Minimum $uvMinimum -Label 'uv'
         $pythonLock = @($external.common | Where-Object { $_.name -eq 'python' })[0]
         Test-MinimumToolVersion -Command 'python' -Arguments @('--version') -Minimum ([string]$pythonLock.minimumVersion) -Label 'Python'
 
@@ -470,11 +476,11 @@ try {
         }
     }
 
-    Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings"
+    Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings (layers: failures=install-integrity, warnings=config-readiness; live вЂ” see INSTALL_FOR_AGENTS section 6)"
     if ($script:Failures -gt 0) { exit 1 }
     exit 0
 } catch {
     Fail $_.Exception.Message
-    Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings"
+    Write-Host "VERIFY result: failures=$script:Failures warnings=$script:Warnings (layers: failures=install-integrity, warnings=config-readiness; live вЂ” see INSTALL_FOR_AGENTS section 6)"
     exit 2
 }

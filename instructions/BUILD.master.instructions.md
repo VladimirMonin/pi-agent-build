@@ -38,6 +38,7 @@ description: "Читай при любом изменении состава п�
 | Локальные исправления | `patches/<имя>/` |
 | Назначение компонентов | `docs/components/` |
 | Установка и обновление | `scripts/` + `docs/setup.md` + `docs/pi-upgrade-workflow.md` |
+| Быстрый старт и схемы конфигов | `docs/QUICKSTART.md` + `docs/config-schemas.md` |
 | Лабораторный стенд и доказательства | `BUILD.lab_upgrade` + `docs/lab-stand.md` + `docs/lab-evidence.md` |
 | Публичная безопасность | `SEC.public_repository` + `scripts/safety-check.ps1` |
 

@@ -38,9 +38,10 @@
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["minimumNode", "reason"],
+      "required": ["minimumNode", "enforcement", "reason"],
       "properties": {
         "minimumNode": { "$ref": "#/$defs/semver" },
+        "enforcement": { "enum": ["exact", "minimum", "warn"] },
         "reason": { "type": "string", "minLength": 1 }
       }
     },

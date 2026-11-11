@@ -353,13 +353,21 @@ function Invoke-CheckedCommand {
     Write-Host ('RUN  ' + (Format-CommandLine -Command $Command -Arguments $Arguments))
     $oldLocation = Get-Location
     $script:ChildCommandExitCode = 0
+    $script:ChildCommandTail = @()
     try {
         if ($WorkingDirectory) { Set-Location -LiteralPath $WorkingDirectory }
         Invoke-WithChildEnvironment -Sanitize:$SanitizeEnvironment -Environment $Environment -ScriptBlock {
             $priorPreference = $ErrorActionPreference
             try {
                 $ErrorActionPreference = 'Continue'
-                & $resolved.Source @Arguments
+                & $resolved.Source @Arguments 2>&1 | ForEach-Object {
+                    $line = "$_"
+                    $script:ChildCommandTail += $line
+                    if ($script:ChildCommandTail.Count -gt 8) {
+                        $script:ChildCommandTail = $script:ChildCommandTail[($script:ChildCommandTail.Count - 8)..($script:ChildCommandTail.Count - 1)]
+                    }
+                    Write-Host $line
+                }
                 $script:ChildCommandExitCode = $LASTEXITCODE
             } finally { $ErrorActionPreference = $priorPreference }
         }
@@ -368,7 +376,13 @@ function Invoke-CheckedCommand {
     }
     $code = $script:ChildCommandExitCode
     if ($null -eq $code) { $code = 0 }
-    if ($code -ne 0) { throw "Command failed with exit code ${code}: $Command" }
+    if ($code -ne 0) {
+        $tail = ''
+        if ($script:ChildCommandTail -and @($script:ChildCommandTail).Count) {
+            $tail = ' Last output: ' + ((@($script:ChildCommandTail) | Select-Object -Last 4) -join ' | ')
+        }
+        throw "Command failed with exit code ${code}: $(Format-CommandLine -Command $Command -Arguments $Arguments).$tail"
+    }
 }
 
 function Get-CommandOutput {

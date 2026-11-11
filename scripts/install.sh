@@ -269,8 +269,8 @@ if [ "$SKIP_PACKAGE_INSTALL" != "1" ]; then
     "$(resolve_python)" "$REPO_ROOT/patches/memory-windows-runtime/apply.py" --prepare-replace --agent-dir "$profile_root"
     probe_code=$?
     set -e
-    [ "$probe_code" -le 1 ] || { err "$name memory preflight refused unknown state before reinstall"; exit 2; }
-    log "PASS $name memory preflight (known state; exit $probe_code)"
+    [ "$probe_code" -le 1 ] || { err "$name memory patch state probe refused unknown state before reinstall"; exit 2; }
+    log "PASS $name memory patch state probe (known state; exit $probe_code)"
   done < <(selected_profiles "$PROFILE")
 fi
 
@@ -372,6 +372,14 @@ while IFS=$'\t' read -r name dir; do
 done < <(selected_profiles "$PROFILE")
 
 # --------------------------------------------------------------------------- #
+# apply: package patches (right after pi install; external tools cannot block them)
+# --------------------------------------------------------------------------- #
+if [ "$SKIP_PATCHES" != "1" ]; then
+  run_checked "apply package patches" "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Apply \
+    --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" --group packages
+fi
+
+# --------------------------------------------------------------------------- #
 # apply: external Code tools
 # --------------------------------------------------------------------------- #
 if [ "$SKIP_PACKAGE_INSTALL" != "1" ] && { [ "$PROFILE" = "Code" ] || [ "$PROFILE" = "Both" ]; }; then
@@ -395,11 +403,11 @@ PY
 fi
 
 # --------------------------------------------------------------------------- #
-# apply: patches
+# apply: tool patches (need external Code tools installed above)
 # --------------------------------------------------------------------------- #
 if [ "$SKIP_PATCHES" != "1" ]; then
-  run_checked "apply patches" "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Apply \
-    --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT"
+  run_checked "apply tool patches" "$SCRIPT_DIR/apply-patches.sh" --profile "$PROFILE" --mode Apply \
+    --pi-root "$PI_ROOT" --repo-root "$REPO_ROOT" --group tools
 fi
 
 # --------------------------------------------------------------------------- #

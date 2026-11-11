@@ -17,7 +17,9 @@ param(
 
     [switch]$SyncSettingsOnly,
 
-    [switch]$ReplaceProfileConfigs
+    [switch]$ReplaceProfileConfigs,
+
+    [switch]$AllowVersionMismatch
 )
 
 Set-StrictMode -Version 2.0
@@ -60,7 +62,10 @@ function Assert-ExactCommandVersion {
     if (-not $result.Found) { throw "$Label is required but '$Command' was not found." }
     if ($result.ExitCode -ne 0) { throw "$Label version check failed with exit code $($result.ExitCode)." }
     $actual = Get-VersionFromText $result.Output
-    if ($actual -ne $Expected) { throw "$Label version mismatch: expected $Expected, found $actual." }
+    if ($actual -ne $Expected) {
+        if ($AllowVersionMismatch) { Write-Host "WARN $Label version mismatch: expected $Expected, found $actual (allowed by -AllowVersionMismatch)"; return }
+        throw "$Label version mismatch: expected $Expected, found $actual."
+    }
     Write-Host "PASS $Label $actual"
 }
 
@@ -474,9 +479,19 @@ try {
         else { Write-Warning 'Context7 configuration NOT TESTED: package installation skipped and adapter unavailable.' }
     }
 
+    if (-not $SkipPatches) {
+        $patchHost = (Get-Process -Id $PID).Path
+        Invoke-CheckedCommand -Command $patchHost -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'apply-patches.ps1'), '-Profile', $Profile, '-Mode', 'Apply', '-Group', 'packages', '-PiRoot', $PiRoot, '-RepoRoot', $RepoRoot) -SanitizeEnvironment
+    }
+
     if (-not $SkipPackageInstall -and @($profiles | Where-Object { $_.Name -eq 'Code' }).Count -gt 0) {
         $uvLock = @($external.common | Where-Object { $_.name -eq 'uv' })[0]
-        Assert-ExactCommandVersion -Command 'uv' -Arguments @('--version') -Expected ([string]$uvLock.version) -Label 'uv'
+        $uvResult = Get-CommandOutput -Command 'uv' -Arguments @('--version') -SanitizeEnvironment
+        if (-not $uvResult.Found) { throw "uv is required but 'uv' was not found." }
+        $uvActual = Get-VersionFromText $uvResult.Output
+        $uvMinimum = if ($uvLock.PSObject.Properties.Name -contains 'minimumVersion') { [string]$uvLock.minimumVersion } else { [string]$uvLock.version }
+        if (-not (Test-VersionAtLeast -Actual $uvActual -Minimum $uvMinimum)) { throw "uv version mismatch: expected >= $uvMinimum, found $uvActual." }
+        Write-Host "PASS uv $uvActual (minimum $uvMinimum; exact pin $([string]$uvLock.version) is lab-only)"
         foreach ($tool in $external.codeProfile) {
             if ($tool.PSObject.Properties.Name -contains 'installer' -and [string]$tool.installer -eq 'uv tool') {
                 Invoke-CheckedCommand -Command 'uv' -Arguments @('tool', 'install', '--python', [string]$tool.pythonVersion, '--force', '--prerelease=allow', "$($tool.package)==$($tool.version)") -SanitizeEnvironment
@@ -506,7 +521,7 @@ try {
 
     if (-not $SkipPatches) {
         $powerShellExe = (Get-Process -Id $PID).Path
-        Invoke-CheckedCommand -Command $powerShellExe -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'apply-patches.ps1'), '-Profile', $Profile, '-Mode', 'Apply', '-PiRoot', $PiRoot, '-RepoRoot', $RepoRoot) -SanitizeEnvironment
+        Invoke-CheckedCommand -Command $powerShellExe -Arguments @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'apply-patches.ps1'), '-Profile', $Profile, '-Mode', 'Apply', '-Group', 'tools', '-PiRoot', $PiRoot, '-RepoRoot', $RepoRoot) -SanitizeEnvironment
     }
 
 

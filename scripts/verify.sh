@@ -528,6 +528,6 @@ elif [ "$REPOSITORY_ONLY" != "1" ]; then
   fi
 fi
 
-log "VERIFY result: failures=$FAILURES warnings=$WARNINGS"
+log "VERIFY result: failures=$FAILURES warnings=$WARNINGS (layers: failures=install-integrity, warnings=config-readiness; live — см. INSTALL_FOR_AGENTS §6)"
 [ "$FAILURES" -gt 0 ] && exit 1
 exit 0
