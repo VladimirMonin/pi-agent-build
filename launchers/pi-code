@@ -9,14 +9,14 @@ export PI_CBM_AUTO_REFRESH_INTERVAL_MS=300000
 # Resolve the real Codebase Memory executable. On Windows npm installs a
 # shell shim plus a sibling .exe; on macOS/Linux the npm shim is directly
 # spawnable. Prefer an explicit override, then PATH, then the package tree.
-if [ -z "${CODEBASE_MEMORY_MCP_BIN:-}" ]; then
+if [ -z "${PI_CBM_BIN:-}" ]; then
   for candidate in \
     "$(command -v codebase-memory-mcp 2>/dev/null || true)" \
     "$PI_AGENT_BUILD_NPM_PREFIX/bin/codebase-memory-mcp" \
     "$PI_AGENT_BUILD_NPM_PREFIX/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp.exe" \
     "$PI_AGENT_BUILD_NPM_PREFIX/node_modules/codebase-memory-mcp/bin/codebase-memory-mcp"; do
     if [ -n "$candidate" ] && [ -x "$candidate" ]; then
-      export CODEBASE_MEMORY_MCP_BIN="$candidate"
+      export PI_CBM_BIN="$candidate"
       break
     fi
   done
