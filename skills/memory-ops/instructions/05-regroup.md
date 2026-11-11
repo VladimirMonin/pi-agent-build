@@ -1,31 +1,62 @@
-# Режим 📦 Перегруппировка
+# Mode 📦 Regroup
 
-> АГЕНТ: ЧИТАЙ ЭТОТ ФАЙЛ ЦЕЛИКОМ. Цель — связные темы, а не минимальное количество строк.
+When: topics are smeared across several records (past over-fragmentation), or a
+series of facts about a new process begins. Plan —
+`reports/report-regroup-plan.md`.
 
-Когда: знания одной темы размазаны по нескольким записям или старое дробление стало дорогим. План: [synthetic regroup plan](../reports/report-regroup-plan.md).
+## Steps
 
-## Шаги
+### Step 1. Topic map
+Write out every record + its topic in one line. Working document — only the
+outcome is shown to the user. If this session already made mutations, use tools
++ `journal/work-log.md` for the current state.
 
-1. Построить карту `id/key → тема → source → reachability → chars` по текущему состоянию.
-2. Кластеризовать по вопросу «о чём это?», применяя «одну тарелку», «один сюжет» и размер из [общих правил](00-shared-rules.md).
-3. Проверить влияние key depth/project на инъекцию: красивое слияние, увеличившее co-expansion, может быть хуже исходника.
-4. Написать все target records одновременно и сохранить точные identifiers/numbers/paths/flags.
-5. Сверить каждый source fact с targets; потеря хотя бы одного — stop.
-6. Показать `было → станет`, source provenance, операции и ожидаемый бюджет. Получить подтверждение; owner records требуют отдельного override.
-7. Backup → dry-run всех планов → apply в безопасном порядке: новые/updated targets, read-back, старые строки последними.
-8. Повторить probe на свежем snapshot и честно сообщить, если truncation остался.
-9. Итог и runtime log по шаблонам.
+### Step 2. Clustering
+Group records by the answer to "what is this about?". Borderline ones go
+through the "one plate" and "one storyline" tests and the size rule from
+`00-shared-rules.md`. Remember: the goal is coherent topics, not a maximum or
+minimum number of records. A 500–1000 character entry with one storyline is not
+a candidate for cutting.
 
-## Новый тематический кластер
+### Step 3. Drafts
+Write the text of ALL target records at once, per the short entry formula. Then
+reconcile fact-for-fact against the sources: every fact of the original records
+must appear in the drafts. A lost fact means stop and fix.
 
-Начинай с одной связной записи и дополняй её, пока сохраняется один сюжет. При 500–1000 символах не режь только из-за объёма. Перегруппируй, когда появляются разные сюжеты или измеренная стоимость домена становится чрезмерной.
+### Step 4. Plan for the user
+"was → becomes" table + number of operations (how many ➕, how many 💀). Await
+explicit confirmation.
 
-## Gate
+### Step 5. Execute
+Strict order:
+1. `memory_remember` all new records — real ids/keys from the tool responses;
+2. `memory_forget` the old records — only after every new one saved
+   successfully.
 
-- [ ] Карта построена по текущей БД, не старому отчёту.
-- [ ] Кластеры основаны на теме и reachability.
-- [ ] Все targets готовы до apply.
-- [ ] Reconciliation N/N пройден.
-- [ ] План, счётчики и бюджет показаны владельцу.
-- [ ] Owner records без отдельного override не изменяются.
-- [ ] Backup/dry-run/read-back/post-probe завершены.
+Failure mid-way — see "Runtime" in `00-shared-rules.md`.
+
+### Step 6. Outcome
+Report `reports/report-completion.md`: final table (No., id, topic, value,
+integrity) with real ids, operation list, confirmation that facts were
+preserved. Line in `journal/work-log.md`.
+
+## Special case: a new subsystem of facts
+
+A series of facts about a new process/tool begins → do not spawn records from
+day one: create one thematic record and append to it while it fits in ~500
+characters. Once it no longer fits OR splits into storylines → mode 📦. Between
+500 and 1000 — cut only for different storylines, not for volume.
+
+## Gate before the report
+
+- [ ] Topic map built; records grouped by "what is this about?", borderline
+      ones run through the tests
+- [ ] Goal honoured: coherent topics, not max/min records; a 500–1000 character
+      single-storyline entry not cut
+- [ ] Text of ALL target records written; fact-for-fact reconciliation done,
+      lost facts restored
+- [ ] Plan per `reports/report-regroup-plan.md`, explicit confirmation
+- [ ] Order: `memory_remember` all new → `memory_forget` old
+- [ ] Outcome per `reports/report-completion.md`: real ids + fact preservation
+      confirmed
+- [ ] Line in `journal/work-log.md`; defects (if any) in `journal/defect-log.md`

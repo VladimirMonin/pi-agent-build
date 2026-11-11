@@ -1,28 +1,53 @@
-# Шаблон отчёта: полный аудит 🔍
+# Report sample: Full audit 🔍
 
-> АГЕНТ: ЧИТАЙ ЭТОТ ФАЙЛ ЦЕЛИКОМ. Ниже только **СИНТЕТИЧЕСКИЙ ПРИМЕР**; не копируй его идентификаторы в рабочий отчёт.
+Full format — table + legend + verdict. Nothing is changed, proposals only.
+The example below is filled in for a real audit of six records. The ids in the
+sample are illustrative; a live report uses real identifiers: dotted `key` for
+facts, uuid for lessons.
 
 ```markdown
-## Аудит памяти — 2099-01-02
+## Memory audit — 2026-09-19
 
-**Измерение:** plugin demo-1.0; snapshot; case set `demo-cases.json`; block 3120/8000 chars; truncation: нет.
+| No. | Id / key | Topic | Value | Integrity | Source | Summary |
+|-----|----------|-------|:-----:|:---------:|--------|---------|
+| 1 | `project.x.skills_ffmpeg` | Skills path + FFmpeg install | 🟡 | 🌀 | user | Two unrelated topics — propose split (04-split) |
+| 2 | `tool.media.env` | Media environment: yt-dlp, Python 3.14, no deno | 🟡 | ✅ | consolidation | Keep — environment facts, cheap to verify |
+| 3 | `tool.ytdlp.subtitles_429` | Subtitle download: bypassing HTTP 429 | 🟠 | ✅ | user | Keep — trick found experimentally, costly to rediscover |
+| 4 | `tool.windows.terminal_encoding` | Windows terminal and encodings: cp1251, @files, MiKTeX | 🔴 | ✅ | user | Keep — silent failures, expensive to recover |
+| 5 | `project.pdf.build` | PDF build: pipeline, scripts, Paged.js quirks | 🔴 | ✅ | user | Keep — one narrow cluster, do NOT propose splitting |
+| 6 | `pref.memory_brevity` | Meta-rule: keep memory short and clean | 🟢 | ✅ | user | Keep — meta-rule for all future records |
+| L1 | `3f2a…` (lesson) | Do not run `pi` inside subagents | 🟠 | ✅ | user | Keep — lessons are injected in full, price justifies it |
 
-| № | Id / key | Тема | Reachability | Ценность | Integrity | Source | Вывод |
-|---:|---|---|---|:---:|:---:|---|---|
-| 1 | `demo.editor.preference` | Форматирование редактора | match-only | 🟢 | ✅ | user | Оставить; owner statement |
-| 2 | `demo.runtime.retry.limit` | Retry limit 3 | domain-expanded | 🟠 | ✅ | consolidation | Проверено по synthetic config; предложить rewrite |
-| 3 | `demo.runtime.retry.old` | Старый retry limit | domain-expanded | — | — | consolidation | 🕰️ доказанно устарело; предложить merge |
-| L1 | `00000000-0000-4000-8000-000000000001` | Не повторять failed batch | always-injected | 🔴 | ✅ | user | Оставить |
+**Legend:** 🔴 critical (9–10) · 🟠 very important (8) · 🟡 important (7) · 🟢 useful (≤6) ·
+✅ atomic · 🌀 mix · 🕰️ stale · 💀 delete · 🔁 duplicate · 🧬 auto-generated
 
-**Флаги:** 💀 0 · 🕰️ 1 · 🌀 0 · 🔁 0 · 🧬 2 · 🕳️ 0.
-**Secrets sweep:** совпадений нет.
-**Предложение:** объединить №2–3 после dry-run; №1 и L1 не менять. Подтвердить пункт №2–3?
+**Verdict:** 6 facts + 1 lesson, average value 7.7, block well under the 8000
+character budget. Proposals: 🌀→✅ split of No. 1 (mode `04-split.md`).
+No deletions. Confirm?
 ```
 
-## Правила
+## Variations
 
-- Реальный отчёт использует identifiers только из проверяемого snapshot.
-- Source, reachability, measurement version и truncation обязательны.
-- Для каждого диагноза приводится evidence без секретов.
-- Аудит ничего не меняет.
-- `source=user` помечается как owner-protected; для rewrite/delete требуется отдельный owner override.
+**Garbage found** — a row with dashes and a diagnosis:
+`| 3 | project.x.notes_format | — | — | — | user | 💀 duplicates skill checklists — delete |`
+
+**Duplicate found:**
+`| 5 | tool.x.ffmpeg_installed | — | — | — | user | 🔁 duplicates No. 2 — keep one |`
+
+**Stale found:**
+`| 4 | project.x.python_path | — | — | — | user | 🕰️ actually 3.14 (checked with ls) — update (✏️) or delete |`
+
+**Snapshot found (version-pinned):**
+`| 7 | project.pi-polza.repo | — | — | — | user | 🕰️ pins release 0.2.0 — rewrite from git instead of deleting |`
+
+**Auto-generated found:**
+`| 6 | project.x.practice_db | — | — | — | 🧬 consolidation | Unverified inference (confidence 0.8) — verify then rewrite or delete (08-drift) |`
+
+## Rules for this report
+
+- Real identifiers only: dotted keys for facts, real uuids for lessons.
+- The `Source` column is mandatory — `consolidation` records are always
+  suspect and reviewed via 🧬.
+- Lessons appear as their own rows when audited; they are injected in full, so
+  a bloated lesson is more expensive than a bloated fact.
+- Nothing is changed by an audit.

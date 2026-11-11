@@ -1,164 +1,162 @@
-// Fail-closed application of an exact «Слияние уроков» plan.
-import { randomUUID } from "node:crypto";
+// apply-lessons.mjs — применитель плана слияния УРОКОВ (раздел "Слияние уроков"
+// файла-плана memory-ops, блоки ### LR<n>).
+//
+// Отличие от слияния фактов: уроки переписываются через НОВУЮ строку с новым id
+// (потому что memory_remember дедуплицирует по Jaccard >= 0.7), а старые id
+// удаляются. Здесь это делается прямой записью в БД без дедупликации, зато
+// с ЯВНЫМ сохранением project-скоупа: новый урок наследует project большинства
+// поглощённых записей. Иначе слияние потеряло бы достижимость (инжектор фильтрует
+// уроки по project = слаг cwd).
+//
+// Обязательная проверка: сохранность ТОКЕНОВ (идентификаторы, числа, пути,
+// строки в backticks) — объединение токенов поглощённых текстов должно
+// присутствовать в слитом тексте. Группа ниже порога по умолчанию НЕ применяется.
+//
+// node apply-lessons.mjs <plan.md> [--apply] [--min-coverage=0.9] [--db=<path>]
+import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import {
-  SafetyError,
-  assertPreserved,
-  beginImmediate,
-  createConsistentSnapshot,
-  digest,
-  openSnapshot,
-  option,
-  ownerOverride,
-  parsePreservedList,
-  parseStrictSection,
-  parseUuidList,
-  positional,
-  printSummary,
-  reportFailure,
-  requireDatabase,
-  requireInput,
-  stableRowsDigest,
-  validateCli,
-} from "./lib/safety.mjs";
+import { randomUUID } from "node:crypto";
+import os from "node:os";
 
-const LABELS = ["ПРОЕКТ", "ГОТОВЫЙ ТЕКСТ УРОКА", "ВОШЛО", "ЧТО СОХРАНЕНО", "УДАЛИТЬ"];
+const argv = process.argv.slice(2);
+const planPath = argv.find(a => !a.startsWith("--"));
+const APPLY = argv.includes("--apply");
+const MIN_COV = Number((argv.find(a => a.startsWith("--min-coverage=")) || "").split("=")[1] || 0.9);
+const home = os.homedir().replaceAll("\\", "/");
+const DB = (argv.find(a => a.startsWith("--db=")) || "").split("=")[1] || process.env.PI_MEMORY_DB || home + "/.pi/memory/memory.db";
+const sectionArg = (argv.find(a => a.startsWith("--section=")) || "").split("=")[1] || "Слияние уроков";
 
-function parsePlan(raw, sectionName) {
-  const blocks = parseStrictSection(raw, sectionName, LABELS);
-  const groups = blocks.map(({ title, fields }) => {
-    const metadata = fields.ПРОЕКТ.match(/^(.+?) · ТИП: negative=([01]) · КАТЕГОРИЯ: ([A-Za-z0-9_-]+)$/u);
-    if (!metadata) throw new SafetyError("plan", "ОТКАЗ: metadata урока некорректна.");
-    const project = /^NULL$/u.test(metadata[1]) ? null : metadata[1];
-    if (project !== null && !project.trim()) throw new SafetyError("plan", "ОТКАЗ: пустой project запрещён.");
-    return {
-      title,
-      project,
-      negative: Number(metadata[2]),
-      category: metadata[3],
-      rule: fields["ГОТОВЫЙ ТЕКСТ УРОКА"],
-      members: parseUuidList(fields.ВОШЛО),
-      preserved: parsePreservedList(fields["ЧТО СОХРАНЕНО"]),
-      deletes: parseUuidList(fields.УДАЛИТЬ),
-    };
-  });
-  const members = groups.flatMap((group) => group.members);
-  const deletes = groups.flatMap((group) => group.deletes);
-  if (new Set(members).size !== members.length) throw new SafetyError("plan", "ОТКАЗ: UUID указан более чем в одной группе.");
-  if (new Set(deletes).size !== deletes.length) throw new SafetyError("plan", "ОТКАЗ: UUID удаления повторяется.");
-  for (const group of groups) {
-    if (!group.rule.trim()) throw new SafetyError("plan", "ОТКАЗ: пустой текст урока запрещён.");
-    if (group.rule.length > 4000) throw new SafetyError("plan", "ОТКАЗ: текст урока превышает безопасный предел.");
-    if (group.deletes.some((id) => !group.members.includes(id))) throw new SafetyError("plan", "ОТКАЗ: УДАЛИТЬ должен быть подмножеством ВОШЛО.");
-  }
-  return groups;
+const raw = readFileSync(planPath, "utf8").replace(/\r\n/g, "\n");
+const start = raw.indexOf("## " + sectionArg);
+if (start < 0) { console.error("SECTION NOT FOUND:", sectionArg); process.exit(2); }
+const tail = raw.slice(start + 3);
+const nextH2 = tail.indexOf("\n## ");
+const section = nextH2 >= 0 ? tail.slice(0, nextH2) : tail;
+
+const STOP = new Set(["the", "and", "with", "that", "this", "from", "must", "only", "when", "then", "each", "never", "always", "into", "than", "same", "over", "after", "before", "because", "which", "while", "without", "their", "there", "them", "they", "does", "doesn", "have", "must", "should", "would", "could"]);
+function tokens(s) {
+  const out = new Set();
+  for (const m of s.matchAll(/`[^`]+`/g)) out.add(m[0].toLowerCase());
+  for (const m of s.matchAll(/[A-Za-z]:[\\/][^\s,;)]+/g)) out.add(m[0].toLowerCase());
+  for (const m of s.matchAll(/\b\d+(?:[._]\d+)*\b/g)) out.add(m[0]);
+  for (const m of s.matchAll(/\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g)) out.add(m[0].toLowerCase()); // snake_case
+  for (const m of s.matchAll(/\b[a-z]+[A-Z][A-Za-z0-9]*\b/g)) out.add(m[0].toLowerCase());           // camelCase
+  for (const m of s.matchAll(/\b[A-Z][A-Z0-9_]{3,}\b/g)) out.add(m[0].toLowerCase());                // CONSTANTS
+  for (const m of out) if (STOP.has(m)) out.delete(m);
+  return out;
 }
 
-function analyze(db, groups) {
-  const get = db.prepare("SELECT id,rule,category,source,negative,is_deleted,project FROM lessons WHERE id=?");
-  const stateRows = [];
-  let owners = 0;
-  let protectedCount = 0;
-  for (const group of groups) {
-    const rows = group.members.map((id) => get.get(id));
-    if (rows.some((row) => !row || row.is_deleted !== 0)) throw new SafetyError("stale", "ОТКАЗ: план отсутствует или устарел.");
-    if (rows.some((row) => row.category !== group.category || Number(row.negative) !== group.negative || row.project !== group.project)) {
-      throw new SafetyError("preservation", "ОТКАЗ: metadata исходных уроков не сохранена.");
+const db = new DatabaseSync(DB);
+const getLesson = db.prepare("select id, rule, category, negative, project, is_deleted from lessons where id=?");
+const blocks = section.split(/\n### /).slice(1);
+const groups = [];
+const problems = [];
+const notes = [];
+
+for (const b of blocks) {
+  const title = b.split("\n")[0].trim();
+  const lines = b.split("\n");
+  const grab = (label) => {
+    const i = lines.findIndex(l => l.trimStart().startsWith(label));
+    if (i < 0) return "";
+    const out = [lines[i]];
+    for (let j = i + 1; j < lines.length; j++) {
+      const t = lines[j].trimStart();
+      if (/^(ГОТОВЫЙ ТЕКСТ|ТИП:|ПРОЕКТ:|ВОШЛО|ПОКРЫВАЕТ|ЧТО СОХРАНЕНО|УДАЛИТЬ|###|##|# )/.test(t)) break;
+      out.push(lines[j]);
     }
-    protectedCount += assertPreserved(rows.map((row) => row.rule), group.rule, group.preserved);
-    const owner = rows.some((row) => row.source === "user");
-    if (owner) owners += 1;
-    group.source = owner ? "user" : "consolidation";
-    stateRows.push(...rows.map((row) => ({ group: group.title, ...row })));
-  }
-  stateRows.sort((left, right) => `${left.group}\0${left.id}`.localeCompare(`${right.group}\0${right.id}`));
-  return {
-    owners,
-    protectedCount,
-    stateDigest: stableRowsDigest(stateRows),
-    changes: groups.length + groups.reduce((sum, group) => sum + group.deletes.length, 0),
+    return out.join("\n");
   };
+  const ruleLine = lines.find(l => l.trimStart().startsWith("ГОТОВЫЙ ТЕКСТ УРОКА"));
+  if (!ruleLine) {
+    if (/УРОК|ВОШЛО/.test(b) && !/💀/.test(title)) problems.push("нераспознанный блок урока (диалект формата?): " + title);
+    continue;
+  }
+  const rule = ruleLine.slice(ruleLine.indexOf(": ") + 2).trim();
+  const typeLine = lines.find(l => l.trimStart().startsWith("ТИП:")) || "";
+  const projLine = lines.find(l => l.trimStart().startsWith("ПРОЕКТ:")) || "";
+  const negative = /negative=1/.test(typeLine + projLine) ? 1 : 0;
+  const catM = (typeLine + " · " + projLine).match(/КАТЕГОРИЯ:\s*([A-Za-z0-9_\-]+)/);
+  const category = catM ? catM[1] : "general";
+  const rawProj = projLine ? projLine.slice(projLine.indexOf(":") + 1).split("·")[0].trim() : "";
+  const hasProj = !!projLine;
+  const projVal = /^null\b/i.test(rawProj) ? null : (rawProj || null);
+
+  const covLine = grab("ПОКРЫВАЕТ") || grab("ВОШЛО");
+  const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+  const idsAll = [...covLine.matchAll(uuid)].map(m => m[0]);
+  const delIdx = covLine.indexOf("УДАЛИТЬ id:");
+  const covered = delIdx >= 0 ? [...covLine.slice(0, delIdx).matchAll(uuid)].map(m => m[0]) : idsAll;
+  let deletes = delIdx >= 0 ? [...covLine.slice(delIdx).matchAll(uuid)].map(m => m[0]) : covered;
+  if (!covered.length) { problems.push("нет покрытых id: " + title); continue; }
+
+  const rowsAll = covered.map(id => getLesson.get(id));
+  const skippedIds = covered.filter((id, i) => !rowsAll[i] || rowsAll[i].is_deleted);
+  const rows = rowsAll.filter(r => r && !r.is_deleted);
+  const liveCovered = covered.filter((id, i) => rowsAll[i] && !rowsAll[i].is_deleted);
+  if (skippedIds.length) notes.push(title + ": уже удалён/нет " + skippedIds.length + " id, пропущены");
+  if (!rows.length) { notes.push(title + ": не осталось живых записей, группа пропущена"); continue; }
+  if (!deletes.length) deletes = covered;
+
+  // Проверка токенов: объединение «субстанции» поглощённых текстов против слитого.
+  const union = new Set();
+  for (const r of rows) if (r) for (const t of tokens(r.rule)) union.add(t);
+  const merged = rule.toLowerCase();
+  const lost = [...union].filter(t => !merged.includes(t));
+  const cov = union.size ? (union.size - lost.length) / union.size : 1;
+  const projects = new Map();
+  for (const r of rows) if (r) projects.set(r.project, (projects.get(r.project) || 0) + 1);
+  const project = hasProj ? projVal : ([...projects.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null);
+
+  groups.push({ title, rule, negative, category, project, covered: liveCovered, deletes: deletes.filter(d => liveCovered.includes(d)), coverage: cov, union: union.size, lost, chars: rule.length });
 }
 
-function applyGroups(db, groups) {
-  const insert = db.prepare("INSERT INTO lessons (id,rule,category,source,negative,is_deleted,created_at,project) VALUES (?,?,?,?,?,0,datetime('now'),?)");
-  const remove = db.prepare("UPDATE lessons SET is_deleted=1 WHERE id=? AND is_deleted=0");
-  const created = [];
-  for (const group of groups) {
-    const id = randomUUID();
-    insert.run(id, group.rule, group.category, group.source, group.negative, group.project);
-    created.push({ id, group });
-    for (const oldId of group.deletes) {
-      if (remove.run(oldId).changes !== 1) throw new SafetyError("stale", "ОТКАЗ: план отсутствует или устарел.");
-    }
-  }
-  const get = db.prepare("SELECT rule,category,source,negative,is_deleted,project FROM lessons WHERE id=?");
-  for (const { id, group } of created) {
-    const row = get.get(id);
-    if (!row || row.rule !== group.rule || row.category !== group.category || row.source !== group.source || Number(row.negative) !== group.negative || row.is_deleted !== 0 || row.project !== group.project) {
-      throw new SafetyError("verification", "ОТКАЗ: транзакционная самопроверка не пройдена.");
-    }
-  }
-  for (const group of groups) {
-    for (const id of group.deletes) {
-      if (get.get(id)?.is_deleted !== 1) throw new SafetyError("verification", "ОТКАЗ: транзакционная самопроверка не пройдена.");
-    }
+let delTotal = 0, addChars = 0, oldChars = 0, ok = 0, below = 0, noMetric = 0;
+const blocking = (g) => g.union >= 3 && g.coverage < MIN_COV;
+for (const g of groups) {
+  delTotal += g.deletes.length;
+  addChars += g.chars;
+  if (g.union < 3) noMetric++; else if (blocking(g)) below++; else ok++;
+  for (const id of g.covered) {
+    const r = getLesson.get(id);
+    if (r) oldChars += r.rule.length;
   }
 }
+const before = db.prepare("select count(*) c, sum(length(rule)) s from lessons where is_deleted=0").get();
+console.log("plan:", planPath, "| групп:", groups.length);
+console.log("БД до: уроков", before.c, "/", before.s, "симв.");
+console.log("будет: добавлено", groups.length, "уроков (" + addChars + " симв.), удалено", delTotal, "id (поглощено " + oldChars + " симв.)");
+console.log("по проверке токенов: чистых", ok, "· заблокировано", below, "· метрика неприменима (мало токенов)", noMetric, "(порог", MIN_COV + ")");
+console.log("по проектам:", JSON.stringify(groups.reduce((m, g) => (m[g.project || "NULL"] = (m[g.project || "NULL"] || 0) + 1, m), {})));
+for (const g of groups.filter(g => g.union >= 3 && g.lost.length)) {
+  console.log("  ⚠", g.title, "покрытие", g.coverage.toFixed(2), "потеряно:", g.lost.slice(0, 8).join(", "), g.lost.length > 8 ? "…" : "");
+}
+console.log("проблемы:", problems.length ? problems : "нет");
+if (notes.length) console.log("примечания:", notes);
 
-let snapshot;
-let snapshotDb;
-let applyDb;
+if (!APPLY) { console.log("DRY-RUN. Запусти с --apply."); process.exit(problems.length ? 3 : 0); }
+if (problems.length) { console.error("ОТКАЗ: сначала устрани проблемы."); process.exit(3); }
+
+db.exec("BEGIN IMMEDIATE");
 try {
-  const argv = process.argv.slice(2);
-  validateCli(argv, { values: ["db", "section", "min-coverage"], booleans: ["apply", "owner-override"] });
-  const dbPath = requireDatabase(argv);
-  const inputs = positional(argv);
-  if (inputs.length !== 1) throw new SafetyError("arguments", "ОТКАЗ: требуется ровно один файл плана.");
-  const planPath = requireInput(inputs[0], "файл плана");
-  const apply = argv.includes("--apply");
-  const allowOwner = ownerOverride(argv);
-  const sectionName = option(argv, "section", "Слияние уроков");
-  const coverage = option(argv, "min-coverage", "1");
-  if (coverage !== "1") throw new SafetyError("arguments", "ОТКАЗ: token coverage обязана быть 1 и не может быть отключена.");
-  const initialRaw = readFileSync(planPath, "utf8");
-  const initialPlanDigest = digest(initialRaw);
-
-  snapshot = createConsistentSnapshot(dbPath);
-  snapshotDb = openSnapshot(snapshot.path);
-  const initialGroups = parsePlan(initialRaw, sectionName);
-  const initialAnalysis = analyze(snapshotDb, initialGroups);
-  snapshotDb.close();
-  snapshotDb = undefined;
-
-  if (!apply) {
-    printSummary({ groups: initialGroups.length, ...initialAnalysis, apply: false });
-  } else {
-    applyDb = beginImmediate(dbPath);
-    try {
-      const lockedRaw = readFileSync(planPath, "utf8");
-      if (digest(lockedRaw) !== initialPlanDigest) throw new SafetyError("stale", "ОТКАЗ: план изменился и устарел.");
-      const lockedGroups = parsePlan(lockedRaw, sectionName);
-      const lockedAnalysis = analyze(applyDb, lockedGroups);
-      if (lockedAnalysis.stateDigest !== initialAnalysis.stateDigest) throw new SafetyError("stale", "ОТКАЗ: план отсутствует или устарел.");
-      if (lockedAnalysis.owners && !allowOwner) throw new SafetyError("owner", "ОТКАЗ: source=user требует --owner-override.");
-      applyGroups(applyDb, lockedGroups);
-      if (digest(readFileSync(planPath, "utf8")) !== initialPlanDigest) throw new SafetyError("stale", "ОТКАЗ: план изменился и устарел.");
-      applyDb.exec("COMMIT");
-      applyDb.close();
-      applyDb = undefined;
-      printSummary({ groups: lockedGroups.length, ...lockedAnalysis, apply: true });
-    } catch (error) {
-      try { applyDb.exec("ROLLBACK"); } catch {}
-      applyDb.close();
-      applyDb = undefined;
-      throw error;
-    }
+  const ins = db.prepare("insert into lessons (id, rule, category, source, negative, is_deleted, created_at, project) values (?,?,?,'consolidation',?,0,datetime('now'),?)");
+  const del = db.prepare("update lessons set is_deleted=1 where id=?");
+  const inserted = [];
+  for (const g of groups) {
+    if (blocking(g)) continue; // fail-closed: непроверенная группа не применяется
+    const newId = randomUUID();
+    ins.run(newId, g.rule, g.category, g.negative, g.project);
+    inserted.push(newId);
+    for (const did of g.deletes) del.run(did);
   }
-} catch (error) {
-  process.exitCode = reportFailure(error);
-} finally {
-  try { snapshotDb?.close(); } catch {}
-  try { applyDb?.close(); } catch {}
-  snapshot?.cleanup();
-}
+  // Самопроверка внутри транзакции: каждая вставка обязана существовать.
+  // Иначе серия удалений прошла бы без замен (именно этот класс ошибок уже случался).
+  const check = db.prepare("select 1 from lessons where id=? and is_deleted=0");
+  const missing = inserted.filter(id => !check.get(id));
+  if (missing.length) throw new Error("вставка не подтверждена: " + missing.join(","));
+  db.exec("COMMIT");
+} catch (e) { db.exec("ROLLBACK"); console.error("ОШИБКА, откат:", e.message); process.exit(4); }
+
+const after = db.prepare("select count(*) c, sum(length(rule)) s from lessons where is_deleted=0").get();
+if (after.c < 1) { console.error("ПОДОЗРИТЕЛЬНО: не осталось живых уроков"); process.exit(5); }
+console.log("ПРИМЕНЕНО. уроков", after.c, "/", after.s, "симв.");

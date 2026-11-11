@@ -1,255 +1,60 @@
-// Fail-closed point edits from strict JSON: {renames, facts, lessons}.
+// patch-entries.mjs — точечные правки по JSON-манифесту:
+//   { "renames": {old: new}, "facts": {key: newValue}, "lessons": {id: newRule} }
+//
+// Уроки правятся НА МЕСТЕ (id, project, source, negative сохраняются) — это
+// предпочтительнее схемы "forget + add", которая теряет project-скоуп: новый
+// урок получил бы project текущего cwd и перестал попадать в свою выборку.
+// Переименование ключа факта сохраняет саму строку (и её эмбеддинг); FTS
+// обновляют триггеры. Все проверки — до записи, запись — в транзакции.
+//
+//   node patch-entries.mjs data.json [--apply] [--db=<path>]
+import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import {
-  SafetyError,
-  assertPreserved,
-  beginImmediate,
-  createConsistentSnapshot,
-  digest,
-  hasColumn,
-  openSnapshot,
-  ownerOverride,
-  positional,
-  printSummary,
-  protectedTokens,
-  reportFailure,
-  requireDatabase,
-  requireInput,
-  stableRowsDigest,
-  validateCli,
-} from "./lib/safety.mjs";
+import os from "node:os";
 
-const KEY_RE = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/u;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const argv = process.argv.slice(2);
+const dataPath = argv.find(a => !a.startsWith("--"));
+const APPLY = argv.includes("--apply");
+const home = os.homedir().replaceAll("\\", "/");
+const DB = (argv.find(a => a.startsWith("--db=")) || "").split("=")[1] || process.env.PI_MEMORY_DB || home + "/.pi/memory/memory.db";
+const data = JSON.parse(readFileSync(dataPath, "utf8"));
+const db = new DatabaseSync(DB);
+const problems = [];
+let savedFact = 0, savedLesson = 0;
 
-function plainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+for (const [k, v] of Object.entries(data.facts || {})) {
+  const row = db.prepare("select value from semantic where key=?").get(k);
+  if (!row) problems.push("нет факта: " + k);
+  else if (v.length >= row.value.length) problems.push("не короче исходного: " + k);
+  else savedFact += row.value.length - v.length;
+}
+for (const [o, n] of Object.entries(data.renames || {})) {
+  if (!db.prepare("select 1 from semantic where key=?").get(o)) problems.push("нет ключа: " + o);
+  if (db.prepare("select 1 from semantic where key=?").get(n)) problems.push("целевой ключ занят: " + n);
+}
+for (const [id, rule] of Object.entries(data.lessons || {})) {
+  const row = db.prepare("select rule, project, source, negative, is_deleted from lessons where id=?").get(id);
+  if (!row) problems.push("нет урока: " + id);
+  else if (row.is_deleted) problems.push("урок уже удалён: " + id);
+  else if (rule.length >= row.rule.length) problems.push("не короче исходного: " + id);
+  else savedLesson += row.rule.length - rule.length;
 }
 
-function assertUniqueJsonKeys(raw) {
-  let cursor = 0;
-  const fail = (message = "ОТКАЗ: некорректный JSON manifest.") => { throw new SafetyError("plan", message); };
-  const whitespace = () => { while (/\s/u.test(raw[cursor] ?? "")) cursor += 1; };
-  function string() {
-    if (raw[cursor] !== '"') fail();
-    const start = cursor;
-    cursor += 1;
-    while (cursor < raw.length) {
-      if (raw[cursor] === '"') {
-        cursor += 1;
-        try { return JSON.parse(raw.slice(start, cursor)); } catch { fail(); }
-      }
-      if (raw[cursor] === "\\") {
-        cursor += 1;
-        if (raw[cursor] === "u") {
-          if (!/^[0-9a-f]{4}$/iu.test(raw.slice(cursor + 1, cursor + 5))) fail();
-          cursor += 5;
-          continue;
-        }
-        if (!/["\\/bfnrt]/u.test(raw[cursor] ?? "")) fail();
-      } else if (raw.charCodeAt(cursor) < 0x20) fail();
-      cursor += 1;
-    }
-    fail();
-  }
-  function value() {
-    whitespace();
-    if (raw[cursor] === "{") return object();
-    if (raw[cursor] === "[") return array();
-    if (raw[cursor] === '"') { string(); return; }
-    const tail = raw.slice(cursor);
-    const primitive = tail.match(/^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/u);
-    if (!primitive) fail();
-    cursor += primitive[0].length;
-  }
-  function array() {
-    cursor += 1;
-    whitespace();
-    if (raw[cursor] === "]") { cursor += 1; return; }
-    while (true) {
-      value();
-      whitespace();
-      if (raw[cursor] === "]") { cursor += 1; return; }
-      if (raw[cursor] !== ",") fail();
-      cursor += 1;
-    }
-  }
-  function object() {
-    cursor += 1;
-    whitespace();
-    if (raw[cursor] === "}") { cursor += 1; return; }
-    const keys = new Set();
-    while (true) {
-      whitespace();
-      const key = string();
-      if (keys.has(key)) fail("ОТКАЗ: JSON manifest содержит повторное поле.");
-      keys.add(key);
-      whitespace();
-      if (raw[cursor] !== ":") fail();
-      cursor += 1;
-      value();
-      whitespace();
-      if (raw[cursor] === "}") { cursor += 1; return; }
-      if (raw[cursor] !== ",") fail();
-      cursor += 1;
-    }
-  }
-  value();
-  whitespace();
-  if (cursor !== raw.length) fail();
-}
+console.log("правок: фактов", Object.keys(data.facts || {}).length, "(−" + savedFact + " симв.)",
+  "· переименований", Object.keys(data.renames || {}).length,
+  "· уроков", Object.keys(data.lessons || {}).length, "(−" + savedLesson + " симв.)");
+console.log("проблемы:", problems.length ? problems : "нет");
+if (!APPLY) { console.log("DRY-RUN. Запусти с --apply."); process.exit(problems.length ? 3 : 0); }
+if (problems.length) { console.error("ОТКАЗ: сначала устрани проблемы."); process.exit(3); }
 
-function parseManifest(raw) {
-  assertUniqueJsonKeys(raw);
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    throw new SafetyError("plan", "ОТКАЗ: некорректный JSON manifest.");
-  }
-  if (!plainObject(data)) throw new SafetyError("plan", "ОТКАЗ: manifest должен быть JSON-объектом.");
-  const allowed = new Set(["renames", "facts", "lessons"]);
-  if (Object.keys(data).some((key) => !allowed.has(key))) throw new SafetyError("plan", "ОТКАЗ: manifest содержит неизвестное поле.");
-  const manifest = {};
-  for (const key of allowed) {
-    const value = data[key] ?? {};
-    if (!plainObject(value)) throw new SafetyError("plan", "ОТКАЗ: секции manifest должны быть объектами.");
-    manifest[key] = value;
-  }
-  if (![...Object.values(manifest)].some((value) => Object.keys(value).length)) throw new SafetyError("plan", "ОТКАЗ: пустой manifest запрещён.");
-
-  for (const [key, value] of Object.entries(manifest.facts)) {
-    if (!KEY_RE.test(key) || typeof value !== "string" || !value.trim()) throw new SafetyError("plan", "ОТКАЗ: факт содержит пустой или некорректный key/value.");
-  }
-  for (const [id, rule] of Object.entries(manifest.lessons)) {
-    if (!UUID_RE.test(id) || typeof rule !== "string" || !rule.trim()) throw new SafetyError("plan", "ОТКАЗ: урок содержит пустой или некорректный id/rule.");
-  }
-  const targets = [];
-  for (const [oldKey, newKey] of Object.entries(manifest.renames)) {
-    if (!KEY_RE.test(oldKey) || typeof newKey !== "string" || !KEY_RE.test(newKey) || oldKey === newKey) {
-      throw new SafetyError("plan", "ОТКАЗ: rename содержит пустой или некорректный key.");
-    }
-    targets.push(newKey);
-  }
-  if (new Set(targets).size !== targets.length) throw new SafetyError("plan", "ОТКАЗ: rename targets повторяются.");
-  const renameSources = new Set(Object.keys(manifest.renames));
-  if (targets.some((target) => renameSources.has(target))) throw new SafetyError("plan", "ОТКАЗ: цепочки rename запрещены.");
-  if (Object.keys(manifest.facts).some((key) => renameSources.has(key) || targets.includes(key))) throw new SafetyError("plan", "ОТКАЗ: fact patch конфликтует с rename.");
-  return manifest;
-}
-
-function analyze(db, manifest) {
-  const fact = db.prepare("SELECT key,value,source FROM semantic WHERE key=?");
-  const lesson = db.prepare("SELECT id,rule,source,is_deleted,project,category,negative,created_at FROM lessons WHERE id=?");
-  const stateRows = [];
-  let owners = 0;
-  let protectedCount = 0;
-
-  for (const [key, value] of Object.entries(manifest.facts)) {
-    const row = fact.get(key);
-    if (!row) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-    if (value.length >= row.value.length) throw new SafetyError("plan", "ОТКАЗ: fact patch не сокращает значение.");
-    protectedCount += assertPreserved([row.value], value, [...protectedTokens(row.value)]);
-    if (row.source === "user") owners += 1;
-    stateRows.push({ kind: "fact", ...row });
-  }
-  for (const [oldKey, newKey] of Object.entries(manifest.renames)) {
-    const row = fact.get(oldKey);
-    if (!row || fact.get(newKey)) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-    if (row.source === "user") owners += 1;
-    stateRows.push({ kind: "rename", target: newKey, ...row });
-  }
-  for (const [id, rule] of Object.entries(manifest.lessons)) {
-    const row = lesson.get(id);
-    if (!row || row.is_deleted !== 0) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-    if (rule.length >= row.rule.length) throw new SafetyError("plan", "ОТКАЗ: lesson patch не сокращает правило.");
-    protectedCount += assertPreserved([row.rule], rule, [...protectedTokens(row.rule)]);
-    if (row.source === "user") owners += 1;
-    stateRows.push({ kind: "lesson", ...row });
-  }
-  stateRows.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-  return {
-    owners,
-    protectedCount,
-    changes: stateRows.length,
-    stateDigest: stableRowsDigest(stateRows),
-  };
-}
-
-function applyManifest(db, manifest) {
-  const embedding = hasColumn(db, "semantic", "embedding");
-  const updateFact = db.prepare(`UPDATE semantic SET value=?,updated_at=datetime('now'),last_accessed=NULL${embedding ? ",embedding=NULL" : ""} WHERE key=?`);
-  const renameFact = db.prepare(`UPDATE semantic SET key=?,updated_at=datetime('now'),last_accessed=NULL${embedding ? ",embedding=NULL" : ""} WHERE key=?`);
-  const updateLesson = db.prepare("UPDATE lessons SET rule=? WHERE id=? AND is_deleted=0");
-  for (const [key, value] of Object.entries(manifest.facts)) if (updateFact.run(value, key).changes !== 1) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-  for (const [oldKey, newKey] of Object.entries(manifest.renames)) if (renameFact.run(newKey, oldKey).changes !== 1) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-  for (const [id, rule] of Object.entries(manifest.lessons)) if (updateLesson.run(rule, id).changes !== 1) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-
-  const getFact = db.prepare(`SELECT value${embedding ? ",embedding" : ""} FROM semantic WHERE key=?`);
-  const getLesson = db.prepare("SELECT rule FROM lessons WHERE id=? AND is_deleted=0");
-  for (const [key, value] of Object.entries(manifest.facts)) {
-    const row = getFact.get(key);
-    if (!row || row.value !== value || (embedding && row.embedding !== null)) throw new SafetyError("verification", "ОТКАЗ: транзакционная самопроверка не пройдена.");
-  }
-  for (const [oldKey, newKey] of Object.entries(manifest.renames)) {
-    const row = getFact.get(newKey);
-    if (!row || getFact.get(oldKey) || (embedding && row.embedding !== null)) throw new SafetyError("verification", "ОТКАЗ: транзакционная самопроверка не пройдена.");
-  }
-  for (const [id, rule] of Object.entries(manifest.lessons)) {
-    if (getLesson.get(id)?.rule !== rule) throw new SafetyError("verification", "ОТКАЗ: транзакционная самопроверка не пройдена.");
-  }
-}
-
-let snapshot;
-let snapshotDb;
-let applyDb;
+db.exec("BEGIN IMMEDIATE");
 try {
-  const argv = process.argv.slice(2);
-  validateCli(argv, { values: ["db"], booleans: ["apply", "owner-override"] });
-  const dbPath = requireDatabase(argv);
-  const inputs = positional(argv);
-  if (inputs.length !== 1) throw new SafetyError("arguments", "ОТКАЗ: требуется ровно один JSON manifest.");
-  const manifestPath = requireInput(inputs[0], "JSON manifest");
-  const apply = argv.includes("--apply");
-  const allowOwner = ownerOverride(argv);
-  const initialRaw = readFileSync(manifestPath, "utf8");
-  const initialPlanDigest = digest(initialRaw);
-
-  snapshot = createConsistentSnapshot(dbPath);
-  snapshotDb = openSnapshot(snapshot.path);
-  const initialManifest = parseManifest(initialRaw);
-  const initialAnalysis = analyze(snapshotDb, initialManifest);
-  snapshotDb.close();
-  snapshotDb = undefined;
-
-  if (!apply) {
-    printSummary({ groups: 0, ...initialAnalysis, apply: false });
-  } else {
-    applyDb = beginImmediate(dbPath);
-    try {
-      const lockedRaw = readFileSync(manifestPath, "utf8");
-      if (digest(lockedRaw) !== initialPlanDigest) throw new SafetyError("stale", "ОТКАЗ: manifest изменился и устарел.");
-      const lockedManifest = parseManifest(lockedRaw);
-      const lockedAnalysis = analyze(applyDb, lockedManifest);
-      if (lockedAnalysis.stateDigest !== initialAnalysis.stateDigest) throw new SafetyError("stale", "ОТКАЗ: manifest отсутствует или устарел.");
-      if (lockedAnalysis.owners && !allowOwner) throw new SafetyError("owner", "ОТКАЗ: source=user требует --owner-override.");
-      applyManifest(applyDb, lockedManifest);
-      if (digest(readFileSync(manifestPath, "utf8")) !== initialPlanDigest) throw new SafetyError("stale", "ОТКАЗ: manifest изменился и устарел.");
-      applyDb.exec("COMMIT");
-      applyDb.close();
-      applyDb = undefined;
-      printSummary({ groups: 0, ...lockedAnalysis, apply: true });
-    } catch (error) {
-      try { applyDb.exec("ROLLBACK"); } catch {}
-      applyDb.close();
-      applyDb = undefined;
-      throw error;
-    }
-  }
-} catch (error) {
-  process.exitCode = reportFailure(error);
-} finally {
-  try { snapshotDb?.close(); } catch {}
-  try { applyDb?.close(); } catch {}
-  snapshot?.cleanup();
-}
+  const sv = db.prepare("update semantic set value=?, updated_at=datetime('now') where key=?");
+  const rk = db.prepare("update semantic set key=? where key=?");
+  const sr = db.prepare("update lessons set rule=? where id=?");
+  for (const [k, v] of Object.entries(data.facts || {})) sv.run(v, k);
+  for (const [o, n] of Object.entries(data.renames || {})) rk.run(n, o);
+  for (const [i, r] of Object.entries(data.lessons || {})) sr.run(r, i);
+  db.exec("COMMIT");
+} catch (e) { db.exec("ROLLBACK"); console.error("ОШИБКА, откат:", e.message); process.exit(4); }
+console.log("ПРИМЕНЕНО.");

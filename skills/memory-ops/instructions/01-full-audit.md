@@ -1,64 +1,140 @@
-# Режим 🔍 Полный аудит
+# Mode 🔍 Full audit
 
-> АГЕНТ: ЧИТАЙ ЭТОТ ФАЙЛ ЦЕЛИКОМ. До подтверждения владельца режим только читает и предлагает.
+When: on user request, every few weeks, after major environment changes.
+Report format — `reports/report-audit.md`.
 
-Когда: по явному запросу, после крупных изменений среды или перед большой переработкой. Формат: [синтетический шаблон аудита](../reports/report-audit.md).
+## Steps
 
-## Шаги
+> **Read the store, not the implementation.** An audit works from `memory.db`
+> and the injected block. Never open a package's `dist/` or `node_modules`
+> during an audit to "understand the mechanism" — those files are large
+> (100 KB+) and a subagent sent down that path stalls and dies. If a mechanism
+> genuinely matters, confirm it from the source you already have or state it as
+> an assumption; the store is the authority on what is stored.
 
-### 1. Получить безопасный snapshot
+### Step 1. Inventory
+List all records across the three stores:
+- facts — `memory_search` (or the injected block as a starting map);
+- lessons — `memory_lessons`;
+- counts — `memory_stats`.
 
-Получить явный `--db`. Если рабочая база активна/WAL, создать консистентный snapshot внешним механизмом. Probe дополнительно работает с временной копией и не меняет переданный файл.
+**Filter out deleted rows.** `memory_forget` is a soft delete (`is_deleted = 1`),
+so a raw table scan shows records that are no longer injected. Count only live
+records (`is_deleted = 0` in `lessons`).
 
-### 2. Измерить бюджет первым
+**Opening finding — budget check (do this first), measured not guessed.**
+Because of prefix co-expansion (see `00-shared-rules.md`), a record is never
+injected alone: a 3+ segment key arrives with its whole domain. Before any
+cosmetic proposal, run the real injector on a **copy** of the DB —
+`node scripts/inject-probe.mjs --db=<copy> --estimate` for reachability, then
+`--db=<copy>` without `--estimate` for the actual block:
 
-Запустить консервативную структурную оценку на репрезентативных `{cwd,prompt}`. Зафиксировать лимит блока, набор уроков по slug, размеры расширяемых доменов, leaf и unreachable. Оценка намеренно не исполняет plugin-код и не выдаётся за точное измерение runtime-инъекции. Truncation — заголовок 🔴, а не примечание в конце.
+1. the lesson set the filter `project = <slug of cwd> OR project IS NULL` selects;
+2. the character total of each **expanding** domain (3+ segment keys) — domains
+   of 2-segment keys are leaf and pull nothing;
+3. those numbers against `MAX_CONTEXT_CHARS` (8000 as of the installed version —
+   state the version you measured against).
 
-### 3. Инвентаризация
+If that sum exceeds the cap, it is the headline 🔴 finding — part of memory is
+silently truncated and never reaches the model. Report it before anything else.
+Equally, name the records that **no** session can reach (see "Reachability"):
+they cost no budget and must not be "optimised".
 
-Прочитать все stores:
-- facts: `key`, краткое содержание, `source`, `confidence`, даты;
-- lessons: `id`, краткое содержание, `source`, `category`, `negative`, `project`;
-- events: только счётчик/статус, содержимое не входит в обслуживание.
+Present each record as: id / key + a one-line summary + `source` + `confidence` (for
+facts) or category / `negative` / `project` (for lessons). This is the working
+map; show it to the user only in the final report.
 
-Исключить `is_deleted=1`. Не принимать релевантный injection slice за полную базу.
+### Step 2. Verify facts with tools
+For every record naming paths, files, script names, or versions:
+1. `ls` — does the mentioned folder/file exist.
+2. `grep` — are the mentioned rules/scripts where you expect them.
+3. `read` — to reconcile a specific rule when needed.
 
-### 4. Проверка фактов
+Key duplication check: does the record merely restate something already baked
+into a skill? Search the record's keywords inside the relevant skill directory
+(for this skill family: `~/.pi/agent/skills/`, `~/.agents/skills/`, and
+package skills under `~/.pi/agent/npm/node_modules/<pkg>/skills/`). If the rule
+is in a SKILL.md, checklist, or validator, the record is 💀.
 
-Для каждого пути, файла, версии или команды проверить существование и текущее состояние. Затем найти возможный source of truth в документации, skill, checklist или validator. Не открывать огромные build artifacts без необходимости: сначала точечный поиск.
+### Step 3. Value classification
+Give every record a circle 🔴🟠🟡🟢 per the scale in `00-shared-rules.md`
+(cost of rediscovery + modifiers: frequency, recoverability, duplication of a
+source of truth).
 
-### 5. Классификация
+### Step 4. Integrity
+Run every record through the "one plate", "one storyline", and size rules from
+`00-shared-rules.md`. Mark mixes 🌀, atomic entries ✅. Narrow clusters about
+one process/subsystem are ✅ — do **not** propose splitting them; run the
+"over-splitting" check (step 2 of 🌀→✅) before any 🌀 proposal. Bloat alone is
+not an argument for splitting.
 
-Каждой живой записи назначить reachability tier, ценность 🔴🟠🟡🟢, integrity ✅/🌀, durable/volatile и при необходимости 💀/🕰️/🔁/🧬/🕳️. Для каждого негативного диагноза записать доказательство.
+### Step 5. Garbage
+Find 💀 (duplicates / one-off), 🕰️ (stale paths and versions), 🔁 (duplicates
+inside memory, **including cross-store fact ↔ lesson duplicates**), and 🧬
+(auto-generated `source: consolidation`). For each candidate, record the
+evidence — what exactly, checked with what, what was seen.
 
-### 6. Secrets sweep
+### Step 6. Durable vs. volatile
+Separate each record into "durable rule" and "state snapshot". For a snapshot,
+do not propose deletion by default: propose **rewriting it from the source**
+(`git`, the file, current state) or date-stamping it. Version-pinned facts
+("release X is out") age fastest.
 
-Искать secret-shaped значения без копирования в отчёт. Любое совпадение — 🔴 и предложение устранить значение также в первичном источнике. В публичном артефакте только `<REDACTED>`.
+### Step 7. Secrets sweep
+Scan the DB for secret-shaped strings. Facts and lessons are designed to be
+shared; a leaked token is the worst failure mode.
+```
+grep -a -i -E "pza_|sk-|ghp_|api[_-]?key|password|secret" \
+  "<home>/.pi/memory/memory.db"
+```
+Any hit is a 🔴 finding: propose removing or masking it immediately, and note
+that the fix belongs in the source too (config, trace, log).
 
-### 7. Предложение
+**Redact in your own artifacts too.** When writing the report, dump, or journal,
+replace every secret with `pza_<REDACTED>`-style text. Never copy the value, and
+never a fragment beyond the public provider marker — a report is a shareable
+artifact, so leaking there recreates the very problem this step exists to find.
+Verify before finishing: `grep -o 'pza_a_[A-Za-z0-9]\+' <report>` must return
+nothing but the marker.
 
-Сформировать полную таблицу с реальными идентификаторами из проверяемой БД. Ничего не менять. Для каждой мутации показать точный эффект и спросить согласие по пунктам. Для `source=user` отдельно запросить owner override.
+### Step 8. Report
+Emit the report in the `reports/report-audit.md` format: table
+(No., id, topic, value, integrity, source, summary) + legend + verdict. Use
+real ids. Change nothing — proposals only.
 
-### 8. Исполнение только после решения
+### Step 9. Await decision
+Explicitly ask for confirmation on every proposed
+deletion/compression/update. The user may confirm point by point
+("delete 3", "compress 1").
 
-Backup → повторный dry-run → apply → read-back → fact reconciliation N/N → post-probe на свежем snapshot. Без owner override строки `source=user` остаются неизменными.
+### Step 10. Execute (after confirmation)
+Strict order: first `memory_remember` all new/compressed/updated records
+(an update to an existing fact key is an in-place upsert), then
+`memory_forget` the old ones. Then the final report in
+`reports/report-completion.md` with real ids, and a line in
+`journal/work-log.md`.
 
-### 9. Итог
+## Gate before the report
 
-Использовать [completion report](../reports/report-completion.md). Реальную мутацию записать в игнорируемый runtime log по [шаблону](../templates/work-log.example.md); incident — по [defect template](../templates/defect-log.example.md).
-
-## Gate
-
-- [ ] Запрос действительно на полный аудит, не быстрый scan.
-- [ ] Snapshot консистентен; исходная live DB не передана probe.
-- [ ] Бюджет и truncation проверены раньше косметики.
-- [ ] Достижимость основана на кейсах probe, а не догадке о cwd.
-- [ ] Удалённые lessons исключены.
-- [ ] Все stores инвентаризированы с metadata.
-- [ ] Пути/версии проверены инструментами.
-- [ ] Cross-store duplicates проверены.
-- [ ] Все диагнозы имеют evidence.
-- [ ] Secrets отредактированы в артефактах.
-- [ ] До согласия изменений нет.
-- [ ] Owner records выделены и требуют отдельного override.
-- [ ] После apply выполнены read-back, N/N и post-probe.
+- [ ] `instructions/00-shared-rules.md` read (first operation in the session)
+- [ ] User confirmed a full audit is wanted (not ⚡)
+- [ ] **Budget check done first and measured with the probe** (not from a dump):
+      lesson set per slug + expanding domains against the cap; overflow reported as
+      the headline 🔴 if present
+- [ ] Unreachable records (never selected by the injector) named and excluded
+      from the optimisation proposal
+- [ ] Deleted rows excluded (`is_deleted = 1` filtered out) before counting
+- [ ] All three stores inventoried; `source` and `confidence` shown
+- [ ] `ls`/`grep`/`read` run for every record with paths/files/versions
+- [ ] Every record checked against sources of truth (skill dirs searched for
+      its keywords), including cross-store fact ↔ lesson duplicates
+- [ ] Every 💀/🕰️/🔁/🧬 diagnosis has evidence (what, checked with what, seen)
+- [ ] Every record given a value circle and run through the integrity tests
+- [ ] Durable vs. volatile split done; snapshots get "rewrite from source"
+      rather than default deletion
+- [ ] Secrets sweep performed; hits marked 🔴
+- [ ] Report per `reports/report-audit.md`; nothing deleted or changed
+- [ ] Confirmation explicitly requested for every proposal
+- [ ] Operations executed in "create first → delete last" order
+- [ ] Final report per `reports/report-completion.md` with real ids
+- [ ] Line in `journal/work-log.md`; defect line only if the run stumbled
