@@ -47,7 +47,7 @@ function tokens(s) {
 }
 
 const db = new DatabaseSync(DB);
-const getLesson = db.prepare("select id, rule, category, negative, project, is_deleted from lessons where id=?");
+const getLesson = db.prepare("select id, rule, category, negative, project, is_deleted, source from lessons where id=?");
 const blocks = section.split(/\n### /).slice(1);
 const groups = [];
 const problems = [];
@@ -93,6 +93,7 @@ for (const b of blocks) {
   const rowsAll = covered.map(id => getLesson.get(id));
   const skippedIds = covered.filter((id, i) => !rowsAll[i] || rowsAll[i].is_deleted);
   const rows = rowsAll.filter(r => r && !r.is_deleted);
+  for (const r of rows) if (r.source === "user") problems.push("USER-урок нельзя поглощать скриптом (ручной путь владельца): " + r.id);
   const liveCovered = covered.filter((id, i) => rowsAll[i] && !rowsAll[i].is_deleted);
   if (skippedIds.length) notes.push(title + ": уже удалён/нет " + skippedIds.length + " id, пропущены");
   if (!rows.length) { notes.push(title + ": не осталось живых записей, группа пропущена"); continue; }

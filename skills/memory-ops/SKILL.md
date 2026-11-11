@@ -171,6 +171,8 @@ exported slices and write plan files.
 | `scripts/README.md` | Script details and environment needs; when using scripts. |
 | `journal/work-log.md` | Private mutation log — kept local, never synced or packaged. |
 | `journal/defect-log.md` | Private defect log — same handling. |
+| `LICENSE` | MIT license of this skill; ships with it. |
+| `.gitignore` | Keeps runtime artifacts (databases, manifests, `runtime/`) out of version control. |
 | `reports/report-audit.md` | Report template — full audit 🔍. |
 | `reports/report-quick-scan.md` | Report template — quick scan ⚡. |
 | `reports/report-regroup-plan.md` | Report template — split/regroup plan 🌀/📦. |

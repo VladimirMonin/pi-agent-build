@@ -1,7 +1,7 @@
 // normalize-apply.mjs — plan-file surgery before apply:
 // 1) strip backticks in ПРОЕКТ values (apply-lessons would store them literally);
 // 2) MOVE blocks whose title says ЖДЁТ/⚠️ out of applied sections into "## Ждёт подтверждения";
-// 3) drop user-source keys from ВОШЛО/УДАЛИТЬ member lists of remaining blocks.
+// 3) (не здесь) user-ключи отсекают validate-apply и защита в самих применителях.
 // Usage: node normalize-apply.mjs <file...>
 import { readFileSync, writeFileSync } from "node:fs";
 

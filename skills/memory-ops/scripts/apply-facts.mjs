@@ -58,10 +58,14 @@ for (const b of section.split(/\n### /).slice(1)) {
   const deletes = [...new Set([...members, ...explicit])].filter(k => k !== keep);
   if (!value) problems.push("пустое значение: " + keep);
   if (value.length > 2000) problems.push("слишком длинное значение: " + keep);
+  const keepRow = db.prepare("select source from semantic where key=?").get(keep);
+  if (keepRow && keepRow.source === "user") problems.push("KEEP KEY source=user — перепись только ручным путём владельца: " + keep);
   if (prefix && !keep.startsWith(prefix)) problems.push("KEEP вне префикса: " + keep);
   for (const d of deletes) {
     if (prefix && !d.startsWith(prefix)) problems.push("удаление вне префикса: " + d);
-    if (!db.prepare("select 1 from semantic where key=?").get(d)) problems.push("нет ключа для удаления: " + d);
+    const dRow = db.prepare("select source from semantic where key=?").get(d);
+    if (!dRow) problems.push("нет ключа для удаления: " + d);
+    else if (dRow.source === "user") problems.push("USER-ключ нельзя поглощать/удалять скриптом: " + d);
   }
   groups.push({ title, keep, value, deletes });
 }
