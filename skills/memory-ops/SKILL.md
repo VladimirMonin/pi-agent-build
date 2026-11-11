@@ -1,5 +1,5 @@
 ---
-name: pi-memory-ops
+name: memory-ops
 description: >
   Maintain pi's persistent memory (the @samfp/pi-memory store) — audit for
   quality, clean stale or duplicated entries, split mixed-topic facts, regroup
