@@ -16,7 +16,7 @@ Fresh Pi1.3.0 SDK + patched Memory1.6.1: synthetic Code/Task проверили 
 
 ## Модели и данные
 
-- Консолидация: неизменённый `polza-memory/deepseek/deepseek-v4.1-flash`.
+- Консолидация: дефолт `polza-memory/deepseek/deepseek-v4.1-flash` (см. шаблон); допустим любой доступный model id.
 - Recall facts: Polza `qwen/qwen3-embedding-8b`,1024d, upstream openai-compatible backend.
 - Session Search использует свой независимый embedder/config/index.
 

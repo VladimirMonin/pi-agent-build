@@ -47,7 +47,7 @@ git clone https://github.com/VladimirMonin/pi-agent-build.git "<REPO_ROOT>"
 - **Windows x64:** PowerShell 5.1+, Git for Windows, реальный `python` с `jsonschema` (см. таблицу выше).
 - **macOS/Linux:** Bash 3.2+; Helper выбирает работоспособный `python3`/`python` либо `PI_BUILD_PYTHON`.
 - **Code:** нужен `uv` (проверено на `0.9.27`); installer ставит Serena с отдельным managed Python `3.12.10`. Это не версия Python для patchers. Task не требует code-intelligence CLI.
-- Доступ к npm/GitHub для установки; затем к выбранному провайдеру и удалённому MCP. Права записи в выбранный пользовательский npm prefix и каталоги профилей. Не запускайте всё от администратора и не меняйте системную execution policy ради установки.
+- Доступ к npm/GitHub для установки; затем к выбранному провайдеру и удалённому MCP. Права записи в выбранный пользовательский npm prefix и каталоги профилей. Не запускайте всё от администратора. Системную execution policy менять не нужно: `-ExecutionPolicy Bypass` в командах действует только на дочерний процесс.
 
 ```sh
 node --version

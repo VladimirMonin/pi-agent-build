@@ -30,7 +30,7 @@ Polza config: `qwen/qwen3-embedding-8b`, 1024 dimensions, `sendDimensions: true`
 
 Index и embeddings содержат производные от приватной session history. External embedder получает session text. Auto-sync может стартовать в child/noninteractive processes; используйте `sync.disableForChild: true`. Смена model/dimensions требует отдельной согласованной миграции; этот repair её не выполняет и forced reindex не требует.
 
-Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. [Build.4](../releases/pi-1.4.0-build.4.md) требует точный mapping, не угадывает unknown model и выделяет настоящий `semantic-only`: контрольный Code query дал rank1/1293 и cosine32,1%; Task имеет собственный пустой индекс. Это не гарантия полноты других запросов. [Build.3](../releases/pi-1.4.0-build.3.md) и исторический FAIL [build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) сохранены.
+Без `project` поиск охватывает проекты выбранного индекса, а не все профили/хранилища машины. [pi-1.4.0-build.4](../releases/pi-1.4.0-build.4.md) требует точный mapping, не угадывает unknown model и выделяет настоящий `semantic-only`: контрольный Code query дал rank1/1293 и cosine32,1%; Task имеет собственный пустой индекс. Это не гарантия полноты других запросов. [pi-1.4.0-build.3](../releases/pi-1.4.0-build.3.md) и исторический FAIL [pi-1.4.0-build.2](../releases/pi-1.4.0-build.2.md#известное-ограничение-смыслового-поиска) сохранены.
 
 ### Проверка
 

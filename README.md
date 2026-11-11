@@ -28,7 +28,7 @@
 - Polza embeddings для поиска истории и служебную модель консолидации memory;
 - навык обслуживания памяти Pi.
 
-Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json) и [`docs/components/README.md`](docs/components/README.md).
+Точный перечень 15 пакетов и версии: [`manifests/pi-packages.lock.json`](manifests/pi-packages.lock.json); читаемая таблица состава с признаком вкл/выкл по профилям — [`docs/components/composition.md`](docs/components/composition.md) (генерируется из manifests и шаблонов, сверяется в verify); описание пакетов — [`docs/components/README.md`](docs/components/README.md).
 
 ## Связанные проекты
 

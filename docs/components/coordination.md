@@ -2,7 +2,7 @@
 
 ## `pi-subagents` 0.79.1
 
-Сборка Pi 1.3.0 закрепляет Subagents **0.79.1** и Intercom **0.17.1** вместе; Goal X остаётся **0.32.3**. Этот выпуск не переключает рабочий [pi-1.0.4-build.6](../releases/pi-1.0.4-build.6.md); его прежнее evidence не выдаётся за проверки нового состава. Сохраняется порядок **Subagents → Goal X → Intercom**.
+В выпуске [pi-1.3.0-build.1](../releases/pi-1.3.0-build.1.md) закреплены Subagents **0.79.1** и Intercom **0.17.1** вместе; Goal X остаётся **0.32.3**. Этот выпуск не переключает рабочий [pi-1.0.4-build.6](../releases/pi-1.0.4-build.6.md); его прежнее evidence не выдаётся за проверки нового состава. Сохраняется порядок **Subagents → Goal X → Intercom**.
 
 Пакеты координации предшествуют новому core: старые Subagents требуют удалённый из Pi 1.2+ `chord`; новая пара согласует защиту от двойного parent wake. Это причина очереди обновления, не runtime-доказательство совместимости. Tool schemas могут быть lazy, параметры `options` нужно брать из актуального tool contract: прежнее фиксированное число tools не является критерием PASS.
 
@@ -106,7 +106,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-background-tasks@2.6.2
 {"source":"npm:pi-background-tasks@2.6.2","extensions":[]}
 ```
 
-Причина: 2.6.2 несовместим с system-role conversation blocks Pi 0.87.0. Пока filter пуст, extension не загружается.
+Причина: несовместим с system-role conversation blocks на Pi 0.87.0 (проверено на 0.87); на Pi 1.5.2 не перепроверялось. Пока filter пуст, extension не загружается.
 
 ### Конфигурация и данные
 

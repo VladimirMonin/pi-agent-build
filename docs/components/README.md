@@ -12,4 +12,4 @@ Manifest содержит 15 Pi-пакетов. Документы сгрупп�
 | [MCP](mcp.md) | `pi-mcp-adapter` |
 | [Code intelligence](code-intelligence.md) | `@nicknisi/pi-ast-grep`, `@bacnh85/pi-serena`, `pi-cbm` |
 
-Версии берутся только из [`manifests/pi-packages.lock.json`](../../manifests/pi-packages.lock.json). `pi-background-tasks` входит в состав как installed-disabled. Code содержит все 15 пакетов; Task — 12 без трёх code-intelligence packages.
+Версии берутся только из [`manifests/pi-packages.lock.json`](../../manifests/pi-packages.lock.json); читаемая таблица состава с признаком вкл/выкл — [`composition.md`](composition.md) (генерируется `scripts/gen-composition.mjs`, сверяется в verify). `pi-background-tasks` и `pi-trace-extension` поставляются installed-disabled (пустой `extensions` в шаблонах; Trace — политика default-off). Code содержит все 15 пакетов; Task — 12 без трёх code-intelligence packages.

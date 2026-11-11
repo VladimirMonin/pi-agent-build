@@ -58,7 +58,7 @@
         "version": "2.6.2",
         "enabledExtensions": [],
         "state": "installed-disabled",
-        "reason": "2.6.2 does not support Pi 0.87 system-role conversation blocks"
+        "reason": "disabled by default: incompatible with system-role conversation blocks on Pi 0.87 (verified there); not re-verified on Pi 1.5.2"
       },
       {
         "source": "npm:pi-session-search@1.6.0",
