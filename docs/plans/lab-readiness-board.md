@@ -1,6 +1,10 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Текущая сборка Pi 1.5.2 build.7
+## Текущая сборка Pi 1.5.2 build.8
+
+[Release notes](../releases/pi-1.5.2-build.8.md). Срез «пять пакетов» по решению разведки 2026-11-11: pi-ollama-cloud 0.13.1, pi-subagents 0.88.0 + pi-intercom 0.18.1 (строгой парой — скрытые контракты idle-wake/session-identity), pi-goal-x 0.34.1 (порядок загрузки до intercom сохранён, peer range сверен с установленным пакетом), rpiv-todo 2.15.0. Дефолты моделей (решение владельца): Code → `ollama-cloud/deepseek-v4-pro:0813`, Task → `ollama-cloud/deepseek-v4.1-flash:1017`, `defaultThinkingLevel: xhigh` (уходит провайдеру как effort `max`); служебные маршруты памяти/поиска не менялись ([заметка](../notes/model-defaults.md)). Навык памяти — новая ревизия (содержимое владелец дорабатывает). Проверки: verify Both raw 0/0; канарейки моделей 3 PASS + 1 блок известной болезнью неполного обновления каталога пакета (workaround `pi update --models`); пробы стыков D.1–D.8 (мост расходов polza-cost с runId, wake-гонка, round-trip саб↔руководитель, честная ошибка обрезки 0.88.0, парность/порядок). Установка: Apply упёрся в занятый нативный модуль pi-tui при живых процессах Pi (EBUSY); пакеты поставлены штатным `pi install`, вложенный openai восстановлен точечным npm-ремонтом. Публикация (commit/push/tag/GitHub release) — по команде владельца «от начала до конца».
+
+## Исторический принятый выпуск Pi 1.5.2 build.7
 
 [Release notes](../releases/pi-1.5.2-build.7.md). Ядро **Pi 1.5.2** закреплено (runtime lock и оба профильных templates) после обновления рабочей установки владельцем; Node/npm и все пакеты профилей сохранены. Исправлены bash-скрипты проверки/установки: CRLF от Windows-python больше не портит последнее поле строк manifest (были ложные FAIL «patcher missing» / «pi-polza release tag object differs» и WARN по пути `codebase-memory-mcp`). `verify.sh --profile Both` — **0 failures / 0 warnings**, Patch Check Both — все 5 патчей PASS. Живой smoke Code: memory/subagents/intercom/MCP/Serena/граф — PASS; живой старт Task — канарейка `check-main-model.mjs` уровня SDK PASS (1 запрос), полный TUI-прогон NOT TESTED. Публикация (commit/push/tag/GitHub release) — по решению владельца.
 
