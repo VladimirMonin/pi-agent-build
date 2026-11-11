@@ -47,6 +47,21 @@ Fixture с отдельным installedProfile проверяет именно �
 
 Не отключай checksum/version/identity guards, SkipPatchChecks/SkipExternalChecks ради приёмки. Не выдавай forced-exit/validator exit0 за natural process PASS. Конкретный native механизм и его неизменяемые security параметры описываются паспортом/packet; новая схема не получает прежний approval автоматически.
 
+## Документация выпуска: где живут версии
+
+При каждом обновлении состава/ядера версии живут в точном наборе мест; обновляй их одним срезом и сверяй с manifests, а не с памятью — это предотвращает дрейф «вроде обновили, а в доках старое». Механическую сверку даёт `scripts/check-doc-versions.mjs` (входит в verify).
+
+1. `manifests/runtime.lock.json` — `runtime.pi.version` и `compatibility.minimumNode` с честным `reason`; `manifests/pi-packages.lock.json` — версии пакетов.
+2. `profiles/*/settings.template.json` — `lastChangelogVersion` = версия Pi.
+3. `README.md` — блок «**Текущая сборка: [Pi …](docs/releases/…)**» и цепочка предыдущих релизов (новый вперёд, прежний — в «Предыдущие минирелизы»).
+4. `CHANGELOG.md` — новая запись `## [pi-v<версия>-build.<N>] — <дата>` первой сверху.
+5. `docs/releases/pi-<версия>-build.<N>.md` (имя файла — имя тега без `v`) — новая заметка выпуска; прошлые immutable.
+6. `docs/plans/lab-readiness-board.md` — новая секция «## Текущая сборка …» первой сверху, прежняя переименовывается в «Исторический принятый выпуск …».
+7. `docs/setup.md` — строка текущей ревизии и таблица prerequisites (рабочий диапазон против lab-пинов).
+8. `INSTALL_FOR_AGENTS.md` — таблица версий/диапазонов, если менялся состав или prerequisites.
+
+Правила: полные теги (`pi-1.4.0-build.3`) вместо коротких ярлыков «build.N» — номера повторяются между циклами; «Текущий/Свежий» — только для текущего выпуска; исторические файлы (`docs/history/**`, прошлые `docs/releases/*`, старые записи CHANGELOG) не переписываются — исправление ложного исторического заявления идёт новой записью текущего выпуска.
+
 ## Профили и Trace
 
 Сохраняй два режима: Code (полный) и Task (облегчённый). Политика нового выпуска: Trace package присутствует, extension выключен по умолчанию в **обоих** canonical profiles. Проверяется поведение, не только JSON marker.

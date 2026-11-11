@@ -355,12 +355,16 @@ try {
         'manifests\schemas\runtime-lock.schema.json', 'manifests\schemas\pi-packages-lock.schema.json',
         'manifests\schemas\external-tools-lock.schema.json', 'profiles\code\settings.template.json',
         'profiles\task\settings.template.json', 'scripts\install.ps1', 'scripts\apply-patches.ps1',
-        'scripts\verify.ps1', 'scripts\safety-check.ps1', 'scripts\install-launchers.ps1',
+        'scripts\verify.ps1', 'scripts\safety-check.ps1', 'scripts\install-launchers.ps1', 'scripts\check-doc-versions.mjs',
         'launchers\pi-code.cmd', 'launchers\pi-task.cmd', 'launchers\pi-code', 'launchers\pi-task'
     )
     foreach ($relative in $requiredRepositoryPaths) {
         [void](Test-RequiredPath -Path (Join-Path $RepoRoot $relative) -Label $relative)
     }
+
+    $docVersions = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-doc-versions.mjs'), $RepoRoot)
+    if ($docVersions.Found -and $docVersions.ExitCode -eq 0) { Pass 'doc versions consistent (check-doc-versions)' }
+    else { Fail "doc versions drift: $($docVersions.Output)" }
 
     $runtime = Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')
     $packages = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')

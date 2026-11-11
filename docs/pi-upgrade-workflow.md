@@ -122,7 +122,7 @@ CLI terminal output-limit проверяй stimulus, реально достиг
 
 ## 8. Final docs, release и handoff
 
-Обновить README/setup/profiles/component/patch/platform docs, instructions/catalog и evidence matrices по фактам. Final assertions, command recipes и checks принадлежат одному accepted ref; historical tests не описываются как fresh execution.
+Обновить README/setup/profiles/component/patch/platform docs, instructions/catalog и evidence matrices по фактам. Конкретный список мест, где живут версии, — в [BUILD.LabUpgrade](../instructions/BUILD.lab_upgrade.instructions.md#документация-выпуска-где-живут-версии); их сверка автоматизирована (`scripts/check-doc-versions.mjs`, входит в verify). Final assertions, command recipes и checks принадлежат одному accepted ref; historical tests не описываются как fresh execution.
 
 Release gate: mandatory cases PASS в заявляемом scope; никаких скрытых security/runtime blockers; optional NOT TESTED ограничивает notes, не приравнивается к support. Проверить full final diff/safety/links/schema и semantics, затем permitted commits/push, main/tag/GitHub Release. Tag format определяется BUILD/manifest и не перезаписывает прежние tags. Remote/main/tag/Release должны указывать на принятую версию.
 
