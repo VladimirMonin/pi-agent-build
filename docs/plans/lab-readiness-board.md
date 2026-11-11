@@ -1,6 +1,10 @@
 # Readiness — переносимый стенд и выпуск следующей сборки Pi
 
-## Текущая сборка Pi 1.5.2 build.8
+## Текущая сборка Pi 1.5.2 build.9
+
+[Release notes](../releases/pi-1.5.2-build.9.md). Срез №2 «граф кода»: патч `pi-cbm-011` снят (вшит апстримом в pi-cbm 2.0.0), пара **pi-cbm 2.0.0 + codebase-memory-mcp 0.12.1** закреплена и установлена; исторический каталог патча с guard/store сохранён для отката (парой 1.2.1 × 0.11.x). Приёмка независимыми агентами: verify Both raw 0/0; `tests/scripts/run-tests.ps1` **24/24** (добиты 3 устаревших ожидания тестов: exit-3 readiness по P44/§6, изоляция ключа Polza по трём scope, фикстура `embedder.ts`+docs — продукт не трогался); **живой schema smoke 6/6** свежей сессией (search_graph/resolve_symbol/groups-строка/read/trace/detect_changes/negative control); CBM Lens — только loopback `127.0.0.1:9749`. Обвязка навыка памяти — 13/13 (найдены дефекты D1–D11 скриптов навыка — переданы владельцу). Публикация — по команде владельца «от начала до конца».
+
+## Исторический принятый выпуск Pi 1.5.2 build.8
 
 [Release notes](../releases/pi-1.5.2-build.8.md). Срез «пять пакетов» по решению разведки 2026-11-11: pi-ollama-cloud 0.13.1, pi-subagents 0.88.0 + pi-intercom 0.18.1 (строгой парой — скрытые контракты idle-wake/session-identity), pi-goal-x 0.34.1 (порядок загрузки до intercom сохранён, peer range сверен с установленным пакетом), rpiv-todo 2.15.0. Дефолты моделей (решение владельца): Code → `ollama-cloud/deepseek-v4-pro:0813`, Task → `ollama-cloud/deepseek-v4.1-flash:1017`, `defaultThinkingLevel: xhigh` (уходит провайдеру как effort `max`); служебные маршруты памяти/поиска не менялись ([заметка](../notes/model-defaults.md)). Навык памяти — новая ревизия (содержимое владелец дорабатывает). Проверки: verify Both raw 0/0; канарейки моделей 3 PASS + 1 блок известной болезнью неполного обновления каталога пакета (workaround `pi update --models`); пробы стыков D.1–D.8 (мост расходов polza-cost с runId, wake-гонка, round-trip саб↔руководитель, честная ошибка обрезки 0.88.0, парность/порядок). Установка: Apply упёрся в занятый нативный модуль pi-tui при живых процессах Pi (EBUSY); пакеты поставлены штатным `pi install`, вложенный openai восстановлен точечным npm-ремонтом. Публикация (commit/push/tag/GitHub release) — по команде владельца «от начала до конца».
 
