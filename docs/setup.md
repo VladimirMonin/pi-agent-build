@@ -54,7 +54,7 @@ Default `PiRoot` — `~/.pi`: Code=`agent`, Task=`task`. Launchers рендер�
 
 - `settings.json`: сохраняются неизвестные пользовательские поля, дополнительные пакеты и `memory.factProjectAliases`; build-owned sources/order/filters приводятся к manifests, служебная consolidation model — к template. `pi-goal-x` остаётся перед `pi-intercom`; Trace и background-tasks не активируются из-за потери фильтра.
 - `models.json`: добавляется только отсутствующий `polza-memory`; другие providers сохраняются. Старый **static `polza`** конфликтует с dynamic provider: installer отказывает до package writes. Сначала backup и адресное переименование по [справке](polza-memory.md#миграция-со-старого-static-provider-polza), не удаление всего файла.
-- Существующие Ollama config, memory-ops, Goal X settings и AGENTS не заменяются автоматически.
+- Существующие Ollama config, навык памяти (memory-ops/pi-memory-ops), Goal X settings и AGENTS не заменяются автоматически.
 - MCP: стандартный Context7 дополняет effective adapter configuration, не отменяя shared servers/imports/settings, реальные credentials, собственный URL или явное отключение. Adapter-specific owner — `mcp-adapter.json`; [приоритеты и проверка](components/mcp.md).
 
 `-ReplaceProfileConfigs` / `--replace-profile-configs` — **явная полная замена** конфигурационных компонентов с backup. Это не синоним reinstall и не рекомендуемый default. Прежде сохраните личные решения; не используйте replace/skip flags для обхода unknown state.
