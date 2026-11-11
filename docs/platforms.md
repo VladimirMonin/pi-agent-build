@@ -92,4 +92,4 @@ bash tests/scripts/settings-sync-posix.sh # package pins + запрет пере
 - `patches/ast-grep-windows/` — Windows-only staging реального `.exe`; на POSIX не применяется и не нужен.
 - `memory-windows-runtime` на POSIX применяется ради **profile-aware settings**, ordered turns и безопасной scoped-инъекции памяти; Windows-ветка spawn не активна. Для необычных корней проекта/worktree alias задаются в приватном profile settings.
 - Точные Windows-версии Node/npm/Git не воспроизводятся; воспроизводится состав Pi-пакетов и состояние patches.
-- `CODEBASE_MEMORY_MCP_BIN` на POSIX указывает на node-скрипт (`<prefix>/bin/codebase-memory-mcp`), а не на `.exe`.
+- `PI_CBM_BIN` на POSIX указывает на node-скрипт (`<prefix>/bin/codebase-memory-mcp`), а не на `.exe`.

@@ -870,9 +870,9 @@ try {
         $cbmPatcher = Join-Path $RepoRoot 'patches\pi-cbm-011\apply.py'
         $cbmTarget = Join-Path $cbmPkg 'src\cbm\client.ts'
         $cbmStockHash = (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash
-        $cbmCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        $cbmCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ PI_CBM_BIN = $cbmExe }
         Assert-Equal 2 $cbmCheck.ExitCode 'retired pi-cbm-011 check must refuse the natively compatible pair 2.0.0 x 0.12.1'
-        $cbmApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        $cbmApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ PI_CBM_BIN = $cbmExe }
         Assert-Equal 2 $cbmApply.ExitCode 'retired pi-cbm-011 apply must refuse pi-cbm 2.0.0'
         Assert-Equal $cbmStockHash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'retired pi-cbm-011 apply rewrote a natively compatible 2.0.0 install'
         Assert-True (-not (Test-Path -LiteralPath (Join-Path $cbmAgent '.pi-agent-build-backups\pi-cbm-011'))) 'retired pi-cbm-011 apply created a runtime backup'

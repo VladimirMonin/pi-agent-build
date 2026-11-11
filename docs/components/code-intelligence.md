@@ -99,7 +99,7 @@ npm install -g codebase-memory-mcp@0.12.1
 PI_CODING_AGENT_DIR="<CODE_PROFILE_DIR>" pi install npm:pi-cbm@2.0.0
 ```
 
-Launcher задаёт `CODEBASE_MEMORY_MCP_BIN` на реальный `.exe`, `PI_CBM_MAX_CONCURRENT_INDEXES=1` и refresh interval.
+Launcher задаёт `PI_CBM_BIN` на реальный `.exe`, `PI_CBM_MAX_CONCURRENT_INDEXES=1` и refresh interval.
 
 ### Конфигурация и данные
 

@@ -28,7 +28,7 @@ Guard узкий: ровно `pi-cbm 1.2.1`, CBM `>=0.11.0,<0.12.0`, налич�
 
 ### Конфигурация и данные
 
-Patcher меняет installed `src/cbm/client.ts`, хранит pristine copy и runtime backup. Upstream CBM binary/index DB не изменяются. На Windows launcher обязан задавать `CODEBASE_MEMORY_MCP_BIN` на реальный `.exe`, а не npm shim.
+Patcher меняет installed `src/cbm/client.ts`, хранит pristine copy и runtime backup. Upstream CBM binary/index DB не изменяются. На Windows launcher обязан задавать `PI_CBM_BIN` на реальный `.exe`, а не npm shim.
 
 ### Tools/команды
 
