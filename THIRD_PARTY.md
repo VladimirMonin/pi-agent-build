@@ -28,7 +28,7 @@
 | 8 | `pi-background-tasks` | 2.6.2 | ISC | <https://github.com/ismailsaleekh/pi-background-tasks> |
 | 9 | `pi-session-search` | 1.6.0 | MIT | <https://github.com/samfoy/pi-session-search> |
 | 10 | `@samfp/pi-memory` | 1.6.1 | MIT | <https://github.com/samfoy/pi-memory> |
-| 11 | `pi-mcp-adapter` | 5.3.2 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
+| 11 | `pi-mcp-adapter` | 7.0.1 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
 | 12 | `pi-goal-x` | 0.32.3 | MIT | <https://github.com/tmonk/pi-goal-x> |
 | 13 | `@nicknisi/pi-ast-grep` | 0.2.1 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
 | 14 | `@bacnh85/pi-serena` | 0.9.20 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |

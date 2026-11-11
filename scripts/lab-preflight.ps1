@@ -73,13 +73,9 @@ function Assert-SyntheticMcp {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "$Label is not a file." }
     try { $config = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json }
     catch { throw "$Label must contain valid JSON." }
-    if ($null -eq $config -or @($config.PSObject.Properties).Count -ne 2 -or
+    if ($null -eq $config -or @($config.PSObject.Properties).Count -ne 1 -or
         $null -eq $config.PSObject.Properties['mcpServers'] -or
-        $null -eq $config.PSObject.Properties['settings'] -or
-        $null -eq $config.mcpServers -or @($config.mcpServers.PSObject.Properties).Count -ne 0 -or
-        $null -eq $config.settings -or @($config.settings.PSObject.Properties).Count -ne 1 -or
-        $null -eq $config.settings.PSObject.Properties['scriptMode'] -or
-        $config.settings.scriptMode -isnot [bool] -or $config.settings.scriptMode) {
+        $null -eq $config.mcpServers -or @($config.mcpServers.PSObject.Properties).Count -ne 0) {
         throw "$Label is not an empty synthetic MCP configuration."
     }
 }

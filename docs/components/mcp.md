@@ -1,6 +1,6 @@
 # MCP: единственный adapter и удалённый Context7
 
-Владелец MCP — `pi-mcp-adapter@5.3.2`. Code/Task сохраняют `extensions: ["-builtin:mcp"]`: builtin и adapter не должны одновременно обслуживать серверы. Действие подавления проверяется на целевом ядре, не предполагается из номера версии. Полный install идёт через [основной маршрут](../../INSTALL_FOR_AGENTS.md); [manifest](../../manifests/pi-packages.lock.json) владеет pin.
+Владелец MCP — `pi-mcp-adapter@7.0.1`. Code/Task сохраняют `extensions: ["-builtin:mcp"]`: builtin и adapter не должны одновременно обслуживать серверы. Действие подавления проверяется на целевом ядре, не предполагается из номера версии. Полный install идёт через [основной маршрут](../../INSTALL_FOR_AGENTS.md); [manifest](../../manifests/pi-packages.lock.json) владеет pin.
 
 ## Стандартный Context7
 
@@ -14,9 +14,6 @@
       "httpTransport": "streamable-http",
       "lifecycle": "lazy"
     }
-  },
-  "settings": {
-    "scriptMode": false
   }
 }
 ```
@@ -25,7 +22,7 @@
 
 Безключевой default **не содержит `headers`**, пустого Bearer или ссылки на отсутствующую переменную. Не обещайте безлимитный доступ: сервис может вернуть rate limit или потребовать auth. OAuth не является обязательным шагом базовой URL-установки.
 
-Оба installer-а после package install вызывают [`scripts/ensure-context7.mjs`](../../scripts/ensure-context7.mjs), используя [`config/mcp-adapter.default.json`](../../config/mcp-adapter.default.json) и loader именно установленного adapter 5.3.2. Fresh defaults задают `scriptMode:false`; существующий пользовательский `true` сохраняется. Read-only configuration check: `node scripts/ensure-context7.mjs --profile-dir "<PROFILE_DIR>" --sdk-root "<INSTALLED_CORE_PACKAGE>" --check`. Это проверка effective configuration, не tools/call.
+Оба installer-а после package install вызывают [`scripts/ensure-context7.mjs`](../../scripts/ensure-context7.mjs), используя [`config/mcp-adapter.default.json`](../../config/mcp-adapter.default.json) и loader именно установленного adapter 7.0.1. Fresh defaults добавляют только запись Context7; существующие servers/imports/settings пользователя не переписываются и defaults им не навязываются. Read-only configuration check: `node scripts/ensure-context7.mjs --profile-dir "<PROFILE_DIR>" --sdk-root "<INSTALLED_CORE_PACKAGE>" --check`. Это проверка effective configuration, не tools/call.
 
 [`config/mcp.example.json`](../../config/mcp.example.json) — большой пример дополнительных servers, не файл для слепого копирования в профиль. Brave/Fetch и их credentials не включаются вместе с обязательным default Context7.
 
@@ -41,9 +38,13 @@
 }
 ```
 
-Pinned adapter поддерживает env interpolation HTTP headers. Это фрагмент записи server, не весь config и не секрет для Git. Если переменной нет — не добавляйте поле. `env` stdio-сервера не заменяет HTTP header. Не создавайте новое хранилище ключей; используйте поддержанный механизм конфигурации/credentials. [Headers/auth адаптера](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/auth.md#headers-bearer-tokens-and-secret-commands), [schema полей](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/servers.md), [официальная установка Context7](https://github.com/upstash/context7#installation).
+Pinned adapter поддерживает env interpolation HTTP headers. Это фрагмент записи server, не весь config и не секрет для Git. Если переменной нет — не добавляйте поле. `env` stdio-сервера не заменяет HTTP header. Не создавайте новое хранилище ключей; используйте поддержанный механизм конфигурации/credentials. [Headers/auth адаптера](https://github.com/nicobailon/pi-mcp-adapter/blob/v7.0.1/docs/auth.md#headers-bearer-tokens-and-secret-commands), [schema полей](https://github.com/nicobailon/pi-mcp-adapter/blob/v7.0.1/docs/servers.md), [официальная установка Context7](https://github.com/upstash/context7#installation).
 
-## Loader 5.3.2 и сохранение настроек
+## mcpScript → codemode (adapter 6.0.0+)
+
+В 6.0.0 инструмент `mcpScript` **удалён** — его заменяет встроенный `codemode` Pi. Чтобы скриптовать вызовы MCP, добавьте `"+codemode"` в `defaultTools` настроек Pi (или активируйте инструмент флагом `--tools +codemode`); скрипт `codemode` обращается к инструментам через `tools.*`, `searchTools`, `describeTool`, включая MCP tools. Мёртвые ключи конфигурации: `settings.scriptMode` и `settings.scriptSkill` — грузятся, но ничего не делают, adapter печатает уведомление об удалении с этой инструкцией миграции; `settings.jev` заменён на `settings.semanticSearch` (`jev:false` больше не выключает семантический поиск). Шаблоны и конфиги сборки этих ключей не содержат. В 7.0.1 исправлены имена инструментов длиннее 64 символов для OpenAI-совместимых шлюзов (путь Polza).
+
+## Loader 7.0.1 и сохранение настроек
 
 Adapter-specific settings/imports/overrides принадлежат `mcp-adapter.json`. На современном Pi файл `mcp.json` имеет **Pi-native** контракт: loader переводит только поддержанные servers, не произвольные adapter поля. Нельзя переносить туда `settings.scriptMode`, `lifecycle` и transport override в надежде на одинаковую семантику.
 
@@ -53,7 +54,7 @@ Adapter-specific settings/imports/overrides принадлежат `mcp-adapter.
 2. `<PROFILE_DIR>/mcp.json` (Pi-native), затем `<PROFILE_DIR>/mcp-adapter.json`.
 3. Явно opted-in ancestors; в cwd `.mcp.json`, `.pi/mcp.json` (Pi-native), `.pi/mcp-adapter.json`.
 
-Ancestor discovery по умолчанию off, host-specific imports имеют собственные правила. Используйте **effective config штатного loader**, не вторую реализацию приоритетов и не проверку одного файла. [Точный контракт loader](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/config.ts), [configuration](https://github.com/nicobailon/pi-mcp-adapter/blob/v5.3.2/docs/configuration.md).
+Ancestor discovery по умолчанию off, host-specific imports имеют собственные правила. Используйте **effective config штатного loader**, не вторую реализацию приоритетов и не проверку одного файла. [Точный контракт loader](https://github.com/nicobailon/pi-mcp-adapter/blob/v7.0.1/config.ts), [configuration](https://github.com/nicobailon/pi-mcp-adapter/blob/v7.0.1/docs/configuration.md).
 
 При обновлении сохраняйте другие servers/imports/settings, действительные credentials, пользовательский Context7 URL/auth и явный disable. Не создавайте profile default поверх существующей shared записи с более высоким приоритетом. Отсутствующая настройка получает default; уже сделанный выбор пользователя не отменяется.
 
@@ -62,7 +63,7 @@ Ancestor discovery по умолчанию off, host-specific imports имеют
 ## Короткая функциональная проверка
 
 1. В обоих профилях проверьте effective Context7 definition и единственного MCP owner. Панель `/mcp`/`/mcp-adapter` должна принадлежать adapter-у, не второму владельцу.
-2. Обнаружьте tools через `mcp` search и прочитайте schema нужного tool. Выполните **`resolve-library-id` → версия библиотеки → `query-docs`** с коротким вопросом о публичной документации. Имена/аргументы — из schema, не догадка о prefix.
+2. Обнаружьте tools через `mcp` search и прочитайте schema нужного tool. Выполните **`resolve-library-id` → версия библиотеки → `query-docs`** с коротким вопросом о публичной документации. Имена/аргументы — из schema, не догадка о prefix. Скриптовая приёмка идёт через builtin `codemode` (замена удалённого `mcpScript`): цепочка выполняется скриптом `codemode` с вызовами `tools.mcp(...)`/прямых tools.
 3. Проверьте полезный результат и завершение. URL, произвольный HTTP GET, server/tool listing и config validation сами по себе не live-вызов.
 4. Network unavailable, auth required и rate limit — разные внешние результаты; default остаётся настроенным, независимая работа продолжается. Не заявляйте live PASS по конфигурации.
 
@@ -88,7 +89,7 @@ Windows / Pi 1.4.0 / adapter 5.3.2: переиспользован один ус
 
 ### Почему Adapter остаётся владельцем
 
-Pi 1.3.0 не предоставляет эквивалентный legacy SSE fallback; SSE внутри streamable HTTP не заменяет legacy SSE transport. Поэтому сохраняются единственный `/mcp`, `-builtin:mcp` в обоих профилях, `settings.scriptMode:false` в MCP template, existing shared configuration и direct-tool selection. Не включать builtin ради нового core и не переносить credentials/config автоматически.
+Pi 1.3.0 не предоставляет эквивалентный legacy SSE fallback; SSE внутри streamable HTTP не заменяет legacy SSE transport. Поэтому сохраняются единственный `/mcp`, `-builtin:mcp` в обоих профилях, отсутствие adapter-скриптового инструмента (в 5.3.2 это был `scriptMode:false` в MCP template; `mcpScript` удалён в 6.0.0, scripting — builtin codemode), existing shared configuration и direct-tool selection. Не включать builtin ради нового core и не переносить credentials/config автоматически.
 
 В 5.3.2 межхостовые redirects отвергаются: используйте конечный URL сервера. На Windows `!command` при доступном Git Bash исполняется через него, поэтому синтаксис проверяется без вывода значений секретов. Старые OAuth credentials без issuer могут потребовать отдельной повторной авторизации; не назначайте issuer из недоверенной discovery и не экспортируйте keyring. Обновление SDK само по себе не доказывает безопасность всех старых credentials.
 
@@ -97,10 +98,10 @@ Pi 1.3.0 не предоставляет эквивалентный legacy SSE f
 
 ## Решение для кандидата Pi 0.99.1
 
-**Исторический [pi-1.0.4-build.5](../releases/pi-1.0.4-build.5.md):** adapter5.1.0 — единственный MCP owner, `-builtin:mcp` сохранён Both. Native actual installed Code/Task подключили shared WVM/Context7/Fetch/Brave без config migration. WVM `settings_schema` PASS Both; Code Context7 resolve, Fetch example.com и один Brave search PASS. WVM запускался через `run_debug.bat` и после smoke закрыт, port7558 closed. Историческая assessment ниже относится к2.36.0 и не описывает текущий статус. Текущий adapter — **5.3.2** ([packages lock](../../manifests/pi-packages.lock.json)).
+**Исторический [pi-1.0.4-build.5](../releases/pi-1.0.4-build.5.md):** adapter5.1.0 — единственный MCP owner, `-builtin:mcp` сохранён Both. Native actual installed Code/Task подключили shared WVM/Context7/Fetch/Brave без config migration. WVM `settings_schema` PASS Both; Code Context7 resolve, Fetch example.com и один Brave search PASS. WVM запускался через `run_debug.bat` и после smoke закрыт, port7558 closed. Историческая assessment ниже относится к2.36.0 и не описывает текущий статус. Текущий adapter — **7.0.1** ([packages lock](../../manifests/pi-packages.lock.json)).
 
 `pi-mcp-adapter@2.36.0` ранее **сохранялся**. Последняя WVM assessment выполнена после private source-only query corrections, source review и doc/diff/safety gates: configured parent gateway connect33tools и read-only public `settings_schema` version1 PASS. Предыдущие `fetch failed` и прежние schema receipts сохранены как история; source/managed approval не открывает controlled native runner gate. Ни success, ни availability failure parent gateway не являются transport diagnosis кандидата. **Legacy SSE и streamable HTTP в отдельных candidate-конфигурациях NOT TESTED**: отдельно идентифицированные endpoints/configs не испытаны, working configs/credentials не копировались. Надпись gateway «legacy notification path» сама по себе не устанавливает MCP transport; public schema-call не доказывает builtin parity.
 
-Для замены должны быть доказаны: единственный `/mcp`, lazy discovery/schema exposure, proxy/direct tools и `mcpScript`, auth без экспорта credentials, ошибки/output guard и реальные требуемые WVM tools на обоих transports. Паритет builtin по этим функциям **NOT TESTED**, эксперимент не запускался; два владельца `/mcp` не добавлялись. Официальная [документация 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/mcp.md#configure-servers) описывает stdio/streamable HTTP, но не обещает legacy SSE. Это static contract, не наш runtime PASS.
+Для замены должны быть доказаны: единственный `/mcp`, lazy discovery/schema exposure, proxy/direct tools и codemode-скриптинг (`mcpScript` удалён в 6.0.0), auth без экспорта credentials, ошибки/output guard и реальные требуемые WVM tools на обоих transports. Паритет builtin по этим функциям **NOT TESTED**, эксперимент не запускался; два владельца `/mcp` не добавлялись. Официальная [документация 0.99.1](https://github.com/earendil-works/pi/blob/v0.99.1/packages/coding-agent/docs/mcp.md#configure-servers) описывает stdio/streamable HTTP, но не обещает legacy SSE. Это static contract, не наш runtime PASS.
 
 Итог — **NO-GO для полного релиза/переключения**, bounded candidate branch может быть опубликована по отдельному разрешению владельца. Доказательства/риски: [доска](../plans/pi-0.99.1-execution-board.md), [матрица](../plans/pi-0.99.1-compat-matrix.md); сырые WVM результаты только в private evidence.

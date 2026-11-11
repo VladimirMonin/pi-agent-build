@@ -5,8 +5,5 @@
       "httpTransport": "streamable-http",
       "lifecycle": "lazy"
     }
-  },
-  "settings": {
-    "scriptMode": false
   }
 }

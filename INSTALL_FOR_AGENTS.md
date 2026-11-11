@@ -159,7 +159,7 @@ Installer добавляет отсутствующий статический `
 
 ## 5. Context7 по умолчанию
 
-Стандартный default для Code/Task — удалённый `https://mcp.context7.com/mcp`, **Streamable HTTP**, `lifecycle: "lazy"`, через единственного владельца `pi-mcp-adapter@5.3.2`. Adapter-specific файл — `<PROFILE_DIR>/mcp-adapter.json`, не Pi-native `mcp.json`. В безключевом default поля `headers` **нет**. Локальный `npx`/`context7-mcp` и exclusive mode не нужны. Безключевой доступ ограничен сервисом.
+Стандартный default для Code/Task — удалённый `https://mcp.context7.com/mcp`, **Streamable HTTP**, `lifecycle: "lazy"`, через единственного владельца `pi-mcp-adapter@7.0.1`. Adapter-specific файл — `<PROFILE_DIR>/mcp-adapter.json`, не Pi-native `mcp.json`. В безключевом default поля `headers` **нет**. Локальный `npx`/`context7-mcp` и exclusive mode не нужны. Безключевой доступ ограничен сервисом.
 
 При обновлении сохраняются shared servers/imports/settings, пользовательский URL/auth и явное отключение Context7; они не отменяются default-ом. Проверяйте **effective config** адаптера, а не только новый файл. Подробнее: [MCP и необязательный HTTP auth](docs/components/mcp.md).
 

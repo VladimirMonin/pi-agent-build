@@ -7,7 +7,7 @@ import {createRequire} from 'node:module';
 import {parseArgs} from 'node:util';
 export async function ensureContext7({profileDir,adapterRoot,sdkRoot,cwd=process.cwd(),check=false}) {
  profileDir=path.resolve(profileDir);adapterRoot=path.resolve(adapterRoot??path.join(profileDir,'npm/node_modules/pi-mcp-adapter'));
- if(JSON.parse(fs.readFileSync(path.join(adapterRoot,'package.json'),'utf8')).version!=='5.3.2')throw Error('Exact pi-mcp-adapter 5.3.2 required');
+ if(JSON.parse(fs.readFileSync(path.join(adapterRoot,'package.json'),'utf8')).version!=='7.0.1')throw Error('Exact pi-mcp-adapter 7.0.1 required');
  if(!sdkRoot)throw Error('Explicit installed --sdk-root required (no global SDK fallback)');
  process.env.PI_CODING_AGENT_DIR=profileDir;
  const require=createRequire(path.join(path.resolve(sdkRoot),'package.json'));
@@ -30,7 +30,7 @@ export async function ensureContext7({profileDir,adapterRoot,sdkRoot,cwd=process
  if(!local||typeof local!=='object'||Array.isArray(local))throw Error('Invalid adapter config object');
  const defaults=JSON.parse(fs.readFileSync(fileURLToPath(new URL('../config/mcp-adapter.default.json',import.meta.url)),'utf8'));
  for(const field of ['mcpServers','settings'])if(local[field]!==undefined&&(!local[field]||typeof local[field]!=='object'||Array.isArray(local[field])))throw Error('Invalid adapter config '+field);
- const next={...local,mcpServers:{...(local.mcpServers??{}),...defaults.mcpServers},settings:{...(effective.settings?.scriptMode===undefined?defaults.settings:{}),...local.settings}};
+ const next={...local,mcpServers:{...(local.mcpServers??{}),...defaults.mcpServers}};
  if(before!==null){
   const backup=path.join(profileDir,'.pi-agent-build-backups/context7',String(Date.now()));fs.mkdirSync(backup,{recursive:true});
   fs.copyFileSync(target,path.join(backup,'mcp-adapter.json'));

@@ -73,10 +73,10 @@
         "patch": "memory-windows-runtime"
       },
       {
-        "source": "npm:pi-mcp-adapter@5.3.2",
+        "source": "npm:pi-mcp-adapter@7.0.1",
         "package": "pi-mcp-adapter",
-        "version": "5.3.2",
-        "compatibilityNote": "Single MCP owner; builtin:mcp remains disabled. Verify required servers including WVM."
+        "version": "7.0.1",
+        "compatibilityNote": "Verified against the installed 7.0.1 package (2026-11-11). Internal API used by ensure-context7.mjs unchanged: config.ts setPiMcpConfigEnabled/loadMcpConfig/writeSharedConfigText, utils.ts parseJsonWithComments, types.ts isServerDisabled keep their 5.3.2 signatures. 6.0.0 removed the mcpScript tool: settings.scriptMode/scriptSkill still load but do nothing and raise a removal notice pointing to Pi's builtin codemode (add +codemode to defaultTools in Pi settings to script MCP calls); settings.jev is replaced by settings.semanticSearch, and jev:false no longer disables semantic search. ServerEntry.httpTransport still accepts streamable-http and sse. 7.0.1 fixes tool names longer than 64 chars on OpenAI-compatible gateways (Polza path). Single MCP owner; builtin:mcp remains disabled. Verify required servers including WVM."
       }
     ],
     "codeOnly": [

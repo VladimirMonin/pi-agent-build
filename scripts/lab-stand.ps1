@@ -179,8 +179,8 @@ try {
         $manifest.runtime.pi.package -isnot [string] -or $manifest.runtime.pi.package -ne '@earendil-works/pi-coding-agent' -or $manifest.runtime.pi.version -ne $c.expectedPiVersion) { throw 'MANIFEST_VERSION_MISMATCH' }
     $dirs = @('pi-root/agent','pi-root/task','npm-prefix','home','appdata','localappdata','temp','xdg-config','xdg-data','xdg-cache','xdg-state','npm-cache','npm-config','uv-cache','uv-tools','uv-bin','cbm-cache','mcp-oauth','trace','goal','sessions/agent','sessions/task','sessions-archive/agent','sessions-archive/task','memory','test-cwd/.pi','evidence')
     $fixtureFiles = @{
-        'pi-root/agent/mcp.json'='{"mcpServers":{},"settings":{"scriptMode":false}}'
-        'pi-root/task/mcp.json'='{"mcpServers":{},"settings":{"scriptMode":false}}'
+        'pi-root/agent/mcp.json'='{"mcpServers":{}}'
+        'pi-root/task/mcp.json'='{"mcpServers":{}}'
         'test-cwd/.pi/settings.json'='{"pi-memory":{"localPath":"../memory"}}'
         'npm-config/user.npmrc'=''; 'npm-config/global.npmrc'=''
     }

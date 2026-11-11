@@ -316,7 +316,7 @@ for name in ('agent', 'task'):
     if mcp.exists():
         try: config = json.loads(mcp.read_text(encoding='utf-8'))
         except (OSError, ValueError) as exc: reject(name + ' MCP invalid: ' + str(exc))
-        if config != {'mcpServers': {}, 'settings': {'scriptMode': False}}:
+        if config != {'mcpServers': {}}:
             reject(name + ' MCP is not empty synthetic config')
 for name in ('user.npmrc', 'global.npmrc'):
     config = lab / 'npm-config' / name
