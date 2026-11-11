@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact pi-session-search 1.6.0 roots, safe discovery and embedding prefixes."""
+"""Exact pi-session-search 1.6.1 roots, safe discovery and embedding prefixes."""
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 HERE = pathlib.Path(__file__).resolve().parent
 STORE = HERE / "store" / VERSION
 REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/index.js", "src/index.ts",
@@ -18,8 +18,8 @@ REL_FILES = tuple(map(pathlib.Path, ("src/config.ts", "src/parser.ts", "dist/ind
 STOCK_HASHES = (
     "e6103a7010615e059a01a3954d3135092b46e197cec6ce878ae84271c9211427",
     "2f67818bc768a3f7e89aa2f8135cf8fb70611b148dfbd7ef41e8cf7d3dd1746a",
-    "9d011f994d6de8bb873ba242a9b705ab560046a4eae3c66c75068c98aa29090b",
-    "e2e36ee96ca972d8e98bc9dec857ca1ac883c1063f8f8ca11786713d3f1574bc",
+    "881f34e61cfe74ac415757bee51c7c07537b90bad62ec69b46dfdcf13324e63c",
+    "9e05ff3528fa99a63bad71cab270fc53f1405248467767d2e08f294f4b1d2fb7",
     "fd8cff09d6557df8b1dd4b55770aa4fdbdd37546a0da454bb25596055926bf5e",
     "4c0fa27ae77ff037fe393f24efda51fb7ca2b995143b0560d5b09902f82a8622",
     "7901989942a790c549d328a3d49e491090f514c0b5a650a4547dad9b73a99b57",
@@ -268,55 +268,6 @@ def patch_display(text, typed=False):
     return text
 
 
-def patch_embedding_prefixes(text, *, source=False):
-    """One model table and two literal overrides; no provider/index migration."""
-    if source:
-        text = replace_once(text, '  dimensions?: number;\n}',
-            '  dimensions?: number;\n  /** Override model defaults; an empty string disables the prefix. */\n  documentPrefix?: string;\n  queryPrefix?: string;\n}', 'prefix config')
-    signature = 'export function createEmbedder(config: EmbedderConfig): Embedder {' if source else 'function createEmbedder(config) {'
-    provider_signature = signature.replace('export ', '').replace('createEmbedder(', 'createProviderEmbedder(')
-    wrapper = r'''const MODEL_PREFIXES = [
-  {
-    model: /(?:^|[\/_-])qwen3-embedding-(?:0\.6b|8b)(?:$|[-_.])/i,
-    documentPrefix: "",
-    queryPrefix: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:",
-  },
-  {
-    model: /(?:^|[\/_-])(?:gemini-embedding-2(?:-preview)?|embeddinggemma-2)(?:$|[-_.])/i,
-    documentPrefix: "title: none | text: ",
-    queryPrefix: "task: search result | query: ",
-  },
-];
-
-SIGNATURE
-  const rule = MODEL_PREFIXES.find((rule) => rule.model.test(config.model ?? ""));
-  const documentPrefix = config.documentPrefix ?? rule?.documentPrefix ?? "";
-  const queryPrefix = config.queryPrefix ?? rule?.queryPrefix ?? "";
-  const provider = createProviderEmbedder(config);
-  return {
-    embed: (text, signal) => provider.embed(queryPrefix + text, signal),
-    embedBatch: (texts, signal) => provider.embedBatch(texts.map((text) => documentPrefix + text), signal),
-  };
-}
-
-'''.replace('SIGNATURE', signature)
-    return replace_once(text, signature, wrapper + provider_signature, 'embedding factory')
-
-
-def patch_semantic_first(text, *, source=False):
-    """Keep existing vector order/scores, without running the noisy FTS arm."""
-    text = replace_once(text, '    const ftsRanks = this.fts.searchRanks(query, poolSize, allowedIds);\n', '', 'defer keyword arm')
-    start = '    if (this.fusion === "vector-primary") {'
-    end = '      const K = 60;'
-    cast = ' as [string, number]' if source else ''
-    body = (start + '\n      // Semantic-only: preserve vector order and existing score semantics.\n'
-            '      sorted = cosineScored.slice(0, limit).map((s, rank) =>\n'
-            f'        [s.entry.session.id, 1 / (60 + rank + 1)]{cast});\n'
-            '    } else {\n'
-            '      const ftsRanks = this.fts.searchRanks(query, poolSize, allowedIds);\n')
-    return replace_body(text, start, end, body)
-
-
 def patch_embedding_contracts(text, *, source=False):
     """Exact configuration records; formatting belongs to indexer call sites."""
     if source:
@@ -546,9 +497,12 @@ def patch_semantic_service(text, *, source=False):
   }''', 'no silent lexical fallback')
 
 
-def canonical_files(runtime_only=False, *, previous=False, published=False, released=False, build3=False):
-    if sum((previous, published, released, build3)) > 1:
-        raise ValueError('select one exact historical state')
+def canonical_files(runtime_only=False):
+    """Stock 1.6.1 plus the one canonical patch. Patch-revision states of the
+    1.6.0 line (previous/published/released/build3) cannot exist inside a 1.6.1
+    package: the supported transition is fresh stock -> canonical, with the
+    1.6.0 immutable store kept in store/1.6.0 as the byte-exact rollback
+    reference."""
     stock = read_files(STORE)
     if tuple(hashlib.sha256(stock[r]).hexdigest() for r in REL_FILES) != STOCK_HASHES:
         raise RuntimeError("immutable stock hash mismatch")
@@ -560,75 +514,50 @@ def canonical_files(runtime_only=False, *, previous=False, published=False, rele
     d = patch_index(patch_parser(d, runtime_only, True))
     i = patch_index(i, True)
     canonical = {**stock, **dict(zip(REL_FILES[:4], (v.encode("utf-8") for v in (c, p, d, i))))}
-    if not previous:
-        for rel in (REL_FILES[2], *REL_FILES[4:]):
-            canonical[rel] = patch_display(canonical[rel].decode("utf-8"), rel.suffix == '.ts').encode("utf-8")
-    if not (previous or published):
-        for leaf in ('src/parser.ts', 'src/index.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            text = canonical[rel].decode('utf-8')
-            worker = leaf.endswith('index-worker.js')
-            if worker:
-                text = patch_parser(text, runtime_only, True, worker=True)
-            text = patch_roots(text)
-            if leaf != 'src/index.ts':
-                text = patch_discovery(text, source=rel.suffix == '.ts', worker=worker)
-            canonical[rel] = text.encode('utf-8')
-        for leaf in ('src/session-index.ts', 'src/fts-index.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            text = patch_safe_removal(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
-            if leaf != 'src/fts-index.ts':
-                text = patch_partial_fts(text, source=rel.suffix == '.ts')
-            canonical[rel] = text.encode('utf-8')
-    if build3:
-        for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_embedding_prefixes(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/session-index.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_semantic_first(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/config.ts', 'dist/index.js'):
-            rel = pathlib.Path(leaf)
-            text = replace_once(canonical[rel].decode('utf-8'),
-                'fusion: file.fusion === "vector-primary" ? "vector-primary" : "rrf"',
-                'fusion: file.fusion === "rrf" ? "rrf" : "vector-primary"', 'semantic default')
-            if rel.suffix == '.ts':
-                text = text.replace('`"rrf"` (default)', '`"rrf"` (opt-in)').replace('@default "rrf"', '@default "vector-primary"')
-                text = text.replace('Preserve cosine order; append top-5 FTS hits that\n   *   the vector arm missed.', 'Semantic-only cosine order, without FTS fusion.\n   *  ')
-            canonical[rel] = text.encode('utf-8')
-    elif not (previous or published or released):
-        for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_embedding_contracts(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/session-index.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            text = patch_indexer_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
-            canonical[rel] = patch_semantic_only(text, source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_index_service_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/config.ts', 'dist/index.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_build_config(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/index.ts', 'dist/index.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_setup_mapping(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
-        for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
-            rel = pathlib.Path(leaf)
-            canonical[rel] = patch_semantic_service(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+    for rel in (REL_FILES[2], *REL_FILES[4:]):
+        canonical[rel] = patch_display(canonical[rel].decode("utf-8"), rel.suffix == '.ts').encode("utf-8")
+    for leaf in ('src/parser.ts', 'src/index.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        text = canonical[rel].decode('utf-8')
+        worker = leaf.endswith('index-worker.js')
+        if worker:
+            text = patch_parser(text, runtime_only, True, worker=True)
+        text = patch_roots(text)
+        if leaf != 'src/index.ts':
+            text = patch_discovery(text, source=rel.suffix == '.ts', worker=worker)
+        canonical[rel] = text.encode('utf-8')
+    for leaf in ('src/session-index.ts', 'src/fts-index.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        text = patch_safe_removal(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
+        if leaf != 'src/fts-index.ts':
+            text = patch_partial_fts(text, source=rel.suffix == '.ts')
+        canonical[rel] = text.encode('utf-8')
+    for leaf in ('src/embedder.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        canonical[rel] = patch_embedding_contracts(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+    for leaf in ('src/session-index.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        text = patch_indexer_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts')
+        canonical[rel] = patch_semantic_only(text, source=rel.suffix == '.ts').encode('utf-8')
+    for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        canonical[rel] = patch_index_service_formatting(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+    for leaf in ('src/config.ts', 'dist/index.js'):
+        rel = pathlib.Path(leaf)
+        canonical[rel] = patch_build_config(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+    for leaf in ('src/index.ts', 'dist/index.js'):
+        rel = pathlib.Path(leaf)
+        canonical[rel] = patch_setup_mapping(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
+    for leaf in ('src/index-service.ts', 'dist/index.js', 'dist/index-worker.js'):
+        rel = pathlib.Path(leaf)
+        canonical[rel] = patch_semantic_service(canonical[rel].decode('utf-8'), source=rel.suffix == '.ts').encode('utf-8')
     return stock, canonical
 
 
 def classify(root, runtime_only=False):
     stock, canonical = canonical_files(runtime_only)
     current = read_files(root)
-    _, previous = canonical_files(runtime_only, previous=True)
-    _, published = canonical_files(runtime_only, published=True)
-    _, released = canonical_files(runtime_only, released=True)
-    _, old_build3 = canonical_files(runtime_only, build3=True)
-    return ("patched" if current == canonical else "stock" if current == stock else
-            "previous-patched" if current == previous else "published-patched" if current == published else
-            "released-patched" if current == released else "build3-patched" if current == old_build3 else "unknown"), stock, canonical
+    return ("patched" if current == canonical else "stock" if current == stock else "unknown"), stock, canonical
 
 
 def runtime_backup(root, label):
@@ -648,7 +577,7 @@ def apply(root, runtime_only=False):
     if state == "patched":
         print("ALREADY PATCHED")
         return
-    if state not in {"stock", "previous-patched", "published-patched", "released-patched", "build3-patched"}:
+    if state != "stock":
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in canonical.items():
@@ -665,7 +594,7 @@ def restore(root, runtime_only=False):
     if state == "stock":
         print("ALREADY STOCK")
         return
-    if state not in {"patched", "previous-patched", "published-patched", "released-patched", "build3-patched"}:
+    if state != "patched":
         raise RuntimeError("unknown/mixed installed state")
     print(f"runtime backup: {runtime_backup(root, state)}")
     for rel, body in stock.items():
@@ -691,7 +620,7 @@ def main():
         if args.check:
             state, _, _ = classify(root, args.runtime_only)
             print(f"version={VERSION} state={state}")
-            return {"patched": 0, "stock": 1, "previous-patched": 1, "published-patched": 1, "released-patched": 1, "build3-patched": 1, "unknown": 2}[state]
+            return {"patched": 0, "stock": 1, "unknown": 2}[state]
         (apply if args.apply else restore)(root, args.runtime_only)
         return 0
     except Exception as exc:

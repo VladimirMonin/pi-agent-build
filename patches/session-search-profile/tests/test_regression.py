@@ -41,7 +41,7 @@ class NativeRegressionTests(unittest.TestCase):
                 for rel, body in files.items():
                     (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
                     (pkg / rel).write_bytes(body)
-            (pkg / 'package.json').write_text('{"version":"1.6.0","type":"module"}')
+            (pkg / 'package.json').write_text('{"version":"1.6.1","type":"module"}')
             before = {str(rel): hashlib.sha256((pkg / rel).read_bytes()).hexdigest() for rel in s.REL_FILES}
             # An allowlist prevents inherited HOME, profile/source selectors and
             # provider secrets from leaking into native import/singleton creation.

@@ -1,4 +1,4 @@
-"""Exact main/worker display and previous-canonical migration, no personal index."""
+"""Exact main/worker display and stock-canonical migration, no personal index."""
 import importlib.util
 import json
 from pathlib import Path
@@ -27,18 +27,18 @@ class DisplayTests(unittest.TestCase):
             self.assertIn('summary: buildSummary(entry.session)', source)
             self.assertNotIn('summary: String(r.summary ?? "")', source)
 
-    def test_previous_transition_and_complete_restore(self):
+    def test_stock_transition_and_complete_restore(self):
         for mode in (False, True):
-            stock, previous = s.canonical_files(mode, previous=True)
+            stock, _ = s.canonical_files(mode)
             _, current = s.canonical_files(mode)
             with tempfile.TemporaryDirectory() as td:
                 root=Path(td)
-                (root/'package.json').write_text('{"version":"1.6.0"}')
-                for rel,data in previous.items():
+                (root/'package.json').write_text('{"version":"1.6.1"}')
+                for rel,data in stock.items():
                     (root/rel).parent.mkdir(parents=True,exist_ok=True)
                     (root/rel).write_bytes(data)
                 s.configure_paths(root)
-                self.assertEqual(s.classify(root,mode)[0],'previous-patched')
+                self.assertEqual(s.classify(root,mode)[0],'stock')
                 s.apply(root,mode)
                 self.assertEqual(s.read_files(root),current)
                 receipts=list(s.BACKUP_ROOT.glob('*/receipt.json'))

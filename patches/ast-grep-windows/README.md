@@ -1,6 +1,6 @@
 # ast-grep на Windows: настоящий EXE для `shell:false`
 
-Целевая версия: `@ast-grep/cli@0.45.3`.
+Целевая версия: `@ast-grep/cli@0.51.2`.
 
 Глобальная npm-установка создаёт shell wrappers `ast-grep`, `ast-grep.cmd` и `ast-grep.ps1`. Расширение Pi запускает команду без shell, поэтому wrapper, работающий в терминале, может дать `ENOENT`/`EINVAL` внутри Pi.
 

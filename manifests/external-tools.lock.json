@@ -39,7 +39,7 @@
   "codeProfile": [
     {
       "package": "@ast-grep/cli",
-      "version": "0.45.3",
+      "version": "0.51.2",
       "command": "ast-grep.exe",
       "probe": "direct-version",
       "probeArguments": ["--version"],

@@ -61,9 +61,9 @@
         "reason": "disabled by default: incompatible with system-role conversation blocks on Pi 0.87 (verified there); not re-verified on Pi 1.5.2"
       },
       {
-        "source": "npm:pi-session-search@1.6.0",
+        "source": "npm:pi-session-search@1.6.1",
         "package": "pi-session-search",
-        "version": "1.6.0",
+        "version": "1.6.1",
         "taskProfilePatch": "session-search-profile"
       },
       {
@@ -81,15 +81,15 @@
     ],
     "codeOnly": [
       {
-        "source": "npm:@nicknisi/pi-ast-grep@0.2.1",
+        "source": "npm:@nicknisi/pi-ast-grep@0.3.4",
         "package": "@nicknisi/pi-ast-grep",
-        "version": "0.2.1",
-        "external": "@ast-grep/cli@0.45.3"
+        "version": "0.3.4",
+        "external": "@ast-grep/cli@0.51.2"
       },
       {
-        "source": "npm:@bacnh85/pi-serena@0.9.20",
+        "source": "npm:@bacnh85/pi-serena@0.10.1",
         "package": "@bacnh85/pi-serena",
-        "version": "0.9.20",
+        "version": "0.10.1",
         "external": "serena-agent@1.7.0",
         "patch": "serena-tools"
       },

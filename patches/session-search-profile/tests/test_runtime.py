@@ -83,63 +83,52 @@ class RuntimeTests(unittest.TestCase):
                 s.restore(root, runtime)
                 self.assertEqual(s.read_files(root), stock)
 
-    def test_exact_historical_transitions_and_backups(self):
-        # Fingerprints retained before this repair, in REL_FILES order. A marker
-        # or a freshly regenerated "previous" alone cannot validate old bytes.
+    def test_exact_stock_transitions_and_backups(self):
+        # Frozen canonical fingerprints of the 1.6.1 patch, in REL_FILES order:
+        # regenerated derivations alone cannot validate deployed bytes.
         expected = {
-            False: {'published': 'e609de573f69a7b74fac1b1c4ae3c405085a4c25a175853fa3bccf18254bcdbf',
-                    'previous': '2af764d247ad59e83b58addeee26c10e2207d9fe76b11152d5ad4c64140805b2',
-                    'released': '7a03ba46925a00030c342235051d9cf22ec5b5d2df14360780ee59f3e3e557ea',
-                    'build3': '01517f8f424605a5f8b7d40bc0cff4633ae73e049e9775eb24ab7c127775f1fa'},
-            True: {'published': '098c746f0802e8e2d2723d9a7c71be1fc82cd6c93d5ab06868586144b50d332a',
-                   'previous': 'a9f642673f17a9d3c9a57544ee1f86990500b50d18d1b178bcea89dad326c5d9',
-                   'released': 'b9e9c903709bc7ceff7800f81ba6c87e317c94d764b43ea1202b3ee02bc4d5fc',
-                   'build3': 'b0673ece7f61c833e062ab6b3b614d3fcbdf02d014e7436f35f186b3bcab2bb2'},
+            False: '38cf39f00f6c0a649a1fed6c359a634bfe55b966a10961c9c66d4c529bb81e0d',
+            True: '578d697bd20639f478ea7f1954009521a00e3a84835c5f1f205a93eac34ae5ed',
         }
         for mode in (False, True):
-            for revision in ('published', 'previous', 'released', 'build3'):
-                with self.subTest(mode=mode, revision=revision), tempfile.TemporaryDirectory() as td:
-                    stock, historical = s.canonical_files(mode, **{revision: True})
-                    _, current = s.canonical_files(mode)
-                    # Original nine-file fingerprints stay frozen. The newly
-                    # guarded embedder was untouched in all those exact releases.
-                    fingerprint_files = s.REL_FILES if revision == 'build3' else s.REL_FILES[:-1]
-                    self.assertEqual(hashlib.sha256(b''.join(historical[r] for r in fingerprint_files)).hexdigest(), expected[mode][revision])
-                    if revision != 'build3':
-                        self.assertEqual(historical[Path('src/embedder.ts')], stock[Path('src/embedder.ts')])
-                    root = Path(td)
-                    (root / 'package.json').write_text('{"version":"1.6.0"}')
-                    for rel, body in historical.items():
-                        (root / rel).parent.mkdir(parents=True, exist_ok=True)
-                        (root / rel).write_bytes(body)
-                    s.configure_paths(root)
-                    self.assertEqual(s.classify(root, mode)[0], revision + '-patched')
-                    s.apply(root, mode)
-                    self.assertEqual(s.read_files(root), current)
-                    receipts = list(s.BACKUP_ROOT.glob('*/receipt.json'))
-                    self.assertEqual(len(receipts), 1)
-                    receipt = json.loads(receipts[0].read_text())
-                    self.assertEqual(receipt['state'], revision + '-patched')
-                    for rel, body in historical.items():
-                        self.assertEqual((receipts[0].parent / rel).read_bytes(), body)
-                        self.assertEqual(receipt['sha256'][rel.as_posix()], hashlib.sha256(body).hexdigest())
-                    s.apply(root, mode)
-                    self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), 1)
-                    self.assertEqual(s.read_files(root), current)
-                    s.restore(root, mode)
-                    self.assertEqual(s.read_files(root), stock)
-                    # Mixed main/worker is unknown even if every file is from
-                    # a recognized state; refusal must not make a backup/write.
-                    (root / 'dist/index-worker.js').write_bytes(current[Path('dist/index-worker.js')])
-                    before = s.read_files(root)
-                    count = len(list(s.BACKUP_ROOT.glob('*/receipt.json')))
-                    self.assertEqual(s.classify(root, mode)[0], 'unknown')
-                    for action in (s.apply, s.restore):
-                        with self.assertRaises(RuntimeError): action(root, mode)
-                        self.assertEqual(s.read_files(root), before)
-                    self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), count)
-                    (root / 'package.json').write_text('{"version":"1.6.1"}')
-                    with self.assertRaises(RuntimeError): s.assert_version(root)
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as td:
+                stock, current = s.canonical_files(mode)
+                self.assertEqual(hashlib.sha256(b''.join(current[r] for r in s.REL_FILES)).hexdigest(), expected[mode])
+                root = Path(td)
+                (root / 'package.json').write_text('{"version":"1.6.1"}')
+                for rel, body in stock.items():
+                    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (root / rel).write_bytes(body)
+                s.configure_paths(root)
+                self.assertEqual(s.classify(root, mode)[0], 'stock')
+                s.apply(root, mode)
+                self.assertEqual(s.read_files(root), current)
+                receipts = list(s.BACKUP_ROOT.glob('*/receipt.json'))
+                self.assertEqual(len(receipts), 1)
+                receipt = json.loads(receipts[0].read_text())
+                self.assertEqual(receipt['state'], 'stock')
+                for rel, body in stock.items():
+                    self.assertEqual((receipts[0].parent / rel).read_bytes(), body)
+                    self.assertEqual(receipt['sha256'][rel.as_posix()], hashlib.sha256(body).hexdigest())
+                s.apply(root, mode)
+                self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), 1)
+                self.assertEqual(s.read_files(root), current)
+                s.restore(root, mode)
+                self.assertEqual(s.read_files(root), stock)
+                # Mixed main/worker is unknown even if every file is from
+                # a recognized state; refusal must not make a backup/write.
+                (root / 'dist/index-worker.js').write_bytes(current[Path('dist/index-worker.js')])
+                before = s.read_files(root)
+                count = len(list(s.BACKUP_ROOT.glob('*/receipt.json')))
+                self.assertEqual(s.classify(root, mode)[0], 'unknown')
+                for action in (s.apply, s.restore):
+                    with self.assertRaises(RuntimeError): action(root, mode)
+                    self.assertEqual(s.read_files(root), before)
+                self.assertEqual(len(list(s.BACKUP_ROOT.glob('*/receipt.json'))), count)
+                (root / 'package.json').write_text('{"version":"1.6.0"}')
+                with self.assertRaises(RuntimeError): s.assert_version(root)
+                (root / 'package.json').write_text('{"version":"1.6.2"}')
+                with self.assertRaises(RuntimeError): s.assert_version(root)
 
     def test_real_timer_settlement(self):
         # Execute the exact generated production bodies, with real timers and

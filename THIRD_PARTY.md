@@ -26,12 +26,12 @@
 | 6 | `pi-subagents` | 0.79.1 | MIT | <https://github.com/nicobailon/pi-subagents> |
 | 7 | `pi-intercom` | 0.17.1 | MIT | <https://www.npmjs.com/package/pi-intercom/v/0.17.1> |
 | 8 | `pi-background-tasks` | 2.6.2 | ISC | <https://github.com/ismailsaleekh/pi-background-tasks> |
-| 9 | `pi-session-search` | 1.6.0 | MIT | <https://github.com/samfoy/pi-session-search> |
+| 9 | `pi-session-search` | 1.6.1 | MIT | <https://github.com/samfoy/pi-session-search> |
 | 10 | `@samfp/pi-memory` | 1.6.1 | MIT | <https://github.com/samfoy/pi-memory> |
 | 11 | `pi-mcp-adapter` | 7.0.1 | MIT | <https://github.com/nicobailon/pi-mcp-adapter> |
 | 12 | `pi-goal-x` | 0.32.3 | MIT | <https://github.com/tmonk/pi-goal-x> |
-| 13 | `@nicknisi/pi-ast-grep` | 0.2.1 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
-| 14 | `@bacnh85/pi-serena` | 0.9.20 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
+| 13 | `@nicknisi/pi-ast-grep` | 0.3.4 | MIT² | <https://github.com/nicknisi/pi-extensions/tree/main/packages/ast-grep> |
+| 14 | `@bacnh85/pi-serena` | 0.10.1 | MIT³ | <https://github.com/bacnh85/pi-extensions/tree/main/pi-serena> |
 | 15 | `pi-cbm` | 1.2.1 | MIT | <https://github.com/alexykn/pi-cbm> |
 
 ¹ npm metadata `pi-ollama-cloud@0.12.1` не содержит поля `license`, но опубликованный tarball содержит MIT License; repository metadata указывает commit `81ba9009b68534e14ef6d16027765c8a14007ebe`.
@@ -46,11 +46,11 @@
 
 | Компонент | Версия | Лицензия | Источник |
 |---|---:|---|---|
-| `@ast-grep/cli` | 0.45.3 | MIT | <https://github.com/ast-grep/ast-grep> |
+| `@ast-grep/cli` | 0.51.2 | MIT | <https://github.com/ast-grep/ast-grep> |
 | `serena-agent` | 1.7.0 | MIT | <https://github.com/oraios/serena> |
 | `codebase-memory-mcp` | 0.11.0 | MIT | <https://github.com/DeusData/codebase-memory-mcp> |
 
-License identifiers подтверждены npm metadata для `@ast-grep/cli@0.45.3` и `codebase-memory-mcp@0.11.0` (CBM npm `gitHead` `8972ea69c6ad94b1ef1d4ffbf0a92d78d2db1798`) и metadata/classifiers точного PyPI release `serena-agent==1.7.0`.
+License identifiers подтверждены npm metadata для `@ast-grep/cli@0.51.2` и `codebase-memory-mcp@0.11.0` (CBM npm `gitHead` `8972ea69c6ad94b1ef1d4ffbf0a92d78d2db1798`) и metadata/classifiers точного PyPI release `serena-agent==1.7.0`. Пересборка 2026-11-11: npm metadata `@nicknisi/pi-ast-grep@0.3.4`, `@bacnh85/pi-serena@0.10.1`, `pi-session-search@1.6.1` и `@ast-grep/cli@0.51.2` также объявляют MIT.
 
 Git, Node.js, npm, Python, `uv`, PowerShell и Windows являются prerequisites среды и распространяются по собственным лицензиям поставщиков; этот репозиторий их не включает.
 
