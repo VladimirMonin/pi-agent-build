@@ -136,7 +136,7 @@ try {
     [IO.Directory]::CreateDirectory((Join-Path $lab2 'extra-empty')) | Out-Null
     Check 'empty-directory drift refused' ((Invoke-Stand $config2 -Prepare).ExitCode -ne 0)
     $mcp = Join-Path $lab 'pi-root/agent/mcp.json'
-    [IO.File]::WriteAllText($mcp, '{"mcpServers":{"EXAMPLE":{}},"settings":{"scriptMode":false}}', $utf8)
+    [IO.File]::WriteAllText($mcp, '{"mcpServers":{"EXAMPLE":{}}}', $utf8)
     $statePath = Join-Path $lab '.stand-manifest.json'
     $state = Read-JsonFile $statePath
     # Claiming a new baseline in mutable state cannot replace the canonical fixture contract.

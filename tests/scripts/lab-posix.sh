@@ -10,7 +10,7 @@ fake="$tmp/fake-repo"
 mkdir -p "$lab/test-cwd/.pi" "$lab/pi-root/agent" "$lab/pi-root/task" \
   "$tmp/bin" "$fake/manifests" "$fake/profiles" "$fake/config" "$fake/skills"
 for profile in agent task; do
-  printf '%s\n' '{"mcpServers":{},"settings":{"scriptMode":false}}' > "$lab/pi-root/$profile/mcp.json"
+  printf '%s\n' '{"mcpServers":{}}' > "$lab/pi-root/$profile/mcp.json"
 done
 cp "$repo"/manifests/*.json "$fake/manifests/"
 cp -R "$repo/manifests/schemas" "$fake/manifests/"

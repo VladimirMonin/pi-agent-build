@@ -60,7 +60,7 @@ try {
 // is a real stdio child; only the model is deterministic. No provider/network calls.
 async function checkMcp(sdk, sdkRoot, installedProfile, root, receipt) {
   const adapter = path.join(installedProfile, 'npm/node_modules/pi-mcp-adapter');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(adapter, 'package.json'), 'utf8')).version, '5.3.2');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(adapter, 'package.json'), 'utf8')).version, '7.0.1');
   const agentDir = path.join(root, 'agent'), cwd = path.join(root, 'project');
   fs.mkdirSync(agentDir); fs.mkdirSync(cwd);
   const childEnv = {};
@@ -71,7 +71,7 @@ async function checkMcp(sdk, sdkRoot, installedProfile, root, receipt) {
   fs.writeFileSync(path.join(agentDir, 'mcp-adapter.json'), JSON.stringify({ mcpServers: { fixture: {
     command: process.execPath, args: [fileURLToPath(new URL('./fixtures/mcp-server.mjs', import.meta.url))],
     inheritEnv: false, env: childEnv, directTools: ['probe'], lifecycle: 'lazy',
-  } }, settings: { scriptMode: false, hostConfigDiscovery: 'off' } }));
+  } }, settings: { hostConfigDiscovery: 'off' } }));
   const ai = await import(pathToFileURL(path.join(sdkRoot, 'node_modules/@earendil-works/pi-ai/dist/index.js')).href);
   const runtime = await sdk.ModelRuntime.create({ authPath: path.join(agentDir, 'auth.json'), modelsPath: null,
     modelsStorePath: path.join(agentDir, 'models.json'), allowModelNetwork: false, refreshOnCreate: false });
@@ -113,7 +113,7 @@ async function checkMcp(sdk, sdkRoot, installedProfile, root, receipt) {
       settingsManager, sessionManager: sdk.SessionManager.create(cwd, path.join(root, 'sessions')) }));
     await session.bindExtensions({ mode: 'rpc', onError: error => errors.push(String(error.error)) });
     assert(session.getActiveToolNames().includes('mcp'));
-    assert(!session.getActiveToolNames().includes('mcpScript'));
+    assert(!session.getActiveToolNames().includes('mcpScript')); // removed in 6.0.0; scripting is Pi's builtin codemode
     async function call(tool, args) {
       instruction = { tool, args };
       const before = session.messages.length;
@@ -137,7 +137,7 @@ async function checkMcp(sdk, sdkRoot, installedProfile, root, receipt) {
     assert(JSON.stringify(await call('mcp', { tool: direct[0], args: { value: 21 } })).includes('FIXTURE_RESULT:22'));
     assert(JSON.stringify(await call(direct[0], { value: 41 })).includes('FIXTURE_RESULT:42'));
     assert.deepEqual(errors, []);
-    receipt.checks.push('ACTUAL_STDIO_DISCOVERY_SEARCH_DESCRIBE_SAFE_PROXY_CALL', 'SELECTED_DIRECT_CALL_UNSELECTED_PROXY_ONLY', 'SCRIPT_MODE_OFF');
+    receipt.checks.push('ACTUAL_STDIO_DISCOVERY_SEARCH_DESCRIBE_SAFE_PROXY_CALL', 'SELECTED_DIRECT_CALL_UNSELECTED_PROXY_ONLY', 'CODEMODE_CONTRACT_NO_MCPSCRIPT');
     receipt.directTool = direct[0]; receipt.results = results;
   } finally {
     if (session) { await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' }); session.dispose(); }

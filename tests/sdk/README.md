@@ -32,9 +32,9 @@ node tests/sdk/profile-loading.mjs <SDK_ROOT> <SYNTHETIC_PROFILE>
 node tests/sdk/profile-loading.mjs <SDK_ROOT> <SYNTHETIC_PROFILE> <FRESH_MCP_FIXTURE_ROOT>
 ```
 
-Default mode retains the no-model full-profile loading check. Optional mode loads only the installed Adapter5.3.2 into a new synthetic profile, not a second factory instance after canonical loading. Use `PI_MCP_CONFIG_MODE=exclusive`: in5.3.2 this mode reads the adapter-owned **mcp-adapter.json**, not shared mcp.json. Working/shared configs and credentials are not migrated.
+Default mode retains the no-model full-profile loading check. Optional mode loads only the installed Adapter 7.0.1 into a new synthetic profile, not a second factory instance after canonical loading. Use `PI_MCP_CONFIG_MODE=exclusive`: in 7.0.1 this mode reads the adapter-owned **mcp-adapter.json**, not shared mcp.json. Working/shared configs and credentials are not migrated.
 
-`fixtures/mcp-server.mjs` is a dependency-free actual stdio child. A deterministic model drives connect → search → describe (including argument constraints) → read-only proxy call → selected direct-tool call. An unselected tool stays proxy-only, scripting stays off; semantic proxy errors are failures even if the Pi wrapper says `isError:false`. `report.json` records reached stage/results/cleanup. Server-only checks are not Adapter runtime acceptance; this is not WVM transport proof.
+`fixtures/mcp-server.mjs` is a dependency-free actual stdio child. A deterministic model drives connect → search → describe (including argument constraints) → read-only proxy call → selected direct-tool call. An unselected tool stays proxy-only, the removed mcpScript tool stays absent (scripting is Pi's builtin codemode since adapter 6.0.0); semantic proxy errors are failures even if the Pi wrapper says `isError:false`. `report.json` records reached stage/results/cleanup. Server-only checks are not Adapter runtime acceptance; this is not WVM transport proof.
 
 ## Memory1.6.1 native mock
 

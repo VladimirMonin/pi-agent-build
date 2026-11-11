@@ -12,12 +12,12 @@ await ensureContext7({profileDir:profile,adapterRoot,sdkRoot,cwd});
 const sdk=await import(pathToFileURL(path.join(sdkRoot,'dist/index.js')));
 const settings=sdk.SettingsManager.inMemory({packages:[],extensions:['-builtin:mcp','-builtin:llama.cpp','-builtin:codemode','-builtin:tool-search'],retry:{enabled:false},compaction:{enabled:false}});
 const loader=new sdk.DefaultResourceLoader({cwd,agentDir:profile,settingsManager:settings,additionalExtensionPaths:[path.join(adapterRoot,'index.ts')],noSkills:true,noPromptTemplates:true,noThemes:true,noContextFiles:true});
-let session;const report={status:'STARTED',scope:'LIVE_PUBLIC_CONTEXT7_VIA_PI_1_4_ADAPTER_5_3_2_NO_LLM',steps:[]};
+let session;const report={status:'STARTED',scope:'LIVE_PUBLIC_CONTEXT7_VIA_PI_1_5_ADAPTER_7_0_1_NO_LLM',steps:[]};
 const text=result=>result.content.filter(x=>x.type==='text').map(x=>x.text).join('\n');
 try{
  await loader.reload();assert.deepEqual(loader.getExtensions().errors,[]);
  ({session}=await sdk.createAgentSession({cwd,agentDir:profile,settingsManager:settings,resourceLoader:loader,noTools:'builtin',sessionManager:sdk.SessionManager.inMemory(cwd)}));await session.bindExtensions({mode:'rpc'});
- const tools=session.extensionRunner.getAllRegisteredTools();assert.equal(tools.filter(t=>t.definition.name==='mcp').length,1);assert(!tools.some(t=>t.definition.name==='mcpScript'));
+ const tools=session.extensionRunner.getAllRegisteredTools();assert.equal(tools.filter(t=>t.definition.name==='mcp').length,1);assert(!tools.some(t=>t.definition.name==='mcpScript')); // mcpScript removed in 6.0.0; scripting lives in Pi's builtin codemode
  assert(!loader.getExtensions().extensions.some(e=>/builtin[/\\]mcp/.test(e.path)));
  async function call(args){
   const result=await session.extensionRunner.getToolDefinition('mcp').execute('public-context7-'+report.steps.length,args,AbortSignal.timeout(35000),undefined,session.extensionRunner.createContext());
@@ -40,6 +40,6 @@ try{
  const resolvedText=text(resolved);const libraryId=resolvedText.match(/\/websites\/react_dev\b/)?.[0]??resolvedText.match(/Context7-compatible library ID:\s*(\/[^\s]+)/i)?.[1]??resolvedText.match(/Library ID:\s*(\/[^\s]+)/i)?.[1];assert(libraryId,'resolve response did not provide a library ID');
  const docs=await call({tool:query.tool,server:'context7',args:{libraryId,query:'Show the useState signature and a minimal counter example'}});
  assert(text(docs).length>100&&/useState/i.test(text(docs)),'documentation response is empty/unrelated');
- report.status='PASS';report.libraryId=libraryId;report.owner='pi-mcp-adapter@5.3.2';report.scriptMode=false;report.llmRequests=0;console.log(JSON.stringify(report));
+ report.status='PASS';report.libraryId=libraryId;report.owner='pi-mcp-adapter@7.0.1';report.mcpScriptTool=false;report.scriptingVia='builtin-codemode';report.llmRequests=0;console.log(JSON.stringify(report));
 }catch(error){report.status='FAIL';const msg=String(error.message);report.classification=/429|rate.limit|Too Many Requests/i.test(msg)?'RATE_LIMIT':/401|403|Unauthorized|auth/i.test(msg)?'AUTH':/fetch|network|connect|timeout|timed out|ECONN|ENOTFOUND|TLS/i.test(msg)?'NETWORK':'MCP_ERROR';report.error=msg;console.error(JSON.stringify(report));process.exitCode=2;}
 finally{if(session){await session.extensionRunner.emit({type:'session_shutdown',reason:'exit'});session.dispose();}fs.writeFileSync(path.join(root,'report.json'),JSON.stringify(report,null,2));}

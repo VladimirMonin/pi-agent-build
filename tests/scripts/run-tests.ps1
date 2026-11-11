@@ -331,7 +331,7 @@ try {
         $goal = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-goal-x' })
         $intercom = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-intercom' })
         Assert-True ($subagents -ge 0 -and $goal -gt $subagents -and $intercom -gt $goal) 'Subagents -> Goal X -> Intercom order changed'
-        foreach ($pin in @('npm:pi-subagents@0.88.0', 'npm:pi-goal-x@0.34.1', 'npm:pi-intercom@0.18.1', 'npm:pi-mcp-adapter@5.3.2')) {
+        foreach ($pin in @('npm:pi-subagents@0.88.0', 'npm:pi-goal-x@0.34.1', 'npm:pi-intercom@0.18.1', 'npm:pi-mcp-adapter@7.0.1')) {
             Assert-Equal 1 @($common | Where-Object { $_.source -eq $pin }).Count "exact candidate pin missing: $pin"
         }
         foreach ($name in @('code', 'task')) {
@@ -344,7 +344,10 @@ try {
             Assert-True (@($template.extensions) -notcontains '+builtin:mcp') "$name overrides the MCP owner exclusion"
         }
         $mcp = Get-Content -LiteralPath (Join-Path $RepoRoot 'config\mcp.example.json') -Raw | ConvertFrom-Json
-        Assert-Equal $false $mcp.settings.scriptMode 'MCP scripting must remain disabled'
+        $mcpSettings = $mcp.PSObject.Properties['settings']
+        foreach ($dead in @('scriptMode', 'scriptSkill', 'jev')) {
+            Assert-True ($null -eq $mcpSettings -or $null -eq $mcpSettings.Value.PSObject.Properties[$dead]) "dead mcpScript-era key must not ship in mcp.example.json: $dead (scripting moved to Pi's builtin codemode)"
+        }
         $temp = $common[$goal]; $common[$goal] = $common[$intercom]; $common[$intercom] = $temp
         $manifest.profiles.common = $common
         [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 100))
@@ -361,6 +364,24 @@ try {
         [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.34.1","npm:pi-intercom@0.18.1"]}')
         $good = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($good.Output -match 'PASS Code installed goal-x/intercom order') 'correct installed order was not accepted'
+    }
+
+    Test-Case 'adapter 7.x codemode contract replaces the removed mcpScript tool' {
+        # Facts from the installed 7.0.1 package: 6.0.0 removed the mcpScript tool; settings.scriptMode/
+        # scriptSkill still load but do nothing and raise a removal notice; settings.jev was replaced by
+        # settings.semanticSearch. Shipped configs must not carry those dead keys, and the exact guard pins 7.0.1.
+        $guard = [IO.File]::ReadAllText((Join-Path $RepoRoot 'scripts\ensure-context7.mjs'))
+        Assert-True ($guard.Contains("version!=='7.0.1'")) 'ensure-context7 exact guard must pin pi-mcp-adapter 7.0.1'
+        foreach ($config in @('config\mcp-adapter.default.json', 'config\mcp.example.json')) {
+            $raw = [IO.File]::ReadAllText((Join-Path $RepoRoot $config))
+            foreach ($dead in @('"scriptMode"', '"scriptSkill"', '"jev"')) {
+                Assert-True (-not $raw.Contains($dead)) "$config must not carry the dead mcpScript-era key $dead"
+            }
+        }
+        foreach ($template in @('profiles\code\settings.template.json', 'profiles\task\settings.template.json')) {
+            $raw = [IO.File]::ReadAllText((Join-Path $RepoRoot $template))
+            Assert-True ($raw.Contains('npm:pi-mcp-adapter@7.0.1')) "$template must pin npm:pi-mcp-adapter@7.0.1"
+        }
     }
 
     Test-Case 'install preserves profile configs unless replacement is explicit' {

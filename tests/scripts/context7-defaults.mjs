@@ -17,20 +17,20 @@ for(const name of ['agent','task']){
  assert(!Object.hasOwn(parsed.mcpServers.context7,'headers'));assert(!fs.existsSync(path.join(profile,'mcp.json')));
  assert.equal((await ensureContext7(opts(profile))).changed,false);assert.deepEqual(fs.readFileSync(file),first);
 }
-const merge=path.join(root,'merge');write(path.join(merge,'mcp-adapter.json'),{imports:['cursor'],mcpServers:{other:{command:'synthetic-missing-command',disabled:true}},settings:{scriptMode:true,connectTimeout:2345}});
-await ensureContext7(opts(merge));let merged=JSON.parse(fs.readFileSync(path.join(merge,'mcp-adapter.json')));assert.deepEqual(merged.imports,['cursor']);assert.equal(merged.settings.scriptMode,true);assert.equal(merged.settings.connectTimeout,2345);assert(merged.mcpServers.other);
+const merge=path.join(root,'merge');write(path.join(merge,'mcp-adapter.json'),{imports:['cursor'],mcpServers:{other:{command:'synthetic-missing-command',disabled:true}},settings:{hostConfigDiscovery:'off',idleTimeout:7}});
+await ensureContext7(opts(merge));let merged=JSON.parse(fs.readFileSync(path.join(merge,'mcp-adapter.json')));assert.deepEqual(merged.imports,['cursor']);assert.equal(merged.settings.hostConfigDiscovery,'off');assert.equal(merged.settings.idleTimeout,7);assert(merged.mcpServers.other);
 for(const [name,entry] of [['custom',{url:'https://custom.invalid/mcp',headers:{Authorization:'Bearer synthetic-fixture'}}],['disabled',{url:'https://mcp.context7.com/mcp',disabled:true}]]){
  const profile=path.join(root,name),file=path.join(profile,'mcp-adapter.json');write(file,{mcpServers:{context7:entry}});const before=fs.readFileSync(file);assert.equal((await ensureContext7(opts(profile))).changed,false);assert.deepEqual(fs.readFileSync(file),before);
 }
 const shared=path.join(home,'.config/mcp/mcp.json');
-write(shared,{mcpServers:{otherShared:{url:'https://shared.invalid/mcp',disabled:true}},settings:{scriptMode:true,connectTimeout:6789}});
+write(shared,{mcpServers:{otherShared:{url:'https://shared.invalid/mcp',disabled:true}},settings:{hostConfigDiscovery:'off',idleTimeout:42}});
 const sharedSettings=path.join(root,'shared-settings');await ensureContext7(opts(sharedSettings));
-assert(!Object.hasOwn(JSON.parse(fs.readFileSync(path.join(sharedSettings,'mcp-adapter.json'))).settings,'scriptMode'),'do not override shared user settings');
+assert(!Object.hasOwn(JSON.parse(fs.readFileSync(path.join(sharedSettings,'mcp-adapter.json'))),'settings'),'do not copy shared user settings into a fresh local config');
 write(shared,{mcpServers:{context7:{url:'https://shared.invalid/mcp',disabled:true}}});
 const fresh=path.join(root,'shared-profile');const result=await ensureContext7(opts(fresh));assert.equal(result.context7,'DISABLED_PRESERVED');assert(!fs.existsSync(path.join(fresh,'mcp-adapter.json')));
 fs.unlinkSync(shared);
 write(path.join(home,'.cursor/mcp.json'),{mcpServers:{context7:{url:'https://imported.invalid/mcp',disabled:true}}});
-const imported=path.join(root,'imported');write(path.join(imported,'mcp-adapter.json'),{imports:['cursor'],settings:{scriptMode:false}});const first=fs.readFileSync(path.join(imported,'mcp-adapter.json'));assert.equal((await ensureContext7(opts(imported))).context7,'DISABLED_PRESERVED');assert.deepEqual(fs.readFileSync(path.join(imported,'mcp-adapter.json')),first);
+const imported=path.join(root,'imported');write(path.join(imported,'mcp-adapter.json'),{imports:['cursor'],settings:{idleTimeout:9}});const first=fs.readFileSync(path.join(imported,'mcp-adapter.json'));assert.equal((await ensureContext7(opts(imported))).context7,'DISABLED_PRESERVED');assert.deepEqual(fs.readFileSync(path.join(imported,'mcp-adapter.json')),first);
 const require=createRequire(path.join(sdkRoot,'package.json'));const {createJiti}=await import(pathToFileURL(require.resolve('jiti')));const jiti=createJiti(import.meta.url);
 const {interpolateEnvRecord}=await jiti.import(path.join(adapterRoot,'utils.ts'),{default:false});assert.equal(interpolateEnvRecord({Authorization:'Bearer ${CONTEXT7_API_KEY}'},{CONTEXT7_API_KEY:'synthetic-only'}).Authorization,'Bearer synthetic-only');
 // Exercise the real installers' configuration stage. Packages are not installed in
@@ -41,7 +41,7 @@ for(const shell of process.platform==='win32'?['powershell','bash']:['bash']){
  const piRoot=path.join(root,'installer-'+shell);
  for(const leaf of ['agent','task']){
   const adapter=path.join(piRoot,leaf,'npm/node_modules/pi-mcp-adapter');fs.mkdirSync(adapter,{recursive:true});
-  write(path.join(adapter,'package.json'),{name:'pi-mcp-adapter',version:'5.3.2'});
+  write(path.join(adapter,'package.json'),{name:'pi-mcp-adapter',version:'7.0.1'});
   for(const file of ['config.ts','utils.ts','types.ts'])fs.writeFileSync(path.join(adapter,file),'export * from '+JSON.stringify(path.join(adapterRoot,file))+';\n');
  }
  const args=shell==='powershell'?['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(repo,'scripts/install.ps1'),'-Apply','-Profile','Both','-SkipPackageInstall','-SkipPatches','-PiRoot',piRoot,'-RepoRoot',repo]:[path.join(repo,'scripts/install.sh'),'--apply','--profile','Both','--skip-package-install','--skip-patches','--pi-root',piRoot,'--repo-root',repo];
@@ -53,7 +53,7 @@ for(const shell of process.platform==='win32'?['powershell','bash']:['bash']){
   assert(!fs.existsSync(path.join(piRoot,leaf,'mcp.json')));snapshots.push([file,before]);
  }
  invoke();for(const [file,before]of snapshots)assert.deepEqual(fs.readFileSync(file),before);
- const task=snapshots[1][0],custom={mcpServers:{context7:{url:'https://user.invalid/mcp',disabled:true,headers:{Authorization:'Bearer synthetic-user-choice'}}},settings:{scriptMode:true}};
+ const task=snapshots[1][0],custom={mcpServers:{context7:{url:'https://user.invalid/mcp',disabled:true,headers:{Authorization:'Bearer synthetic-user-choice'}}},settings:{idleTimeout:11}};
  write(task,custom);const customBytes=fs.readFileSync(task);invoke();assert.deepEqual(fs.readFileSync(task),customBytes);
  installerChecks.push({shell,profiles:['Code','Task'],fresh:true,repeatByteIdentical:true,userOverridePreserved:true,scope:'REAL_CONFIG_STAGE_WITH_REAL_PINNED_LOADER_PACKAGE_INSTALL_AND_PATCHES_NOT_RUN'});
 }

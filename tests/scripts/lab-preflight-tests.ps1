@@ -63,9 +63,9 @@ try {
     Check 'Code-only profile accepted' ((Invoke-Preflight @('-Profile', 'Code')).Code -eq 0)
     Check 'Task-only profile accepted' ((Invoke-Preflight @('-Profile', 'Task')).Code -eq 0)
     $mcp = Join-Path $lab 'pi-root\agent\mcp.json'
-    [IO.File]::WriteAllText($mcp, '{"mcpServers":{},"settings":{"scriptMode":false}}')
+    [IO.File]::WriteAllText($mcp, '{"mcpServers":{}}')
     Check 'empty synthetic MCP accepted' ((Invoke-Preflight).Code -eq 0)
-    [IO.File]::WriteAllText($mcp, '{"mcpServers":{"unsafe":{"command":"pi"}},"settings":{"scriptMode":false}}')
+    [IO.File]::WriteAllText($mcp, '{"mcpServers":{"unsafe":{"command":"pi"}}}')
     Check 'configured MCP rejected' ((Invoke-Preflight).Code -ne 0)
     Remove-Item -LiteralPath $mcp
     [IO.File]::WriteAllText((Join-Path $cwd '.pi\settings.json'), '{"pi-memory":{"localPath":"../../outside"}}')
