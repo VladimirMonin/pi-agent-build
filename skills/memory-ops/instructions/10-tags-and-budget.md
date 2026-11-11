@@ -67,7 +67,7 @@ domains, (c) the generic fact corpus that matches almost every prompt.
 **A tag must equal `projectSlug(cwd)` exactly** — the last path segment after
 `cwd.split("/")`, lower-cased, skipping a few words. Consequences:
 
-- A tag written as a **full path** (`c:\py\<project>\worktrees\<name>`)
+- A tag written as a **full path** (`D:/work/<project>/worktrees/<name>`)
   matches **only** when the cwd arrives with **backslashes** (then
   `split("/")` yields the whole path as one segment). With forward slashes the
   slug is just `mic-start-snapshot` and the tag never matches.

@@ -62,7 +62,7 @@ const cases = CASES_FILE ? JSON.parse(readFileSync(CASES_FILE, "utf8")) : DEFAUL
 // которые консолидация сохранила полным путём.
 function slug(cwd) {
   // Та же логика, что в плагине: последний сегмент, кроме служебных. Имя
-  // пользователя ОС НЕ пропускается (сверено 2026-11-11: C:/Users/<user> → "user").
+  // пользователя ОС НЕ пропускается (сверено 2026-11-11: …/Users/Anna → "anna").
   const skip = new Set(["workplace", "local", "home", "src", "scratch"]);
   for (const p of cwd.split("/").filter(Boolean).reverse()) {
     if (!skip.has(p.toLowerCase()) && p.length > 1) return p.toLowerCase();
