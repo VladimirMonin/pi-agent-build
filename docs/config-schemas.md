@@ -6,7 +6,7 @@
 
 | Ключ | Назначение |
 |---|---|
-| `defaultProvider`, `defaultModel`, `defaultThinkingLevel` | основная модель профиля (штатный `/model`) |
+| `defaultProvider`, `defaultModel`, `defaultThinkingLevel` | основная модель профиля (штатный `/model`, `/thinking`); уровни `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` — список ограничивает модель; дефолты сборки и почему `:1017` — в [заметке](notes/model-defaults.md) |
 | `shellPath` | shell для tool-execution |
 | `memory.consolidationModel` | `provider/model` консолидации; дефолт `polza-memory/deepseek/deepseek-v4.1-flash` — **дефолт, не инвариант**, допустим любой доступный id из `models.json` |
 | `memory.embedding.*` | embedding-маршрут памяти: `type`, `model`, `baseUrl` (**без `/v1`**), `dimensions`, `sendDimensions`, `apiKey`-литерал; у patch-а также `queryPrefix` — [подробно](polza-memory.md#memoryembedding-для-памяти) |
