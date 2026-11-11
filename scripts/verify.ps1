@@ -355,7 +355,7 @@ try {
         'manifests\schemas\runtime-lock.schema.json', 'manifests\schemas\pi-packages-lock.schema.json',
         'manifests\schemas\external-tools-lock.schema.json', 'profiles\code\settings.template.json',
         'profiles\task\settings.template.json', 'scripts\install.ps1', 'scripts\apply-patches.ps1',
-        'scripts\verify.ps1', 'scripts\safety-check.ps1', 'scripts\install-launchers.ps1', 'scripts\check-doc-versions.mjs',
+        'scripts\verify.ps1', 'scripts\safety-check.ps1', 'scripts\install-launchers.ps1', 'scripts\check-doc-versions.mjs', 'scripts\gen-composition.mjs',
         'launchers\pi-code.cmd', 'launchers\pi-task.cmd', 'launchers\pi-code', 'launchers\pi-task'
     )
     foreach ($relative in $requiredRepositoryPaths) {
@@ -365,6 +365,10 @@ try {
     $docVersions = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\check-doc-versions.mjs'), $RepoRoot)
     if ($docVersions.Found -and $docVersions.ExitCode -eq 0) { Pass 'doc versions consistent (check-doc-versions)' }
     else { Fail "doc versions drift: $($docVersions.Output)" }
+
+    $composition = Get-CommandOutput -Command 'node' -Arguments @((Join-Path $RepoRoot 'scripts\gen-composition.mjs'), '--check', $RepoRoot)
+    if ($composition.Found -and $composition.ExitCode -eq 0) { Pass 'composition table fresh (gen-composition)' }
+    else { Fail "composition drift: $($composition.Output)" }
 
     $runtime = Read-JsonFile (Join-Path $RepoRoot 'manifests\runtime.lock.json')
     $packages = Read-JsonFile (Join-Path $RepoRoot 'manifests\pi-packages.lock.json')

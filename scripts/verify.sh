@@ -90,7 +90,7 @@ required_paths=(
   "manifests/schemas/runtime-lock.schema.json" "manifests/schemas/pi-packages-lock.schema.json"
   "manifests/schemas/external-tools-lock.schema.json" "profiles/code/settings.template.json"
   "profiles/task/settings.template.json" "scripts/install.sh" "scripts/apply-patches.sh"
-  "scripts/verify.sh" "scripts/safety-check.sh" "scripts/install-launchers.sh" "scripts/check-doc-versions.mjs"
+  "scripts/verify.sh" "scripts/safety-check.sh" "scripts/install-launchers.sh" "scripts/check-doc-versions.mjs" "scripts/gen-composition.mjs"
   "launchers/pi-code.cmd" "launchers/pi-task.cmd" "launchers/pi-code" "launchers/pi-task"
 )
 for rel in "${required_paths[@]}"; do
@@ -105,6 +105,11 @@ EXTERNAL_MANIFEST="$REPO_ROOT/manifests/external-tools.lock.json"
 doc_versions_output="$(node "$REPO_ROOT/scripts/check-doc-versions.mjs" "$REPO_ROOT" 2>&1)"
 doc_versions_code=$?
 if [ "$doc_versions_code" -eq 0 ]; then pass "doc versions consistent (check-doc-versions)"; else fail "doc versions drift: $doc_versions_output"; fi
+
+# Composition gate: docs/components/composition.md must match manifests/templates.
+composition_output="$(node "$REPO_ROOT/scripts/gen-composition.mjs" --check "$REPO_ROOT" 2>&1)"
+composition_code=$?
+if [ "$composition_code" -eq 0 ]; then pass "composition table fresh (gen-composition)"; else fail "composition drift: $composition_output"; fi
 
 # JSON schema validation (requires python jsonschema)
 validate_schema() {
