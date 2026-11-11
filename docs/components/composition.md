@@ -10,14 +10,14 @@ Regenerate: node scripts/gen-composition.mjs · freshness gate: node scripts/gen
 
 | Пакет | Версия | Источник | Code | Task | Что делает |
 |---|---|---|---|---|---|
-| `pi-ollama-cloud` | 0.12.1 | npm | ✅ | ✅ | Маршрут к моделям Ollama Cloud (провайдер) |
+| `pi-ollama-cloud` | 0.13.1 | npm | ✅ | ✅ | Маршрут к моделям Ollama Cloud (провайдер) |
 | `pi-trace-extension` | 0.1.16 | npm | ⛔ | ⛔ | Trace — трассировка сессий (политика сборки: установлен, выключен по умолчанию) |
 | `pi-context-inspector` | 1.3.0 | npm | ✅ | ✅ | Диагностика контекстного окна |
-| `@juicesharp/rpiv-todo` | 2.12.0 | npm | ✅ | ✅ | Список задач (todo) |
+| `@juicesharp/rpiv-todo` | 2.15.0 | npm | ✅ | ✅ | Список задач (todo) |
 | `pi-polza` | 0.3.1 | git | ✅ | ✅ | Запасной провайдер Polza AI |
-| `pi-subagents` | 0.79.1 | npm | ✅ | ✅ | Сабы — делегирование и сценарии из нескольких агентов |
-| `pi-goal-x` | 0.32.3 | npm | ✅ | ✅ | Goal X — автономная работа с целями |
-| `pi-intercom` | 0.17.1 | npm | ✅ | ✅ | Связь между сессиями |
+| `pi-subagents` | 0.88.0 | npm | ✅ | ✅ | Сабы — делегирование и сценарии из нескольких агентов |
+| `pi-goal-x` | 0.34.1 | npm | ✅ | ✅ | Goal X — автономная работа с целями |
+| `pi-intercom` | 0.18.1 | npm | ✅ | ✅ | Связь между сессиями |
 | `pi-background-tasks` | 2.6.2 | npm | ⛔ | ⛔ | Фоновые shell-задачи, делегирование, Fusion через дочерние Pi |
 | `pi-session-search` | 1.6.0 | npm | ✅ | ✅ | Поиск по сессиям (история работы) |
 | `@samfp/pi-memory` | 1.6.1 | npm | ✅ | ✅ | Долговременная память |
