@@ -89,7 +89,7 @@ function Assert-HashesEqual {
 
 function Copy-RepositoryFixture {
     $root = New-TestRoot
-    foreach ($name in @('scripts', 'manifests', 'profiles', 'launchers', 'patches')) {
+    foreach ($name in @('scripts', 'manifests', 'profiles', 'launchers', 'patches', 'docs', 'README.md', 'CHANGELOG.md')) {
         Copy-Item -LiteralPath (Join-Path $RepoRoot $name) -Destination (Join-Path $root $name) -Recurse
     }
     return $root
@@ -309,7 +309,7 @@ try {
         Assert-True ($result.Output -match 'PLAN') 'plan marker missing'
         $runtime = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\runtime.lock.json') -Raw | ConvertFrom-Json
         Assert-True ($result.Output.Contains("$($runtime.runtime.pi.package)@$($runtime.runtime.pi.version)")) 'Pi exact version missing from plan'
-        Assert-True ($result.Output -match 'pi-cbm@1\.2\.1') 'Code package exact version missing from plan'
+        Assert-True ($result.Output -match 'pi-cbm@2\.0\.0') 'Code package exact version missing from plan'
     }
 
     Test-Case 'PowerShell entrypoints resolve repository root after parameter binding' {
@@ -331,7 +331,7 @@ try {
         $goal = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-goal-x' })
         $intercom = [array]::FindIndex($common, [Predicate[object]]{ param($e) $e.package -eq 'pi-intercom' })
         Assert-True ($subagents -ge 0 -and $goal -gt $subagents -and $intercom -gt $goal) 'Subagents -> Goal X -> Intercom order changed'
-        foreach ($pin in @('npm:pi-subagents@0.79.1', 'npm:pi-goal-x@0.32.3', 'npm:pi-intercom@0.17.1', 'npm:pi-mcp-adapter@5.3.2')) {
+        foreach ($pin in @('npm:pi-subagents@0.88.0', 'npm:pi-goal-x@0.34.1', 'npm:pi-intercom@0.18.1', 'npm:pi-mcp-adapter@5.3.2')) {
             Assert-Equal 1 @($common | Where-Object { $_.source -eq $pin }).Count "exact candidate pin missing: $pin"
         }
         foreach ($name in @('code', 'task')) {
@@ -355,10 +355,10 @@ try {
         $profile = Join-Path $piRoot 'agent'
         New-Item -ItemType Directory -Path $profile -Force | Out-Null
         $settingsPath = Join-Path $profile 'settings.json'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.17.1","npm:pi-goal-x@0.32.3"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-intercom@0.18.1","npm:pi-goal-x@0.34.1"]}')
         $bad = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($bad.Output -match 'installed settings must load pinned pi-goal-x before pi-intercom') 'reversed installed order was not rejected'
-        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.32.3","npm:pi-intercom@0.17.1"]}')
+        [IO.File]::WriteAllText($settingsPath, '{"packages":["npm:pi-goal-x@0.34.1","npm:pi-intercom@0.18.1"]}')
         $good = Invoke-PowerShellFile (Join-Path $RepoRoot 'scripts\verify.ps1') @('-Profile', 'Code', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot, '-SkipPatchChecks', '-SkipExternalChecks')
         Assert-True ($good.Output -match 'PASS Code installed goal-x/intercom order') 'correct installed order was not accepted'
     }
@@ -406,6 +406,8 @@ try {
         $oldPath = $env:PATH
         $keyName = 'POLZA' + '_API_KEY'
         $oldPolzaKey = [Environment]::GetEnvironmentVariable($keyName, 'Process')
+        $oldPolzaKeyUser = [Environment]::GetEnvironmentVariable($keyName, 'User')
+        $oldPolzaKeyMachine = [Environment]::GetEnvironmentVariable($keyName, 'Machine')
         try {
             $env:PATH = "$($tools.Bin);$oldPath"
             $first = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SkipPatches', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
@@ -422,24 +424,35 @@ try {
             New-Item -ItemType Directory -Path (Split-Path $dist -Parent) -Force | Out-Null
             [IO.File]::WriteAllText($dist, 'private-bundle-must-not-be-read-or-replaced')
             $callsBefore = @([IO.File]::ReadAllLines($tools.Log)).Count
+            # P44 resolves the route credential from Process/User/Machine scope;
+            # clear every scope so the readiness state is reached on any machine.
             [Environment]::SetEnvironmentVariable($keyName, $null, 'Process')
-            $refused = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SyncSettingsOnly', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
-            Assert-True ($refused.ExitCode -ne 0 -and $refused.Output -match 'unresolved credential') 'settings sync accepted unavailable static memory model'
-            Assert-Equal 'npm:pi-ollama-cloud' ([string](Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).packages[0]) 'preflight modified settings'
+            [Environment]::SetEnvironmentVariable($keyName, $null, 'User')
+            [Environment]::SetEnvironmentVariable($keyName, $null, 'Machine')
+            # Readiness, not a refusal (INSTALL_FOR_AGENTS section 6, P44): the
+            # memory-route check reports exit 3 "NOT TESTED" and settings sync
+            # continues with the readiness marker instead of failing.
+            $probe = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'scripts\check-memory-model.mjs'), (Join-Path $piRoot 'task'), (Join-Path $RepoRoot 'profiles\task\settings.template.json'))
+            Assert-Equal 3 $probe.ExitCode 'unconfigured credential must be readiness exit 3, not a failure'
+            Assert-True ($probe.Output -match 'NOT TESTED') 'memory route check lost its readiness note'
+            $readiness = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SyncSettingsOnly', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
+            Assert-Equal 0 $readiness.ExitCode "settings sync refused pending credential readiness: $($readiness.Output)"
+            Assert-True ($readiness.Output -match 'credential NOT TESTED') 'settings sync lost the readiness marker'
+            $manifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
+            Assert-Equal ([string]$manifest.profiles.common[0].source) ([string](Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).packages[0]) 'readiness run stopped the settings sync (P44 continues)'
             [Environment]::SetEnvironmentVariable($keyName, 'synthetic-test-only', 'Process')
             $sync = Invoke-PowerShellFile $installer @('-Profile', 'Task', '-Apply', '-SyncSettingsOnly', '-PiRoot', $piRoot, '-RepoRoot', $RepoRoot)
             Assert-Equal 0 $sync.ExitCode "settings-only sync failed: $($sync.Output)"
             Assert-Equal $callsBefore @([IO.File]::ReadAllLines($tools.Log)).Count 'settings sync ran a package lifecycle'
             Assert-Equal 'private-bundle-must-not-be-read-or-replaced' ([IO.File]::ReadAllText($dist)) 'settings sync changed private memory bundle'
             $merged = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
-            $manifest = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
             Assert-Equal ([string]$manifest.profiles.common[0].source) ([string]$merged.packages[0]) 'unversioned package not pinned'
             Assert-Equal 'npm:private-extra' ([string]$merged.packages[-1]) 'private package was lost'
             Assert-Equal 'example' ([string]$merged.memory.factProjectAliases[0].scope) 'private aliases were lost'
             Assert-Equal 'keep' ([string]$merged.localPreference) 'private settings were lost'
             Assert-True (@($merged.extensions) -contains './private-extension.ts') 'private extension was lost'
             Assert-True (@($merged.extensions) -contains '-builtin:mcp') 'retained adapter did not disable built-in MCP'
-        } finally { $env:PATH = $oldPath; [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKey, 'Process') }
+        } finally { $env:PATH = $oldPath; [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKey, 'Process'); [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKeyUser, 'User'); [Environment]::SetEnvironmentVariable($keyName, $oldPolzaKeyMachine, 'Machine') }
     }
 
     Test-Case 'installer preflight refuses unknown memory bundle before any install writes' {
@@ -773,6 +786,7 @@ try {
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\session-index.ts'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\fts-index.ts'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\index-service.ts'),
+            (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\src\embedder.ts'),
             (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0\dist\index-worker.js')
         )
         $before = Get-FileHashes $storeFiles
@@ -812,51 +826,40 @@ try {
         $serenaDrift = Invoke-NativeCapture $python @($serenaPatcher, '--agent-dir', $serenaAgent, '--apply')
         Assert-Equal 2 $serenaDrift.ExitCode 'Serena apply did not refuse unknown source'
 
+        # pi-cbm-011 is retired: pi-cbm 2.0.0 carries both fixes upstream and the
+        # pair is natively compatible. The patcher stays fail-closed for rollback
+        # only; verification must never require apply.py --check anymore.
+        $cbmLock = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\pi-packages.lock.json') -Raw | ConvertFrom-Json
+        $cbmEntry = @($cbmLock.profiles.codeOnly | Where-Object { $_.package -eq 'pi-cbm' })[0]
+        Assert-Equal 'npm:pi-cbm@2.0.0' ([string]$cbmEntry.source) 'pi-cbm source pin moved to 2.0.0'
+        Assert-Equal 'codebase-memory-mcp@0.12.1' ([string]$cbmEntry.external) 'pi-cbm external pin moved to CBM 0.12.1'
+        Assert-True (-not ($cbmEntry.PSObject.Properties.Name -contains 'patch')) 'packages lock still references the retired pi-cbm-011 patch'
+        $externalLock = Get-Content -LiteralPath (Join-Path $RepoRoot 'manifests\external-tools.lock.json') -Raw | ConvertFrom-Json
+        $cbmTool = @($externalLock.codeProfile | Where-Object { $_.package -eq 'codebase-memory-mcp' })[0]
+        Assert-Equal '0.12.1' ([string]$cbmTool.version) 'external CBM pin moved to 0.12.1'
+        Assert-Equal 'codebase-memory-mcp/bin/codebase-memory-mcp.exe' ([string]$cbmTool.npmExecutableRelativePath) 'CBM npm executable relative path drifted'
+
         $cbmAgent = Join-Path $root 'cbm-profile'
         $cbmPkg = Join-Path $cbmAgent 'npm\node_modules\pi-cbm'
         New-Item -ItemType Directory -Path (Join-Path $cbmPkg 'src\cbm') -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $cbmPkg 'package.json'), '{"version":"1.2.1"}')
+        [IO.File]::WriteAllText((Join-Path $cbmPkg 'package.json'), '{"version":"2.0.0"}')
         Copy-Item -LiteralPath $storeFiles[1] -Destination (Join-Path $cbmPkg 'src\cbm\client.ts')
         $cbmExe = Join-Path $root 'tools\codebase-memory-mcp.exe'
-        New-VersionExecutable -Path $cbmExe -Version '0.11.0' -CbmHelp
+        New-VersionExecutable -Path $cbmExe -Version '0.12.1' -CbmHelp
         $cbmPatcher = Join-Path $RepoRoot 'patches\pi-cbm-011\apply.py'
-        $cbm = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 0 $cbm.ExitCode "CBM apply failed: $($cbm.Output)"
-        Assert-True (Test-Path -LiteralPath (Join-Path $cbmAgent '.pi-agent-build-backups\pi-cbm-011')) 'CBM runtime backup missing'
         $cbmTarget = Join-Path $cbmPkg 'src\cbm\client.ts'
-        $normalized = [IO.File]::ReadAllText($cbmTarget).Replace("`r`n", "`n")
-        [IO.File]::WriteAllText($cbmTarget, $normalized, (New-Object Text.UTF8Encoding($false)))
-        $groupedCode = 'const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict"),{stripTypeScriptTypes}=require("node:module"); const src=fs.readFileSync(process.argv[2],"utf8"); const body=src.slice(src.indexOf("// [local-compat-patch] CBM"),src.indexOf("// [/local-compat-patch]")); const input={cols:["name","label","lines","in","out"],groups:[{qn_prefix:"compat-tiny.synthetic",file:"synthetic.py",rows:[["synthetic_add","Function","1-2",0,0]]}],total:1}; const result=vm.runInNewContext(stripTypeScriptTypes(body)+"normalizeCbm011Result(\"search_graph\", input)",{input}); assert.equal(result.results.length,1); assert.equal(result.results[0].qualified_name,"compat-tiny.synthetic.synthetic_add"); assert.equal(result.results[0].file_path,"synthetic.py"); assert.equal(result.results[0].start_line,1); assert.equal(result.results[0].end_line,2);'
-        $groupedTest = Join-Path $root 'cbm-grouped.cjs'
-        [IO.File]::WriteAllText($groupedTest, $groupedCode, (New-Object Text.UTF8Encoding($false)))
-        $grouped = Invoke-NativeCapture 'node' @($groupedTest, $cbmTarget)
-        Assert-Equal 0 $grouped.ExitCode "CBM grouped search lost symbol/location: $($grouped.Output)"
-        $normalizedHash = (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash
-        $normalizedCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 0 $normalizedCheck.ExitCode 'exact LF-normalized CBM canonical was not accepted'
-        $normalizedApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 0 $normalizedApply.ExitCode 'LF-normalized CBM apply should be idempotent'
-        Assert-Equal $normalizedHash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'idempotent CBM apply rewrote normalized bytes'
-        $previousCbm = 'import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location(''cbm_patch'',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); p=pathlib.Path(sys.argv[2]); p.write_bytes(m.previous_patched(p.read_text()).encode())'
-        $makePreviousCbm = Invoke-NativeCapture $python @('-c', $previousCbm, $cbmPatcher, $cbmTarget)
-        Assert-Equal 0 $makePreviousCbm.ExitCode 'could not create exact previous CBM canonical'
-        $previousCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 1 $previousCheck.ExitCode 'previous CBM canonical must require migration'
-        $previousApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 0 $previousApply.ExitCode 'previous CBM canonical migration failed'
-        $groupedMigrated = Invoke-NativeCapture 'node' @($groupedTest, $cbmTarget)
-        Assert-Equal 0 $groupedMigrated.ExitCode 'migrated CBM lost grouped search symbols'
-        $normalizedRestore = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--restore') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 0 $normalizedRestore.ExitCode 'LF-normalized CBM restore should accept exact known state'
-        Assert-Equal (Get-FileHash -LiteralPath $storeFiles[1] -Algorithm SHA256).Hash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'CBM restore did not recover immutable stock'
-        [IO.File]::WriteAllText($cbmTarget, 'unknown CBM source')
-        $cbmDrift = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
-        Assert-Equal 2 $cbmDrift.ExitCode 'CBM apply did not refuse unknown source'
+        $cbmStockHash = (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash
+        $cbmCheck = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--check') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 2 $cbmCheck.ExitCode 'retired pi-cbm-011 check must refuse the natively compatible pair 2.0.0 x 0.12.1'
+        $cbmApply = Invoke-NativeCapture $python @($cbmPatcher, '--agent-dir', $cbmAgent, '--apply') @{ CODEBASE_MEMORY_MCP_BIN = $cbmExe }
+        Assert-Equal 2 $cbmApply.ExitCode 'retired pi-cbm-011 apply must refuse pi-cbm 2.0.0'
+        Assert-Equal $cbmStockHash (Get-FileHash -LiteralPath $cbmTarget -Algorithm SHA256).Hash 'retired pi-cbm-011 apply rewrote a natively compatible 2.0.0 install'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $cbmAgent '.pi-agent-build-backups\pi-cbm-011'))) 'retired pi-cbm-011 apply created a runtime backup'
 
         $sessionAgent = Join-Path $root 'session-profile'
         $sessionPkg = Join-Path $sessionAgent 'npm\node_modules\pi-session-search'
         [IO.File]::WriteAllText((New-Item -ItemType File -Path (Join-Path $sessionPkg 'package.json') -Force).FullName, '{"version":"1.6.0"}')
-        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts', 'src\utils.ts', 'src\session-index.ts', 'src\fts-index.ts', 'src\index-service.ts', 'dist\index-worker.js')) {
+        foreach ($rel in @('src\config.ts', 'src\parser.ts', 'dist\index.js', 'src\index.ts', 'src\utils.ts', 'src\session-index.ts', 'src\fts-index.ts', 'src\index-service.ts', 'src\embedder.ts', 'dist\index-worker.js')) {
             $src = Join-Path (Join-Path $RepoRoot 'patches\session-search-profile\store\1.6.0') $rel
             $dst = Join-Path $sessionPkg $rel
             New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
@@ -880,7 +883,7 @@ try {
         New-VersionExecutable -Path (Join-Path $tools.Bin 'ast-grep.exe') -Version '0.45.3'
         New-VersionExecutable -Path (Join-Path $tools.Bin 'serena.exe') -Version '1.7.0'
         $cbmExe = Join-Path $tools.Prefix 'node_modules\codebase-memory-mcp\bin\codebase-memory-mcp.exe'
-        New-VersionExecutable -Path $cbmExe -Version '0.11.0'
+        New-VersionExecutable -Path $cbmExe -Version '0.12.1'
         [IO.File]::WriteAllText((Join-Path $tools.Bin 'context7-mcp.cmd'), "@echo 3.2.2`r`n")
         $braveMeta = Join-Path $tools.Prefix 'node_modules\@brave\brave-search-mcp-server\package.json'
         New-Item -ItemType Directory -Path (Split-Path $braveMeta -Parent) -Force | Out-Null
@@ -898,7 +901,7 @@ try {
         Assert-True (-not (Test-Path -LiteralPath $fetchMarker)) 'fetch was executed even though it has no version probe'
         Assert-True (-not (Test-Path -LiteralPath $braveMarker)) 'Brave server was executed instead of reading npm metadata'
         Assert-True ($ok.Output -match 'brave-search-mcp-server.*2\.0\.85') 'Brave package version was not checked'
-        Assert-True ($ok.Output -match 'codebase-memory-mcp.*0\.11\.0') 'CBM real executable under npm root was not checked'
+        Assert-True ($ok.Output -match 'codebase-memory-mcp.*0\.12\.1') 'CBM real executable under npm root was not checked'
 
         $missingRepo = Copy-RepositoryFixture
         $externalPath = Join-Path $missingRepo 'manifests\external-tools.lock.json'
