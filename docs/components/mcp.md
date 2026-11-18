@@ -71,6 +71,8 @@ Ancestor discovery по умолчанию off, host-specific imports имеют
 
 ## Дополнительные servers и диагностика
 
+Выдача MCP-инструментов **подагентам** — отдельная ручная настройка: по умолчанию подагенты не получают ни одного инструмента, каждый разрешается явно в профиле подагента. [Как подключить и проверить](../subagent-mcp-tools.md).
+
 Локальные Brave/Fetch подключаются **отдельно**, только если нужны. Их версии/способ probes — в [external tools manifest](../../manifests/external-tools.lock.json). Binary availability не доказывает MCP handshake, auth или tools/call. Отсутствие локального Context7 CLI не является ошибкой remote readiness.
 
 MCP commands исполняются с правами пользователя; remote tools могут иметь destructive/paid side effects. `inheritEnv: true` у stdio передаёт окружение child; `false` с explicit env уменьшает наследование, но не sandbox. Output guard может сохранить большой sensitive результат в private temp file. Это не разрешение на публикацию.
