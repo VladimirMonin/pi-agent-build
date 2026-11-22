@@ -3,11 +3,19 @@ param(
     [ValidateSet('Tracked', 'Tree', 'Both')]
     [string]$Scope = 'Both',
 
-    [string]$Root = (Split-Path $PSScriptRoot -Parent)
+    [string]$Root
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+# $PSScriptRoot is not reliable in a parameter default on Windows PowerShell 5.1
+# (it can be empty, and Split-Path then fails before the script starts).
+if (-not $Root) {
+    $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Path }
+    if (-not $scriptPath) { throw 'Cannot derive the scan root: run with -Root <path>.' }
+    $Root = Split-Path -Parent $scriptPath
+}
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $script:Findings = New-Object System.Collections.Generic.List[object]
