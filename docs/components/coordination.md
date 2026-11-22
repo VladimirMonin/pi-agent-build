@@ -106,7 +106,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-background-tasks@2.6.2
 {"source":"npm:pi-background-tasks@2.6.2","extensions":[]}
 ```
 
-Причина: несовместим с system-role conversation blocks на Pi 0.87.0 (проверено на 0.87); на Pi 1.5.2 не перепроверялось. Пока filter пуст, extension не загружается.
+Причина: несовместим с system-role conversation blocks на Pi 0.87.0 (проверено на 0.87); на Pi 1.6.0 не перепроверялось. Пока filter пуст, extension не загружается.
 
 ### Конфигурация и данные
 

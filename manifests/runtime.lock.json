@@ -10,13 +10,13 @@
     "npm": "11.11.0",
     "pi": {
       "package": "@earendil-works/pi-coding-agent",
-      "version": "1.5.2"
+      "version": "1.6.0"
     }
   },
   "compatibility": {
     "minimumNode": "22.19.0",
     "enforcement": "exact",
-    "reason": "pi core 1.5.2 and pi-session-search 1.6.0 engines require Node 22.19+; the build is exercised on Node 24+ (lab pin 25.8.1)"
+    "reason": "pi core 1.6.0 and pi-session-search 1.6.1 engines require Node 22.19+; the build is exercised on Node 24+ (lab pin 25.8.1)"
   },
   "releaseTagFormat": "pi-v<pi-version>-build.<number>"
 }

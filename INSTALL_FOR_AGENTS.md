@@ -38,7 +38,7 @@ git clone https://github.com/VladimirMonin/pi-agent-build.git "<REPO_ROOT>"
 
 | Инструмент | Рабочий диапазон | Основание |
 |---|---|---|
-| Node | **≥ 22.19** | engines ядра Pi 1.5.2 и `pi-session-search` 1.6.0 (`node >=22.19.0`); проверено на Node 24+, lab-pin `25.8.1` |
+| Node | **≥ 22.19** | engines ядра Pi 1.6.0 и `pi-session-search` 1.6.1 (`node >=22.19.0`); проверено на Node 24+, lab-pin `25.8.1` |
 | npm | из комплекта Node | отдельного пина не требует |
 | Python | реальный (не Store alias) **≥ 3.8**, с `jsonschema` в **этом же** интерпретаторе | trace renderer и patch scripts (external tools lock) |
 | uv | **без жёсткого пина**, проверено на `0.9.27` | честная нижняя граница неизвестна; нужен для Serena (Code) |
