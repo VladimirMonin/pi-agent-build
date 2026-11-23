@@ -1,5 +1,8 @@
 {
   "fusion": "semantic-only",
+  "sync": {
+    "interval": 1200000
+  },
   "embedder": {
     "type": "openai-compatible",
     "baseUrl": "https://polza.ai/api",

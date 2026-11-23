@@ -117,6 +117,9 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 ```json
 {
   "fusion": "semantic-only",
+  "sync": {
+    "interval": 1200000
+  },
   "embedder": {
     "type": "openai-compatible",
     "baseUrl": "https://polza.ai/api",
@@ -135,6 +138,8 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi --list-models
 ```
 
 `modelPrefixes` обязателен: точный `model` должен иметь две string-prefixes, включая явные пустые строки; неизвестная/неполная запись даёт ошибку, не fallback. При обновлении дополните только эти поля в своём конфиге, сохранив секрет/endpoint/roots/прочие настройки. `semantic-only` не вызывает FTS и возвращает cosine; прежний `rrf` остаётся явным opt-in. [Форматы, preserving setup и Nemotron](fixes/session-search.md).
+
+`sync.interval` — период фоновой переиндексации в миллисекундах; в примере 1200000 (20 минут) вместо штатных 300000. При активной работе значение можно поднимать дальше, вплоть до `-1` с ручным `/session-sync`. Что именно уходит в embedding за один проход и почему период умножается на число процессов — [Периодический sync и стоимость эмбеддингов](fixes/session-search.md#периодический-sync-и-стоимость-эмбеддингов).
 
 Без `embeddingsEndpoint` `pi-session-search` сам добавляет `/v1/embeddings`, итоговый endpoint — `https://polza.ai/api/v1/embeddings`. `sendDimensions: true` отправляет `dimensions: 1024`. Смена **модели или размерности** требует отдельного согласованного rebuild/reindex; одинаковая длина не делает разные embedding spaces совместимыми. Обычный update/cwd display fix не является такой миграцией.
 
