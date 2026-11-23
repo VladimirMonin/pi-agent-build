@@ -1,6 +1,6 @@
 # Memory1.6: runtime, scope и automatic vector recall
 
-Exact `@samfp/pi-memory@1.6.1` поддерживается единым [patcher](../../patches/memory-windows-runtime/README.md).
+Exact `@samfp/pi-memory@1.6.1` поддерживается единым [patcher](../../patches/memory-windows-runtime/README.md). Полное устройство — встраивания, автоинъекция, консолидация и лимиты — в [memory-and-search-internals](../notes/memory-and-search-internals.md).
 
 Сохраняются четыре runtime fixes: Windows Node/настоящий CLI выбранного npm prefix, session-local ordered turns, profile settings из `PI_CODING_AGENT_DIR`, session ID из `sessionManager.getSessionId()`. Последний привязывает lessons к сессии; source facts upstream остаётся `consolidation`.
 
