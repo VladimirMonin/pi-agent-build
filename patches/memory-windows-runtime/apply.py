@@ -19,6 +19,9 @@ BACKUP = HERE / "stock-index.js"
 EXPECTED_STOCK_SHA256 = "9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f"
 PREVIOUS_161_SHA256 = "d05d1b54a59a69da08458d6a896be36fbc19286360642d1a0672169211c7d5a9"
 PREVIOUS_RAW_QUERY_SHA256 = "c4ba7cfd1a6bcbb5270092e4deb400b5ab32dc4f92840e428ce7cdcbf04d2fcd"
+# Published build.7 canonical (stock consolidation limits and prompt); kept as a
+# recognised previous state after the consolidation retune.
+PREVIOUS_TRIAL_SHA256 = "47d2510ccd5fd702604156f13bcb3141b671f8d44c93c5050c552a107ae1b240"
 # Published build source 248b6cb (last 1.5.0 canonical), not arbitrary old versions.
 PREVIOUS_150_HASHES = {
     "b8d68f90bcdf4fa40b9a573c67f8ed19853d90e889e8c9ed2cf4021f50c6ce58": "previous-stock-1.5.0",
@@ -268,8 +271,108 @@ QUERY_REPLACEMENTS = [
       const vec = await emb.embed(prefix + query);'''),
 ]
 
+CONSOLIDATION_REPLACEMENTS = [
+    (r'''1. **User preferences** (key prefix: pref.) \u2014 coding style, tool preferences, workflow habits''',
+     r'''1. **User preferences** (key prefix: pref.) \u2014 coding style and workflow habits'''),
+    (r'''2. **Project patterns** (key prefix: project.<name>.) \u2014 languages, frameworks, architecture decisions
+   Example: { "key": "project.rosie.di", "value": "Dagger dependency injection", "confidence": 0.95 }''',
+     r'''2. **Project patterns** (key prefix: project.<name>.) \u2014 non-obvious decisions and constraints of one project (not a description of its code or layout)
+   Example: { "key": "project.rosie.di", "value": "Dagger DI chosen over manual wiring because the graph is checked at compile time", "confidence": 0.95 }'''),
+    ("## What NOT to extract", '''## Where a fact belongs (reuse rule)
+- If there is at least a 30-40% chance that the knowledge will be needed in other projects too -> universal: pref.*, user.*, or tool.* (two segments).
+- If it is a narrow rule of this one project and will not be needed by work in other projects -> project.<scope>.* with the exact scope given below.
+- user.* is for stable working conditions of this user (language, permanent constraints); never names, contacts or secrets, and not project layout.
+- A description of the project's code, paths or architecture is derivable and must not be stored. A non-obvious decision may be kept as a project fact only with its reason: "chose X over Y because Z".
+- Example: "service demo listens on 8090" -> project.<scope>.svc.port if only here; tool.demo.port if neighbouring projects use it too.
 
-def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, project_writes=True, query_formatting=True) -> bytes:
+## What NOT to extract'''),
+    ("  const messages = [];\n  let memorySection = \"\";", "  let memorySection = \"\";"),
+    ("        if (chars + line.length > 1500) {", "        if (chars + line.length > 2000) {"),
+    ("        if (chars + line.length > 500) {", "        if (chars + line.length > 700) {"),
+    (P2_PAIRS_TO + "\n" + r'''  return `${CONSOLIDATION_PROMPT}
+
+${memorySection}${input.cwd ? `Working directory: ${input.cwd}
+` : ""}
+## Conversation
+
+${messages.join("\n\n")}`;''', r'''  const maxPairs = 30;
+  const CONVO_BUDGET = 25000;
+  // Build each pair from the ordered stream: a user message plus the nearest
+  // subsequent textual assistant reply before the next user message.
+  const turns = input.turns;
+  const pairGroups = [];
+  if (Array.isArray(turns) && turns.length) {
+    const userIdx = [];
+    for (let i = 0; i < turns.length; i++) {
+      if (turns[i].role === "user" && turns[i].text) userIdx.push(i);
+    }
+    // Pairs are collected newest-first so the newest conversation always
+    // survives the budget: a pair that does not fit drops itself and every
+    // older pair with it. The newest pair always fits because 5000 + 1200
+    // is well below CONVO_BUDGET.
+    let budget = CONVO_BUDGET;
+    for (let k = userIdx.length - 1; k >= 0 && pairGroups.length < maxPairs; k--) {
+      const u = userIdx[k];
+      const group = [`User: ${truncate2(turns[u].text, 5e3)}`];
+      for (let j = u + 1; j < turns.length; j++) {
+        if (turns[j].role === "user") break;
+        if (turns[j].role === "assistant" && turns[j].text) {
+          group.push(`Assistant: ${truncate2(turns[j].text, 1200)}`);
+          break;
+        }
+      }
+      const size = group.reduce((n, line) => n + line.length, 0);
+      if (size > budget) break;
+      budget -= size;
+      pairGroups.unshift(group);
+    }
+  } else {
+    // Compatibility for external callers that do not provide ordered turns: the
+    // same newest-first budget applies to index-aligned pairs.
+    const len = Math.min(input.userMessages.length, maxPairs);
+    let budget = CONVO_BUDGET;
+    for (let i = input.userMessages.length - 1; i >= 0 && pairGroups.length < len; i--) {
+      const group = [];
+      const userMsg = input.userMessages[i];
+      if (userMsg) group.push(`User: ${truncate2(userMsg, 5e3)}`);
+      const assistantMsg = input.assistantMessages[i];
+      if (assistantMsg) group.push(`Assistant: ${truncate2(assistantMsg, 1200)}`);
+      const size = group.reduce((n, line) => n + line.length, 0);
+      if (size > budget) break;
+      budget -= size;
+      if (group.length) pairGroups.unshift(group);
+    }
+  }
+  const compose = () => {
+    const messages = pairGroups.flat();
+    return `${CONSOLIDATION_PROMPT}
+
+${memorySection}${input.cwd ? `Working directory: ${input.cwd}
+` : ""}
+## Conversation
+
+${messages.join("\n\n")}`;
+  };
+  // Safety net only: with CONVO_BUDGET in place this never fires. It exists so
+  // an unexpectedly long prompt cannot reach the consolidation model.
+  const MAX_PROMPT_CHARS = 31500;
+  let prompt = compose();
+  let droppedPairs = 0;
+  while (prompt.length > MAX_PROMPT_CHARS && pairGroups.length > 0) {
+    pairGroups.shift();
+    droppedPairs++;
+    prompt = compose();
+  }
+  if (droppedPairs > 0) {
+    console.error(`pi-memory: consolidation prompt trimmed to ${prompt.length} chars (dropped ${droppedPairs} pairs)`);
+  }
+  return prompt;'''),
+    ("    const EXEC_TIMEOUT_MS = 45e3;\n    const HARD_TIMEOUT_MS = 6e4;",
+     "    const EXEC_TIMEOUT_MS = 90e3;\n    const HARD_TIMEOUT_MS = 12e4;"),
+]
+
+
+def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, injector=True, project_writes=True, query_formatting=True, consolidation=True) -> bytes:
     text = stock.decode("utf-8")
     for old, new in replacements:
         count = text.count(old)
@@ -277,6 +380,13 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
             anchor = old.strip().splitlines()[0][:70]
             raise RuntimeError(f"stock anchor count {count}, expected 1: {anchor}")
         text = text.replace(old, new, 1)
+    if replacements is CANONICAL_REPLACEMENTS and consolidation:
+        for old, new in CONSOLIDATION_REPLACEMENTS:
+            count = text.count(old)
+            if count != 1:
+                anchor = old.strip().splitlines()[0][:70]
+                raise RuntimeError(f"consolidation anchor count {count}, expected 1: {anchor}")
+            text = text.replace(old, new, 1)
     if replacements is CANONICAL_REPLACEMENTS and injector:
         text = apply_injection(text, project_writes=project_writes)
     if replacements is CANONICAL_REPLACEMENTS:
@@ -291,15 +401,15 @@ def build_canonical(stock: bytes, replacements=CANONICAL_REPLACEMENTS, *, inject
                 raise RuntimeError("query formatting anchor mismatch")
             text = text.replace(old, new, 1)
     result = text.encode("utf-8")
-    if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text):
+    if replacements is CANONICAL_REPLACEMENTS and injector and not is_runtime_safe(text, consolidation=consolidation):
         raise RuntimeError("internal error: generated patch is not runtime-safe")
     return result
 
-def is_runtime_safe(text: str) -> bool:
+def is_runtime_safe(text: str, *, consolidation: bool = True) -> bool:
     index_pos = text.find("function index_default(pi) {")
     helper_pos = text.find("  function pushTurn(role, text) {", index_pos)
     first_handler = text.find('  pi.on("session_start"', index_pos)
-    return (
+    base = (
         WIN_MARKER in text
         and FIXED_SCOPE_MARKER in text
         and PROFILE_SETTINGS_MARKER in text
@@ -317,6 +427,17 @@ def is_runtime_safe(text: str) -> bool:
         and text.count("pendingTurns = [];") >= 3
         and LEGACY_GLOBAL not in text
         and is_injection_safe(text)
+    )
+    if not consolidation:
+        return base
+    return (
+        base
+        and "## Where a fact belongs (reuse rule)" in text
+        and "const CONVO_BUDGET = 25000;" in text
+        and "const MAX_PROMPT_CHARS = 31500;" in text
+        and "truncate2(turns[u].text, 5e3)" in text
+        and "EXEC_TIMEOUT_MS = 90e3;" in text
+        and "HARD_TIMEOUT_MS = 12e4;" in text
     )
 
 def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) -> pathlib.Path:
@@ -338,8 +459,9 @@ def runtime_backup(agent_dir: pathlib.Path, target: pathlib.Path, label: str) ->
 def classify(target, stock, canonical):
     if target == stock: return "stock-pristine"
     if target == canonical: return "runtime-safe"
-    if digest(target) in {PREVIOUS_161_SHA256, PREVIOUS_RAW_QUERY_SHA256}: return "previous-patched-1.6.1"
-    return "noncanonical-drift" if is_runtime_safe(target.decode("utf-8")) else "unknown"
+    if digest(target) in {PREVIOUS_161_SHA256, PREVIOUS_RAW_QUERY_SHA256, PREVIOUS_TRIAL_SHA256}: return "previous-patched-1.6.1"
+    text = target.decode("utf-8")
+    return "noncanonical-drift" if (is_runtime_safe(text) or is_runtime_safe(text, consolidation=False)) else "unknown"
 
 
 def installed_state(version, current, stock, canonical):

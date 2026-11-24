@@ -20,10 +20,14 @@ args,rest=parser.parse_known_args()
 
 class KnownStates(unittest.TestCase):
  def test_exact_transitions_and_backups(self):
-  stock=m.BACKUP.read_bytes();current=m.build_canonical(stock);previous=m.build_canonical(stock,project_writes=False,query_formatting=False)
+  stock=m.BACKUP.read_bytes();current=m.build_canonical(stock);previous=m.build_canonical(stock,project_writes=False,query_formatting=False,consolidation=False)
+  self.assertEqual(m.digest(current),"bde066ee371cbe147abb1642cdeeb9f4c730a5b3d3074be9c0a77a5bfe9d40a3")
   self.assertEqual(m.digest(previous),m.PREVIOUS_161_SHA256)
-  raw_query=m.build_canonical(stock,query_formatting=False)
+  raw_query=m.build_canonical(stock,query_formatting=False,consolidation=False)
   self.assertEqual(m.digest(raw_query),m.PREVIOUS_RAW_QUERY_SHA256)
+  # The build.7 canonical (PREVIOUS_TRIAL_SHA256) must stay reproducible without
+  # the consolidation stage, or the constant silently orphans on replacement drift.
+  self.assertEqual(m.digest(m.build_canonical(stock,consolidation=False)),m.PREVIOUS_TRIAL_SHA256)
   sources=[('1.6.1',stock,'stock-pristine'),('1.6.1',previous,'previous-patched-1.6.1'),('1.6.1',raw_query,'previous-patched-1.6.1'),('1.6.1',current,'runtime-safe')]
   if args.previous_150:
    for filename in ['stock-index.js','canonical.js']:

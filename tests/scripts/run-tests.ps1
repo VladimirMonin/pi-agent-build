@@ -745,6 +745,8 @@ try {
         Assert-Equal 0 $settingsRegression.ExitCode "Task-only memory settings regression failed: $($settingsRegression.Output)"
         $injectionRegression = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'patches\memory-windows-runtime\tests\test-memory-injection.mjs'), $dist)
         Assert-Equal 0 $injectionRegression.ExitCode "scoped memory injection regression failed: $($injectionRegression.Output)"
+        $consolidationRegression = Invoke-NativeCapture 'node' @((Join-Path $RepoRoot 'patches\memory-windows-runtime\tests\test-memory-consolidation.mjs'), $dist)
+        Assert-Equal 0 $consolidationRegression.ExitCode "consolidation budgets regression failed: $($consolidationRegression.Output)"
 
         $again = Invoke-NativeCapture 'python' @($patcher, '--agent-dir', $agent)
         Assert-Equal 0 $again.ExitCode 'memory idempotent apply failed'

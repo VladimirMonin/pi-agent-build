@@ -9,4 +9,4 @@
 
 `apply.py` and `injection.py` are project-authored MIT code; FROM anchors quote upstream MIT source. Generated patched `dist/index.js` remains a modified upstream derivative. README/tests are project-authored MIT material. Generated `__pycache__` is not source and must not be distributed. Local licensing does not replace upstream MIT notice/terms.
 
-Local query-only formatting changes the search input and its settings parser, not the upstream document embedder or license. The 1.6.1 tarball license text matches the retained license after checkout line-ending normalization.
+Local query-only formatting changes the search input and its settings parser; local consolidation changes adjust the extraction prompt text, conversation/memory budgets, the prompt guard and the timeouts. Neither touches the upstream document embedder or license. The 1.6.1 tarball license text matches the retained license after checkout line-ending normalization.

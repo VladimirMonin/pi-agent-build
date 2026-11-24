@@ -6,7 +6,8 @@
 
 - Windows: child запускается текущим Node через настоящий Pi `cli.js` выбранного `PI_AGENT_BUILD_NPM_PREFIX`, не через `.cmd` shim.
 - Session-local `pendingTurns`/`pushTurn`: консолидация сопоставляет реальные User/Assistant turns; helper остаётся в lexical scope pending arrays.
-- Settings выбранного `PI_CODING_AGENT_DIR`, включая upstream `embedding` и `injectionMode`; DeepSeek-консолидация не меняется.
+- Консолидация: пары режутся по бюджету **25 000** знаков (новейшая пара сохраняется всегда, далее по давности; не влезшая и все более старые отбрасываются), реплики обрезаются до **5000/1200** знаков, память в промпте — до **2000/700** знаков; итоговый промпт ограничен **31 500** знаками (guard отбрасывает старые пары и пишет в stderr), таймауты **90/120 с**. Промпт дополнен правилом `Where a fact belongs (reuse rule)` и уточнёнными категориями.
+- Settings выбранного `PI_CODING_AGENT_DIR`, включая upstream `embedding` и `injectionMode`; модель DeepSeek-консолидации не меняется.
 - Session ID из `ctx.sessionManager.getSessionId()`; source сессии получают lessons (facts upstream сохраняет как `consolidation`).
 - Facts/lessons scope, приватные `memory.factProjectAliases`, section quotas и бюджет 8000 символов из целых записей.
 - Один `projectFactScope()` определяет automatic recall, `memory_remember`, применение consolidation и допустимый префикс в consolidation prompt. `project.<current-scope>.<fact>` проверяется точно; дефис и подчёркивание не становятся alias автоматически. Чужая область отвергается с ожидаемым префиксом. Глобальные `pref.*`, `user.*`, `tool.*` сохраняют глобальность.
@@ -28,7 +29,7 @@ python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --ins
 python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --prepare-replace
 ```
 
-Принимаются ровно шесть version/hash состояний:
+Принимаются ровно семь version/hash состояний:
 
 | Package/state | SHA-256 `dist/index.js` |
 |---|---|
@@ -37,7 +38,8 @@ python patches/memory-windows-runtime/apply.py --agent-dir "<PROFILE_DIR>" --pre
 | 1.6.1 stock | `9517f79582b2ff71e510289c0e6d912744b3dc8a867aaa52758df371bd41891f` |
 | 1.6.1 previous canonical | `d05d1b54a59a69da08458d6a896be36fbc19286360642d1a0672169211c7d5a9` |
 | 1.6.1 previous canonical, raw queries | `c4ba7cfd1a6bcbb5270092e4deb400b5ab32dc4f92840e428ce7cdcbf04d2fcd` |
-| 1.6.1 current canonical | `47d2510ccd5fd702604156f13bcb3141b671f8d44c93c5050c552a107ae1b240` |
+| 1.6.1 previous canonical (build.7: лимиты консолидации до перенастройки) | `47d2510ccd5fd702604156f13bcb3141b671f8d44c93c5050c552a107ae1b240` (78846 байт) |
+| 1.6.1 current canonical | `bde066ee371cbe147abb1642cdeeb9f4c730a5b3d3074be9c0a77a5bfe9d40a3` (81256 байт) |
 
 `--inspect-installed` не пишет; `--prepare-replace` сохраняет проверенный bundle, package metadata и receipt с version/hash в `<PROFILE_DIR>/.pi-agent-build-backups/memory-windows-runtime/`, не патчит старую версию. Для 1.5.0 затем требуется штатный package replacement на 1.6.1 и target apply. Unknown version/hash отказывает **exit 2** без перезаписи.
 
@@ -67,7 +69,7 @@ Query-format regression: `python -B patches/memory-windows-runtime/tests/test_qu
 
 Query-only ремонт требует fresh, known previous, current no-op и unknown refusal вместе с behavioral проверкой реального поискового caller; неизменённые scope/lifecycle checks сохраняются в своей области. При изменении scope/консолидации нужны точный ключ, дефис/подчёркивание, чужой проект, явный alias и глобальные факты. Новая консолидация в таком ремонте проверяется уникальным synthetic фактом без `memory_remember`: новая запись/source/scope, recall своего и исключение чужого проекта. Старые факты этот case не закрывают. Query-only срез не объявляется новым live consolidation PASS.
 
-Structural: `test-memory-{pushturn,pairing,embedder,sessionid,injection,settings-path}.mjs <patched-dist>`; lifecycle/drift: `python patches/session-search-profile/tests/test_runtime.py` и Windows script regressions.
+Structural: `test-memory-{pushturn,pairing,embedder,sessionid,injection,settings-path,consolidation}.mjs <patched-dist>`; lifecycle/drift: `python patches/session-search-profile/tests/test_runtime.py` и Windows script regressions. Бюджеты консолидации проверяет `test-memory-consolidation.mjs <patched-dist>`: пары и бюджет 25 000 (40 × 5000/1200), обрезка реплик, блоки памяти 2000/700, guard 31 500 с записью в stderr, текст промпта и структура констант; PASS на current canonical и на живом dist.
 
 В прежней приёмке Pi 1.4.0 на Windows `tests/sdk/memory-project-scope.mjs` подтвердил новый факт через обычный shutdown consolidation hook, source=`consolidation`, точный scope, recall своего/alias и исключение чужого проекта на **искусственной SQLite + synthetic HTTP**. Это не live paid proof. Пять известных на тот момент states и marker-preserving unknown refusal были проверены native CLI. Restore возвращает target stock 1.6.1; старый backup 1.5.0 можно возвращать только после восстановления соответствующей версии package по receipt. Atomic install не обещается.
 
