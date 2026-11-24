@@ -1,6 +1,8 @@
 # Подагенты и координация
 
-## `pi-subagents` 0.79.1
+## `pi-subagents` 0.88.0
+
+Подробный разбор запуска (foreground/background), контекста (fresh/fork), всех ролей, allowlist инструментов, двух фильтров «плагин vs инструмент» и MCP — [subagents-internals](../notes/subagents-internals.md).
 
 В выпуске [pi-1.3.0-build.1](../releases/pi-1.3.0-build.1.md) закреплены Subagents **0.79.1** и Intercom **0.17.1** вместе; Goal X остаётся **0.32.3**. Этот выпуск не переключает рабочий [pi-1.0.4-build.6](../releases/pi-1.0.4-build.6.md); его прежнее evidence не выдаётся за проверки нового состава. Сохраняется порядок **Subagents → Goal X → Intercom**.
 
@@ -15,12 +17,14 @@
 ### Установка
 
 ```bash
-PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.79.1
+PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.88.0
 ```
 
 ### Конфигурация и данные
 
 Опциональный config — `<PROFILE_DIR>/extensions/subagent/config.json`; settings-level `subagents.*` живут в Pi settings. Package, project и user agent definitions могут расширять builtins. Async runs, transcripts, missions и artifacts содержат приватный context; точные пути показывает installed `/subagents-guide observability`.
+
+Где хранятся файлы сабов (сессии fresh/fork, артефакты, async-каталог) и сколько они живут (retention) — раздел «Как хранятся файлы сабов» в [subagents-internals](../notes/subagents-internals.md).
 
 ### Команды, tools и skills
 
@@ -31,7 +35,7 @@ PI_CODING_AGENT_DIR="<PROFILE_DIR>" pi install npm:pi-subagents@0.79.1
 
 ### Риски
 
-Каждый child может расходовать model quota и видеть forked/frozen context и унаследованные skills. Fork не является информационной изоляцией. Активные runs старой версии не переносятся на ходу; новая resume-схема не обещается для детей, созданных старой версией. Background processes переживают parent control flow; проверяйте status и terminal result. Tool allowlist не является OS sandbox. Не доверяйте child summary без artifacts/tests; bounded spawn limits не отменяют стоимость.
+Каждый child может расходовать model quota и видеть forked/frozen context (при `fork`). Навыки у встроенных ролей **не наследуются** (`inheritSkills: false`); `AGENTS.md` проекта виден (`inheritProjectContext: true`), глобальный контекст — нет. Fork не является информационной изоляцией. Инструменты расширений видны только если прописаны в `tools:` роли (строгий allowlist, код расширения не грузит) — см. [subagents-internals](../notes/subagents-internals.md). Активные runs старой версии не переносятся на ходу; новая resume-схема не обещается для детей, созданных старой версией. Background processes переживают parent control flow; проверяйте status и terminal result. Tool allowlist не является OS sandbox. Не доверяйте child summary без artifacts/tests; bounded spawn limits не отменяют стоимость.
 
 ### Проверка
 
