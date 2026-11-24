@@ -104,6 +104,20 @@ Resume/revive форка **не обогащает** его новым конт�
 
 Псевдонимы: `worker` = developer/coder/implementer/develop; `oracle` = advisor. `systemPromptMode: replace` — промпт роли **заменяет** системный целиком; `append` (у `delegate`) — дополняет. У `delegate` не заданы ни `model:`, ни `thinking:` — модель наследуется от родителя. Навыки (`inheritSkills: false` у всех встроенных) **не наследуются**; `AGENTS.md` проекта виден (`inheritProjectContext: true`); глобальный контекст по умолчанию — нет. `defaultContext` задают только `worker` (`fresh`) и `oracle` (`fork`); у остальных выбор — на вызове, запасной `fresh`.
 
+### Модель и провайдер саба (могут отличаться от родителя)
+
+Саб работает на **своей** модели — не обязан сидеть на модели родителя. Отличаться может и **провайдер**, и **модель**: строка задаётся как `провайдер/модель`. Это позволяет гнать, например, писателя на одной модели, а проверяющего — на другой, или держать саба на провайдере/модели, отличной от рабочей модели родителя.
+
+Приоритет выбора (поле `modelOrigin`):
+
+1. **`model` при вызове** — `subagent({ model: "провайдер/модель" })`, origin `explicit` (главный);
+2. **`model:` во frontmatter роли** (`agents/<имя>.md`), origin `configured`;
+3. **модель родителя** — origin `inherited`, если ни 1, ни 2 не заданы.
+
+Если указана только модель без провайдера — провайдер добирается из `modelProvider` роли / предпочитаемого провайдера. Для встроенной роли модель переопределяется через `subagents.agentOverrides.<роль>.model`. Источник: `resolveModelSelection(options.modelOverride ?? agent.model, …)` и `resolveRequiredSubagentModelCandidate` — `src/runs/shared/model-resolution.js` (origin `explicit`/`configured`/`inherited`).
+
+У `external-cli`-ролей (claude-code/codex/cursor) переопределение модели ограничено их адаптером — см. [Внешние CLI-роли](#внешние-cli-роли).
+
 ### Внешние CLI-роли
 
 `runner.type: external-cli` — задача уходит во внешний CLI (stdin), а не в нативного саба. Все помечены `async: true` (фоновый запуск), `inheritSkills: false`, `inheritProjectContext: true`.
