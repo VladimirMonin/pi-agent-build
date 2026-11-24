@@ -95,14 +95,14 @@ Resume/revive форка **не обогащает** его новым конт�
 | Роль | `tools:` (allowlist) | `acceptanceRole` | `thinking` | `systemPromptMode` | `defaultContext` | Навыки (`inheritSkills`) | `AGENTS.md` (`inheritProjectContext`) |
 |---|---|---|---|---|---|---|---|
 | `worker` | read, grep, find, ls, bash, edit, write, contact_supervisor | writer | high | replace | `fresh` | false | true |
-| `delegate` | read, grep, find, ls, bash, edit, write, contact_supervisor | — | наследует модель родителя | append | (наследуется) | false | true |
+| `delegate` | read, grep, find, ls, bash, edit, write, contact_supervisor | — | не задан | append | (наследуется) | false | true |
 | `reviewer` | read, grep, find, ls, watchdog_diff, contact_supervisor | read-only | high | replace | (наследуется) | false | true |
 | `scout` | read, grep, find, ls, bash, write, contact_supervisor | — | low | replace | (наследуется) | false | true |
 | `oracle` | read, grep, find, ls, bash | read-only | high | replace | `fork` | false | true |
 | `researcher` | read, write, web_search, fetch_content, get_search_content, source_check | — | medium | replace | (наследуется) | false | true |
 | `evidence-auditor` | read, web_search, fetch_content, get_search_content, source_check | read-only | high | replace | (наследуется) | false | true |
 
-Псевдонимы: `worker` = developer/coder/implementer/develop; `oracle` = advisor. `systemPromptMode: replace` — промпт роли **заменяет** системный целиком; `append` (у `delegate`) — дополняет. Навыки (`inheritSkills: false` у всех встроенных) **не наследуются**; `AGENTS.md` проекта виден (`inheritProjectContext: true`); глобальный контекст по умолчанию — нет. `defaultContext` задают только `worker` (`fresh`) и `oracle` (`fork`); у остальных выбор — на вызове, запасной `fresh`.
+Псевдонимы: `worker` = developer/coder/implementer/develop; `oracle` = advisor. `systemPromptMode: replace` — промпт роли **заменяет** системный целиком; `append` (у `delegate`) — дополняет. У `delegate` не заданы ни `model:`, ни `thinking:` — модель наследуется от родителя. Навыки (`inheritSkills: false` у всех встроенных) **не наследуются**; `AGENTS.md` проекта виден (`inheritProjectContext: true`); глобальный контекст по умолчанию — нет. `defaultContext` задают только `worker` (`fresh`) и `oracle` (`fork`); у остальных выбор — на вызове, запасной `fresh`.
 
 ### Внешние CLI-роли
 
